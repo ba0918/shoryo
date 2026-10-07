@@ -20,6 +20,11 @@ pub enum ServerError {
         topic: String,
         pid: u32,
     },
+    /// The lock exists but names no process, so it cannot be told stale.
+    UnreadableLock {
+        topic: String,
+        path: PathBuf,
+    },
     CorruptState {
         path: PathBuf,
         reason: String,
@@ -55,6 +60,12 @@ impl fmt::Display for ServerError {
             Self::AlreadyRunning { topic, pid } => write!(
                 f,
                 "topic {topic} is already running (process {pid}); use that server"
+            ),
+            Self::UnreadableLock { topic, path } => write!(
+                f,
+                "topic {topic} has a lock that names no process ({}); if no server runs for \
+                 it, remove that file",
+                path.display()
             ),
             Self::CorruptState { path, reason } => {
                 write!(f, "{} cannot be read: {reason}", path.display())

@@ -69,35 +69,92 @@ pub struct Lock {
 }
 
 impl Lock {
-    /// Takes the topic's lock. A lock left by a process that no longer exists is replaced.
+    /// Takes the topic's lock. The lock appears under its name already holding the PID, so
+    /// another start never sees it without its holder. A lock left by a process that no longer
+    /// exists is replaced.
     pub fn take(location: &TopicLocation) -> Result<Self, ServerError> {
         fs::create_dir_all(&location.dir).map_err(|error| ServerError::io(&location.dir, error))?;
         let path = location.lock_file();
-        for _ in 0..2 {
-            match OpenOptions::new().write(true).create_new(true).open(&path) {
-                Ok(mut file) => {
-                    write!(file, "{}", std::process::id())
-                        .map_err(|error| ServerError::io(&path, error))?;
-                    return Ok(Self { path });
-                }
+        let own = std::process::id();
+        for _ in 0..4 {
+            let seen = match link_new(&location.dir, &path, own) {
+                Ok(()) => return Ok(Self { path }),
                 Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-                    let holder = fs::read_to_string(&path).unwrap_or_default();
-                    let pid = holder.trim().parse::<u32>().ok();
-                    if let Some(pid) = pid.filter(|pid| process_exists(*pid)) {
-                        return Err(ServerError::AlreadyRunning {
-                            topic: location.name.to_string(),
-                            pid,
-                        });
+                    match fs::read_to_string(&path) {
+                        Ok(seen) => seen,
+                        Err(error) if error.kind() == ErrorKind::NotFound => continue,
+                        Err(error) => return Err(ServerError::io(&path, error)),
                     }
-                    fs::remove_file(&path).map_err(|error| ServerError::io(&path, error))?;
                 }
                 Err(error) => return Err(ServerError::io(&path, error)),
+            };
+            let Ok(pid) = seen.trim().parse::<u32>() else {
+                return Err(ServerError::UnreadableLock {
+                    topic: location.name.to_string(),
+                    path,
+                });
+            };
+            if process_exists(pid) {
+                return Err(already_running(location, pid));
             }
+            replace_stale(location, &path, &seen, own)?;
         }
         Err(ServerError::io(
             &path,
             std::io::Error::other("the lock was taken again while replacing a stale one"),
         ))
+    }
+}
+
+/// Writes `pid` to a temporary file and links it to the lock's name, which fails when the
+/// lock exists.
+fn link_new(dir: &Path, lock: &Path, pid: u32) -> std::io::Result<()> {
+    let temporary = dir.join(format!("lock.{pid}.tmp"));
+    let linked =
+        fs::write(&temporary, pid.to_string()).and_then(|()| fs::hard_link(&temporary, lock));
+    let _ = fs::remove_file(&temporary);
+    linked
+}
+
+/// Moves the stale lock aside and removes it, but only when what was moved is still the lock
+/// that was judged stale; a fresh lock another start linked in the meantime is put back.
+fn replace_stale(
+    location: &TopicLocation,
+    lock: &Path,
+    seen: &str,
+    own: u32,
+) -> Result<(), ServerError> {
+    let aside = location.dir.join(format!("lock.stale.{own}"));
+    match fs::rename(lock, &aside) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(ServerError::io(lock, error)),
+    }
+    let moved = fs::read_to_string(&aside).map_err(|error| ServerError::io(&aside, error));
+    let result = match moved {
+        Ok(moved) if moved == seen => Ok(()),
+        Ok(moved) => {
+            let restored =
+                fs::hard_link(&aside, lock).map_err(|error| ServerError::io(lock, error));
+            match (restored, moved.trim().parse::<u32>()) {
+                (Ok(()), Ok(pid)) => Err(already_running(location, pid)),
+                (Ok(()), Err(_)) => Err(ServerError::UnreadableLock {
+                    topic: location.name.to_string(),
+                    path: lock.to_path_buf(),
+                }),
+                (Err(error), _) => Err(error),
+            }
+        }
+        Err(error) => Err(error),
+    };
+    let _ = fs::remove_file(&aside);
+    result
+}
+
+fn already_running(location: &TopicLocation, pid: u32) -> ServerError {
+    ServerError::AlreadyRunning {
+        topic: location.name.to_string(),
+        pid,
     }
 }
 
