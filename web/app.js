@@ -36,6 +36,8 @@ const ui = {
   config: null,
 };
 let view = null;
+/// Where the focus was when the open dialog opened, so closing it can return there.
+let dialogOpener = null;
 
 const emit = (event) => handle(event);
 
@@ -100,7 +102,36 @@ function render() {
   decisions.update(decisionsTabData(shown));
   error.hidden = !ui.error;
   error.textContent = ui.error ? (ui.error.text ?? t(ui.error.key, ui.error.vars)) : "";
-  dialogs.update(dialogData(shown));
+  const dialog = dialogData(shown);
+  dialogs.update(dialog);
+  holdFocusInDialog(dialog !== null);
+}
+
+/// While a dialog is open, the rest of the page cannot be reached and the focus starts on the
+/// dialog's first control; closing it returns the focus to what opened it.
+function holdFocusInDialog(open) {
+  const wasOpen = dialogOpener !== null;
+  for (const part of document.body.children) part.inert = open && part !== dialogs.el;
+  if (open && !wasOpen) {
+    dialogOpener = focusKey(document.activeElement);
+    dialogs.el.querySelector("button, [href], input, select, textarea, [tabindex]")?.focus();
+  } else if (!open && wasOpen) {
+    const opener = dialogOpener;
+    dialogOpener = null;
+    if (opener.element.isConnected) opener.element.focus();
+    else if (opener.selector) document.querySelector(opener.selector)?.focus();
+  }
+}
+
+/// An element and a way to find its redrawn replacement.
+function focusKey(element) {
+  const { focus, action } = element?.dataset ?? {};
+  const selector = focus
+    ? `[data-focus="${CSS.escape(focus)}"]`
+    : action
+      ? `[data-action="${CSS.escape(action)}"]`
+      : null;
+  return { element: element ?? document.body, selector };
 }
 
 function dialogData(shown) {

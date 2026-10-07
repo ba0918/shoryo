@@ -29,7 +29,7 @@ export class DialogLayer extends Component {
       { class: "dialog-layer", onclick: (event) => event.target === event.currentTarget && close() },
       h(
         "div",
-        { class: "dialog", role: "dialog", "aria-label": label, ...attrs },
+        { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": label, ...attrs },
         h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
         h("div", { class: "dialog-body" }, body),
       ),
