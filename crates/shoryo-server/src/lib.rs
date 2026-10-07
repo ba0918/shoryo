@@ -109,6 +109,7 @@ pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result
         let endpoint = EndpointFile::write(
             &options.location,
             &Endpoint {
+                host,
                 port,
                 secret: secret.clone(),
                 url: url.clone(),

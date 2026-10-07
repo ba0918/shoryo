@@ -3,6 +3,7 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Write};
+use std::net::{IpAddr, SocketAddr};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
@@ -114,6 +115,9 @@ fn process_exists(pid: u32) -> bool {
 /// How a command reaches the running server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Endpoint {
+    /// The address the commands connect to: the bound address, or loopback when the server
+    /// listens on every address.
+    pub host: IpAddr,
     pub port: u16,
     pub secret: String,
     /// The page's URL, as printed at start-up.
@@ -121,9 +125,13 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    /// The base of the agent API on the loopback address.
+    /// The base of the agent API.
     pub fn api_base(&self) -> String {
-        format!("http://127.0.0.1:{}/s/{}/api/", self.port, self.secret)
+        format!(
+            "http://{}/s/{}/api/",
+            SocketAddr::new(self.host, self.port),
+            self.secret
+        )
     }
 }
 
@@ -143,8 +151,8 @@ impl EndpointFile {
             .mode(0o600)
             .open(&path)
             .map_err(|error| ServerError::io(&path, error))?;
-        let json =
-            serde_json::to_string(endpoint).expect("the endpoint holds only a number and strings");
+        let json = serde_json::to_string(endpoint)
+            .expect("the endpoint holds only an address, a number and strings");
         file.write_all(json.as_bytes())
             .map_err(|error| ServerError::io(&path, error))?;
         Ok(Self { path })

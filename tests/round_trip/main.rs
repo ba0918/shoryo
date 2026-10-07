@@ -115,6 +115,21 @@ fn bind_elsewhere_prints_plain_http_warning() {
 }
 
 #[test]
+fn commands_reach_a_server_bound_elsewhere() {
+    let env = Env::new();
+    let mut server = env.start("store", &["--bind", "127.0.0.2"]);
+
+    let round = env.run(&["round", "store"], &first_round());
+    let wait = env.run(&["wait", "store", "--timeout", "1"], "");
+    let stop = env.run(&["stop", "store"], "");
+
+    assert!(round.status.success(), "{}", text(&round));
+    assert!(wait.status.success(), "{}", text(&wait));
+    assert!(stop.status.success(), "{}", text(&stop));
+    wait_until(|| !server.is_running());
+}
+
+#[test]
 fn port_flag_fixes_the_port() {
     let env = Env::new();
     let port = std::net::TcpListener::bind("127.0.0.1:0")
