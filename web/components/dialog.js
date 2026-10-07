@@ -28,8 +28,8 @@ export class DialogLayer extends Component {
       h(
         "div",
         { class: "dialog", role: "dialog", "aria-label": label, ...attrs },
-        h("button", { type: "button", class: "close", "data-action": "close", onclick: close }, "Close"),
-        body,
+        h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, "Close"),
+        h("div", { class: "dialog-body" }, body),
       ),
     );
   }

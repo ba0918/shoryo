@@ -9,7 +9,7 @@ class RoundChoices extends Component {
   draw(data) {
     return h(
       "ul",
-      { class: "round-choices" },
+      { class: "round-choices seg-group" },
       data.choices.map((choice) =>
         h(
           "li",
@@ -18,12 +18,13 @@ class RoundChoices extends Component {
             "button",
             {
               type: "button",
+              class: `seg${choice.number === data.selected ? " on" : ""}`,
               "data-action": "choose-round",
               "aria-pressed": String(choice.number === data.selected),
               onclick: () => this.emit({ type: "choose-round", round: choice.number }),
             },
-            `Round ${choice.number}: `,
-            h("span", {}, choice.subject),
+            h("span", { class: "round-number" }, `Round ${choice.number}`),
+            h("span", { class: "round-subject" }, choice.subject),
           ),
         ),
       ),
@@ -35,14 +36,14 @@ export class PastRounds {
   constructor(emit) {
     this.empty = h("p", { class: "empty" }, "No round has been sent yet.");
     this.choices = new RoundChoices(emit);
-    this.title = h("h2");
+    this.title = h("h2", { class: "round-title" });
     this.fixes = new Fixes(emit);
     this.cardBox = h("div", { class: "cards" });
     this.rowBox = h("div", { class: "provisional-rows" });
     this.list = h(
       "section",
       { class: "provisional-list", "data-provisional-list": true },
-      h("h3", {}, "Provisional answers"),
+      h("header", { class: "list-head" }, h("h3", {}, "Provisional answers")),
       this.rowBox,
     );
     this.cards = new KeyedList(this.cardBox, () => new Card(emit, { past: true }));
@@ -58,7 +59,7 @@ export class PastRounds {
     this.section.hidden = round === null;
     if (round) {
       this.section.dataset.pastRound = String(round.number);
-      this.title.replaceChildren(`Round ${round.number}: `, h("span", {}, round.subject));
+      this.title.replaceChildren(h("span", { class: "round-number" }, `Round ${round.number}`), h("span", {}, round.subject));
     } else {
       delete this.section.dataset.pastRound;
     }

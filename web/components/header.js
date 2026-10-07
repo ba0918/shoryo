@@ -19,6 +19,7 @@ export class Header extends Component {
         "button",
         {
           type: "button",
+          class: "btn",
           "data-action": "finished-picture",
           onclick: () => this.emit({ type: "show-finished-picture" }),
         },

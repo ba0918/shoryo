@@ -50,14 +50,14 @@ const dialogs = new DialogLayer(emit, {
     label: "Finished picture",
     attrs: { "data-finished-picture": true },
     body: [
-      h("h3", {}, "Finished picture"),
+      h("h2", { class: "dialog-title" }, "Finished picture"),
       picture ? h("div", { class: "diagram-box" }, renderDiagram(picture)) : h("p", { class: "empty" }, "No finished picture yet."),
     ],
   }),
 });
 const back = h(
   "button",
-  { type: "button", class: "back", "data-action": "back", hidden: true, onclick: () => emit({ type: "back" }) },
+  { type: "button", class: "btn quiet small back", "data-action": "back", hidden: true, onclick: () => emit({ type: "back" }) },
   "Back",
 );
 const error = h("p", { class: "error", role: "alert", hidden: true });
@@ -69,7 +69,8 @@ panels.past.appendChild(past.el);
 panels.decisions.appendChild(decisions.el);
 panels.map.appendChild(map.el);
 
-document.body.append(header.el, ended, tabs.el, back, error, ...Object.values(panels), dialogs.el);
+const page = h("main", { class: "page" }, ended, h("div", { class: "nav-row" }, tabs.el, back), error, ...Object.values(panels));
+document.body.append(header.el, page, dialogs.el);
 
 function render() {
   if (!view) return;

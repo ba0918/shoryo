@@ -1,4 +1,5 @@
-// Pieces shared by the question card and the opened provisional row.
+// Pieces shared by the question card and the provisional row: the small set of components
+// every question is drawn from.
 import { h } from "../dom.js";
 import { decisionItem } from "./decision-item.js";
 
@@ -8,113 +9,165 @@ export function chainLine(chains, emit) {
   return h(
     "div",
     { class: "chain", "data-chain": true },
-    h("span", { class: "label" }, "Rests on: "),
+    h("span", { class: "chain-label" }, "Rests on"),
     chains.map((chain, index) => [
-      index > 0 ? h("span", { class: "chain-gap" }, " / ") : null,
-      chain.map((link, position) => [
-        position > 0 ? h("span", { class: "chain-arrow" }, " ← ") : null,
-        h(
-          "button",
-          {
-            type: "button",
-            class: "chain-link",
-            "data-decision": link.decision,
-            onclick: () => emit({ type: "show-decision", decision: link.decision }),
-          },
-          link.name,
-          link.in_review ? h("span", { class: "mark review", "data-mark": "in-review" }, "In review") : null,
-        ),
-      ]),
+      index > 0 ? h("span", { class: "chain-gap", "aria-hidden": "true" }, "/") : null,
+      h(
+        "span",
+        { class: "chain-run" },
+        chain.map((link, position) => [
+          position > 0 ? h("span", { class: "chain-arrow", "aria-hidden": "true" }, "←") : null,
+          h(
+            "button",
+            {
+              type: "button",
+              class: `chip chain-link${link.in_review ? " in-review" : ""}`,
+              "data-decision": link.decision,
+              onclick: () => emit({ type: "show-decision", decision: link.decision }),
+            },
+            link.name,
+            link.in_review ? h("span", { class: "badge review", "data-mark": "in-review" }, "In review") : null,
+          ),
+        ]),
+      ),
     ]),
   );
 }
 
-/// The options as radio buttons, with the recommendation marked.
+/// The options as bordered rows: the chosen row tinted, the recommendation tagged, and each
+/// option's description once the card is open.
 export function optionList(question, emit, open) {
   return h(
     "fieldset",
     { class: "options", disabled: question.locked },
+    h("legend", { class: "visually-hidden" }, "Options"),
+    question.options.map((option) => {
+      const chosen = option.index === question.selected;
+      return h(
+        "label",
+        { class: `option${chosen ? " chosen" : ""}` },
+        h("input", {
+          type: "radio",
+          name: `option-${question.id}`,
+          value: String(option.index),
+          checked: chosen,
+          "data-focus": `option-${question.id}-${option.index}`,
+          onchange: () => emit({ type: "op", op: { op: "choose", question: question.id, option: option.index } }),
+        }),
+        h(
+          "span",
+          { class: "option-body" },
+          h(
+            "span",
+            { class: "option-head" },
+            h("span", { class: "option-text" }, option.text),
+            option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, "Recommended") : null,
+          ),
+          open ? h("span", { class: "option-description" }, option.description) : null,
+        ),
+      );
+    }),
+  );
+}
+
+/// The options as one compact segmented choice, for a folded provisional row.
+export function optionSegments(question, emit) {
+  return h(
+    "fieldset",
+    { class: "segments", disabled: question.locked },
+    h("legend", { class: "visually-hidden" }, "Options"),
     question.options.map((option) =>
       h(
         "label",
-        { class: "option" },
+        { class: `segment${option.index === question.selected ? " chosen" : ""}` },
         h("input", {
           type: "radio",
           name: `option-${question.id}`,
           value: String(option.index),
           checked: option.index === question.selected,
-          "data-focus": `option-${question.id}-${option.index}`,
-          onchange: () =>
-            emit({ type: "op", op: { op: "choose", question: question.id, option: option.index } }),
+          "data-focus": `segment-${question.id}-${option.index}`,
+          onchange: () => emit({ type: "op", op: { op: "choose", question: question.id, option: option.index } }),
         }),
-        h("span", { class: "option-text" }, option.text),
-        option.recommended ? h("span", { class: "mark recommended", "data-mark": "recommended" }, "Recommended") : null,
-        open ? h("p", { class: "option-description" }, option.description) : null,
+        h("span", {}, option.text),
+        option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, "Recommended") : null,
       ),
     ),
   );
 }
 
-/// この答えだと: the consequence of the option chosen now.
+/// この答えだと: the consequence of the option chosen now, as a tinted band.
 export function consequence(question) {
   const chosen = question.options.find((option) => option.index === question.selected);
-  return h("p", { class: "consequence", "data-consequence": true }, chosen?.consequence ?? "");
+  return h(
+    "div",
+    { class: "consequence" },
+    h("span", { class: "consequence-head" }, "With this answer"),
+    h("p", { "data-consequence": true }, chosen?.consequence ?? ""),
+  );
 }
 
 /// The prerequisites' full text and the background, shown once the card is open.
 export function details(question) {
-  return [
+  const parts = [
     question.premises.length > 0
       ? h(
           "div",
-          { class: "premise-texts", "data-premise-text": true },
+          { class: "context-part", "data-premise-text": true },
           h("h4", {}, "Prerequisites"),
-          question.premises.map((premise) =>
-            h("p", {}, h("strong", {}, premise.name), ": ", premise.text),
+          h(
+            "dl",
+            {},
+            question.premises.map((premise) => [h("dt", {}, premise.name), h("dd", {}, premise.text)]),
           ),
         )
       : null,
     question.background
-      ? h("div", { class: "background" }, h("h4", {}, "Background"), h("p", {}, question.background))
+      ? h("div", { class: "context-part" }, h("h4", {}, "Background"), h("p", {}, question.background))
       : null,
-  ];
+  ].filter(Boolean);
+  return parts.length > 0 ? h("div", { class: "context" }, parts) : null;
 }
 
-/// The defer switch and the note.
+/// The note and the defer switch: compact, under the answer. A past question shows only the
+/// note it was sent with; its defer switch is one of its marks.
 export function answerExtras(question, emit) {
   const save = noteSaver(question, emit);
+  if (question.past && question.note === "") return null;
   return h(
     "div",
     { class: "extras" },
     h(
       "label",
-      { class: "defer", "data-field": "defer" },
-      h("input", {
-        type: "checkbox",
-        checked: question.deferred,
-        disabled: question.locked,
-        "data-focus": `defer-${question.id}`,
-        onchange: (event) =>
-          emit({
-            type: "op",
-            op: { op: "defer", question: question.id, deferred: event.target.checked },
-          }),
-      }),
-      " Ask me again next round",
-    ),
-    h(
-      "label",
       { class: "note", "data-field": "note" },
-      h("span", {}, "Note"),
+      h("span", { class: "visually-hidden" }, "Note"),
       h("textarea", {
-        rows: 2,
+        rows: 1,
         value: question.note,
+        placeholder: "Add a note (optional)",
         disabled: question.locked,
         "data-focus": `note-${question.id}`,
         oninput: (event) => save.later(event.target.value),
         onchange: (event) => save.now(event.target.value),
       }),
     ),
+    question.past ? null : deferSwitch(question, emit),
+  );
+}
+
+function deferSwitch(question, emit) {
+  return h(
+    "label",
+    { class: "toggle defer", "data-field": "defer" },
+    h("input", {
+      type: "checkbox",
+      role: "switch",
+      checked: question.deferred,
+      disabled: question.locked,
+      "data-focus": `defer-${question.id}`,
+      onchange: (event) => emit({ type: "op", op: { op: "defer", question: question.id, deferred: event.target.checked } }),
+    }),
+    h("span", { class: "toggle-track", "aria-hidden": "true" }),
+    h("span", {}, "Ask me again next round"),
   );
 }
 
@@ -144,14 +197,14 @@ export function stampButton(question, emit) {
     "button",
     {
       type: "button",
-      class: `stamp${stamped ? " stamped" : ""}`,
+      class: `stamp ${question.stamp ?? "none"}`,
       "data-action": "stamp",
       "data-stamp": question.stamp ?? "none",
       "aria-pressed": String(stamped),
       disabled: question.locked,
       onclick: () => emit({ type: "op", op: { op: "stamp", question: question.id, stamped: !stamped } }),
     },
-    question.stamp === "pre_approved" ? "Pre-approved" : stamped ? "Approved" : "Approve",
+    h("span", { class: "stamp-face" }, question.stamp === "pre_approved" ? "Pre-approved" : stamped ? "Approved" : "Approve"),
   );
 }
 
@@ -159,8 +212,8 @@ export function stampButton(question, emit) {
 export function pastMarks(question) {
   if (!question.past) return null;
   return [
-    question.past.preApproved ? h("span", { class: "mark pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
-    question.deferred ? h("span", { class: "mark deferred", "data-mark": "deferred" }, "Ask me again next round") : null,
+    question.past.preApproved ? h("span", { class: "badge pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
+    question.deferred ? h("span", { class: "badge deferred", "data-mark": "deferred" }, "Ask me again next round") : null,
   ];
 }
 
@@ -172,8 +225,12 @@ export function pastAnswer(question, emit) {
   return h(
     "div",
     { class: "past-answer" },
-    h("p", { "data-chosen": true }, h("span", { class: "label" }, "Answer: "), past.chosen ?? "(deferred)"),
-    h("p", { "data-recommended": true }, h("span", { class: "label" }, "Recommended: "), past.recommended),
+    h(
+      "dl",
+      { class: "answer-facts" },
+      h("div", { "data-chosen": true }, h("dt", {}, "Answer"), h("dd", {}, past.chosen ?? "(deferred)")),
+      h("div", { "data-recommended": true }, h("dt", {}, "Recommended"), h("dd", {}, past.recommended)),
+    ),
     past.decisions.length > 0
       ? h(
           "div",

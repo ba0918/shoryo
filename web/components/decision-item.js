@@ -6,12 +6,13 @@ import { h } from "../dom.js";
 export function reviewControls(review, emit) {
   if (!review) return null;
   return [
-    review.inReview ? h("span", { class: "mark review", "data-mark": "in-review" }, "In review") : null,
+    review.inReview ? h("span", { class: "badge review", "data-mark": "in-review" }, "In review") : null,
     review.canReview
       ? h(
           "button",
           {
             type: "button",
+            class: "btn small",
             "data-action": "review",
             onclick: () => emit({ type: "op", op: { op: "request_review", decision: review.decision } }),
           },
@@ -23,6 +24,7 @@ export function reviewControls(review, emit) {
           "button",
           {
             type: "button",
+            class: "btn quiet small",
             "data-action": "stop-review",
             onclick: () => emit({ type: "op", op: { op: "stop_review", decision: review.decision } }),
           },
@@ -36,13 +38,14 @@ export function decisionItem(item, emit) {
   return h(
     "div",
     { class: "decision-item", "data-decision-item": item.id },
-    h("p", { class: "decision-line" }, h("strong", {}, item.name), ": ", item.text),
+    h("p", { class: "decision-name" }, item.name),
+    h("p", { class: "decision-text" }, item.text),
     h(
-      "p",
+      "div",
       { class: "decision-meta" },
       item.source
         ? [
-            h("span", { class: "label" }, "Decided in: "),
+            h("span", { class: "meta-label" }, "Decided in"),
             item.jump
               ? h(
                   "button",
@@ -54,13 +57,12 @@ export function decisionItem(item, emit) {
                   },
                   item.source,
                 )
-              : item.source,
-            " ",
+              : h("span", {}, item.source),
           ]
         : null,
-      item.revised ? h("span", { class: "mark revised", "data-mark": "revised" }, "Revised later") : null,
-      item.preApproved ? h("span", { class: "mark pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
-      reviewControls(item.review, emit),
+      item.revised ? h("span", { class: "badge revised", "data-mark": "revised" }, "Revised later") : null,
+      item.preApproved ? h("span", { class: "badge pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
+      h("span", { class: "decision-actions" }, reviewControls(item.review, emit)),
     ),
   );
 }

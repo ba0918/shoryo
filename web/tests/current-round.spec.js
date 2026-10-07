@@ -94,7 +94,7 @@ test("chain_shows_short_names_and_opens_full_text", async ({ page }) => {
 test("provisional_row_opens_into_a_card", async ({ page }) => {
   const q3 = row(page, "q3");
   await expect(q3.getByText("What is the file called?")).toBeVisible();
-  await q3.getByRole("combobox").selectOption({ label: "q3 no" });
+  await q3.getByRole("radio", { name: /q3 no/ }).check();
   await expect(q3.locator("[data-consequence]")).toHaveText("With q3 no, the topic goes this way.");
   await expect(q3.locator("[data-field=defer]")).toBeHidden();
 
@@ -120,7 +120,7 @@ test("send_locks_the_round", async ({ page }) => {
 
   await expect(page.locator("[data-sent-notice]")).toBeVisible();
   await expect(card(page, "q2").getByRole("radio", { name: /A database/ })).toBeDisabled();
-  await expect(row(page, "q3").getByRole("combobox")).toBeDisabled();
+  await expect(row(page, "q3").getByRole("radio", { name: /q3 no/ })).toBeDisabled();
   await expect(action(page, "send")).toBeDisabled();
 });
 

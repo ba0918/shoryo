@@ -7,24 +7,26 @@ import { Fixes } from "./fixes.js";
 
 class SendBar extends Component {
   draw(bar) {
+    const status = bar.sent
+      ? h("p", { class: "send-status", "data-sent-notice": true }, "Sent. Waiting for the next round.")
+      : bar.unstamped > 0
+        ? h("p", { class: "send-status warn", "data-unstamped-count": true }, `${bar.unstamped} not approved yet`)
+        : h("p", { class: "send-status" }, bar.locked ? "" : "Every question is approved.");
     return h(
       "div",
       { class: "send-bar" },
+      status,
       h(
         "button",
         {
           type: "button",
-          class: "primary",
+          class: "btn primary",
           "data-action": "send",
           disabled: bar.locked || bar.unstamped > 0,
           onclick: () => this.emit({ type: "op", op: { op: "submit", round: bar.round } }),
         },
         "Send all",
       ),
-      bar.unstamped > 0
-        ? h("span", { class: "unstamped-count", "data-unstamped-count": true }, `${bar.unstamped} not approved yet`)
-        : null,
-      bar.sent ? h("p", { class: "sent-notice", "data-sent-notice": true }, "Sent. Waiting for the next round.") : null,
     );
   }
 }
@@ -37,7 +39,12 @@ export class CurrentRound {
     this.list = h(
       "section",
       { class: "provisional-list", "data-provisional-list": true },
-      h("h2", {}, "Provisional answers"),
+      h(
+        "header",
+        { class: "list-head" },
+        h("h2", {}, "Provisional answers"),
+        h("p", { class: "list-hint" }, "Pre-approved by the LLM. Change or send back only what looks wrong."),
+      ),
       this.rowBox,
     );
     this.send = new SendBar(emit);

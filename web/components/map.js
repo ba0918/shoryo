@@ -38,7 +38,7 @@ export class MapTab extends Component {
       { class: "map-tab" },
       h(
         "div",
-        { class: "map-ranges" },
+        { class: "map-ranges seg-group", role: "group", "aria-label": "Range" },
         [
           { id: "path", name: "Path" },
           { id: "all", name: "All" },
@@ -47,6 +47,7 @@ export class MapTab extends Component {
             "button",
             {
               type: "button",
+              class: `seg${range.id === map.range ? " on" : ""}`,
               "data-map-range": range.id,
               "aria-pressed": String(range.id === map.range),
               onclick: () => this.emit({ type: "map-range", range: range.id }),
@@ -74,7 +75,7 @@ export class MapTab extends Component {
             node.jump
               ? h(
                   "button",
-                  { type: "button", "data-action": "jump", onclick: () => this.emit({ type: "jump", target: node.jump }) },
+                  { type: "button", class: "btn small", "data-action": "jump", onclick: () => this.emit({ type: "jump", target: node.jump }) },
                   "Go to its question",
                 )
               : null,

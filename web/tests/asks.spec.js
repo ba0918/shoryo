@@ -40,7 +40,7 @@ test("two_asks_pending_while_other_cards_stay_usable", async ({ shoryo, page }) 
   await expect(card(page, "q2").locator("[data-consequence]")).toHaveText(
     "With A database, the topic goes this way.",
   );
-  await row(page, "q3").getByRole("combobox").selectOption({ label: "q3 no" });
+  await row(page, "q3").getByRole("radio", { name: /q3 no/ }).check();
   await expect(row(page, "q3").locator("[data-consequence]")).toHaveText(
     "With q3 no, the topic goes this way.",
   );

@@ -1,7 +1,17 @@
-// The provisional list: one row per provisional question, changed in place, opened into a
-// card (docs/spec/screen.md, "仮決めの一覧").
+// The provisional list: one row per provisional question, changed in place with the same
+// option choice the cards use, opened into a card (docs/spec/screen.md, "仮決めの一覧").
 import { Component, h } from "../dom.js";
-import { answerExtras, chainLine, consequence, details, optionList, pastAnswer, pastMarks, stampButton } from "./question-parts.js";
+import {
+  answerExtras,
+  chainLine,
+  consequence,
+  details,
+  optionList,
+  optionSegments,
+  pastAnswer,
+  pastMarks,
+  stampButton,
+} from "./question-parts.js";
 import { thread } from "./thread.js";
 
 export class ProvisionalRow extends Component {
@@ -22,70 +32,33 @@ export class ProvisionalRow extends Component {
   }
 
   draw(question) {
-    const choose = (event) =>
-      this.emit({
-        type: "op",
-        op: { op: "choose", question: question.id, option: Number(event.target.value) },
-      });
     return h(
       "div",
       {
-        class: `provisional-row${this.open ? " open" : ""}${question.landed ? " landed" : ""}`,
+        class: `provisional-row${this.open ? " open" : ""}${question.landed ? " landed" : ""}${this.past ? " past" : ""}`,
         "data-provisional-row": question.id,
         "data-past-question": this.past ? question.id : undefined,
         "data-landed": question.landed,
       },
       h(
         "div",
-        { class: "row-line" },
-        h("span", { class: "question-text" }, question.text),
-        this.past ? h("span", { class: "card-marks", "data-question-marks": true }, pastMarks(question)) : null,
-        this.open
-          ? null
-          : h(
-              "select",
-              { disabled: question.locked, "data-focus": `select-${question.id}`, onchange: choose },
-              question.options.map((option) =>
-                h(
-                  "option",
-                  { value: String(option.index), selected: option.index === question.selected },
-                  option.recommended ? `${option.text} (recommended)` : option.text,
-                ),
-              ),
-            ),
-        this.open ? null : consequence(question),
-        this.past ? null : stampButton(question, this.emit),
+        { class: "row-main" },
         h(
-          "button",
-          {
-            type: "button",
-            "data-action": "open",
-            onclick: () => {
-              this.open = !this.open;
-              this.redraw();
-            },
-          },
-          this.open ? "Fold" : "Open",
+          "div",
+          { class: "row-question" },
+          h("span", { class: "question-text" }, question.text),
+          this.past ? h("span", { class: "badges", "data-question-marks": true }, pastMarks(question)) : null,
         ),
-        this.past
-          ? null
-          : h(
-              "button",
-              {
-                type: "button",
-                "data-action": "swap",
-                disabled: question.locked,
-                onclick: () => this.emit({ type: "op", op: { op: "swap_class", question: question.id } }),
-              },
-              "Decide myself",
-            ),
+        this.open ? null : optionSegments(question, this.emit),
+        this.open ? null : consequence(question),
+        this.past ? null : h("div", { class: "row-stamp" }, stampButton(question, this.emit)),
       ),
       pastAnswer(question, this.emit),
       this.open
         ? h(
             "div",
             { class: "row-card" },
-            h("p", { class: "why-now" }, h("span", { class: "label" }, "Why now: "), question.why_now),
+            h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, "Why now"), question.why_now),
             chainLine(question.chains, this.emit),
             details(question),
             optionList(question, this.emit, true),
@@ -94,6 +67,37 @@ export class ProvisionalRow extends Component {
             this.threadFor(question),
           )
         : null,
+      h(
+        "div",
+        { class: "row-links" },
+        h(
+          "button",
+          {
+            type: "button",
+            class: "link",
+            "data-action": "open",
+            "aria-expanded": String(this.open),
+            onclick: () => {
+              this.open = !this.open;
+              this.redraw();
+            },
+          },
+          this.open ? "Fold" : "Open as a card",
+        ),
+        this.past
+          ? null
+          : h(
+              "button",
+              {
+                type: "button",
+                class: "btn quiet small",
+                "data-action": "swap",
+                disabled: question.locked,
+                onclick: () => this.emit({ type: "op", op: { op: "swap_class", question: question.id } }),
+              },
+              "Decide myself",
+            ),
+      ),
     );
   }
 }

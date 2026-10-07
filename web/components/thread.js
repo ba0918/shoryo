@@ -27,13 +27,13 @@ export function thread(question, local, onLocal, emit) {
 function modeSwitch(local, onLocal) {
   return h(
     "div",
-    { class: "thread-modes" },
+    { class: "thread-modes seg-group", role: "group", "aria-label": "Show exchanges" },
     MODES.map((mode) =>
       h(
         "button",
         {
           type: "button",
-          class: mode.id === local.mode ? "selected" : "",
+          class: `seg${mode.id === local.mode ? " on" : ""}`,
           "aria-pressed": String(mode.id === local.mode),
           "data-thread-mode": mode.id,
           onclick: () => onLocal({ mode: mode.id }),
@@ -60,7 +60,7 @@ function exchange(ask, followUps, local, onLocal) {
   return h(
     "div",
     { class: "exchange", "data-ask": ask.id },
-    h("p", { class: "asked" }, h("span", { class: "label" }, "You asked: "), ask.text),
+    h("p", { class: "asked" }, h("span", { class: "speaker" }, "You"), ask.text),
     reply(ask, local, onLocal),
     followUps.length > 0 ? h("div", { class: "follow-ups" }, followUps) : null,
   );
@@ -69,19 +69,20 @@ function exchange(ask, followUps, local, onLocal) {
 function reply(ask, local, onLocal) {
   switch (ask.status) {
     case "waiting":
-      return h("p", { class: "mark writing", "data-mark": "writing" }, "Writing a reply...");
+      return h("p", { class: "reply pending", "data-mark": "writing" }, "Writing a reply…");
     case "no_reply":
-      return h("p", { class: "mark no-reply", "data-mark": "no-reply" }, "No reply");
+      return h("p", { class: "reply pending", "data-mark": "no-reply" }, "No reply");
     case "replied":
       return h(
         "div",
         { class: "reply" },
+        h("span", { class: "speaker" }, "LLM"),
         h("p", {}, ask.reply.text),
         ask.reply.diagram ? h("div", { class: "diagram-box" }, renderDiagram(ask.reply.diagram)) : null,
         local.canAsk
           ? h(
               "button",
-              { type: "button", "data-action": "follow-up", onclick: () => onLocal({ follows: ask.id }) },
+              { type: "button", class: "link small", "data-action": "follow-up", onclick: () => onLocal({ follows: ask.id }) },
               "Follow up",
             )
           : null,
@@ -125,24 +126,23 @@ function askBox(question, local, onLocal, emit) {
       ? h(
           "p",
           { class: "following" },
-          h("span", { class: "label" }, "Following up on: "),
-          following.text,
-          " ",
-          h("button", { type: "button", "data-action": "cancel-follow-up", onclick: () => onLocal({ follows: null }) }, "Cancel"),
+          h("span", { class: "following-label" }, "Following up on"),
+          h("span", { class: "following-text" }, following.text),
+          h("button", { type: "button", class: "link small", "data-action": "cancel-follow-up", onclick: () => onLocal({ follows: null }) }, "Cancel"),
         )
       : null,
     h(
       "div",
       { class: "quick-asks" },
       QUICK_ASKS.map((text) =>
-        h("button", { type: "button", "data-action": "quick-ask", onclick: () => send(text) }, text),
+        h("button", { type: "button", class: "chip", "data-action": "quick-ask", onclick: () => send(text) }, text),
       ),
     ),
     h(
       "div",
       { class: "free-ask" },
       input,
-      h("button", { type: "button", "data-action": "ask", onclick: sendTyped }, "Ask"),
+      h("button", { type: "button", class: "btn small", "data-action": "ask", onclick: sendTyped }, "Ask"),
     ),
   );
 }

@@ -13,14 +13,18 @@ export function fixList(fixes, emit) {
       h(
         "div",
         { class: "fix", "data-fix": fix.index },
-        h("p", {}, fix.text),
+        h("p", { class: "fix-text" }, fix.text),
         fix.change
           ? h(
               "div",
               { class: "fix-change" },
-              h("p", {}, h("span", { class: "label" }, "Before: "), fix.change.before ? `${fix.change.before.name}: ${fix.change.before.text}` : "(new)"),
-              h("p", {}, h("span", { class: "label" }, "After: "), `${fix.change.after.name}: ${fix.change.after.text}`),
-              h("p", {}, reviewControls(fix.change.review, emit)),
+              h(
+                "div",
+                { class: "before-after" },
+                h("div", { class: "before" }, h("span", { class: "meta-label" }, "Before"), h("p", {}, fix.change.before ? `${fix.change.before.name}: ${fix.change.before.text}` : "(new)")),
+                h("div", { class: "after" }, h("span", { class: "meta-label" }, "After"), h("p", {}, `${fix.change.after.name}: ${fix.change.after.text}`)),
+              ),
+              h("div", { class: "decision-meta" }, reviewControls(fix.change.review, emit)),
             )
           : null,
       ),
