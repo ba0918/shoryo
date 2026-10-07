@@ -291,6 +291,7 @@ export function mapData(view, range, selected) {
           selected: key === chosen,
           detail: nodeDetail(view, node),
           jump: nodeTarget(view, node),
+          review: node.kind === "decision" ? reviewState(view, key.slice(2)) : null,
         };
       }),
     })),

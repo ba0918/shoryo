@@ -1,6 +1,7 @@
 // 地図: the decisions and the current questions by round, drawn from the computed map
 // (docs/spec/screen.md, "地図"). Hover details float over the map and never move it.
 import { Component, h } from "../dom.js";
+import { reviewControls } from "./decision-item.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const COLUMN_W = 320;
@@ -66,7 +67,7 @@ export class MapTab extends Component {
     const node = map.columns.flatMap((column) => column.nodes).find((n) => n.key === map.selected);
     return h(
       "div",
-      { class: "map-selection" },
+      { class: "map-selection", "data-map-selection": true },
       node
         ? [
             h("span", {}, h("span", { class: "label" }, "Selected: "), node.label, " "),
@@ -77,6 +78,7 @@ export class MapTab extends Component {
                   "Go to its question",
                 )
               : null,
+            reviewControls(node.review, this.emit),
           ]
         : h("span", { class: "label" }, "Click a point to select it."),
     );

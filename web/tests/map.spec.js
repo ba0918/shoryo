@@ -137,3 +137,16 @@ test("decision_source_link_jumps_to_its_question", async ({ page }) => {
   await action(page, "back").click();
   await expect(page.locator("[data-panel=decisions]")).toBeVisible();
 });
+
+test("selected_decision_can_be_put_in_review_and_stopped_from_the_map", async ({ shoryo, page }) => {
+  await node(page, "d:d1").click();
+  const selection = page.locator("[data-map-selection]");
+
+  await action(selection, "review").click();
+  await expect(mark(node(page, "d:d1"), "in-review")).toBeVisible();
+  await action(selection, "stop-review").click();
+
+  await expect(mark(node(page, "d:d1"), "in-review")).toHaveCount(0);
+  const kinds = (await shoryo.wait()).map((event) => event.kind).filter((kind) => kind.startsWith("review"));
+  expect(kinds).toEqual(["review_requested", "review_stopped"]);
+});
