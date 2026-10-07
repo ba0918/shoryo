@@ -62,7 +62,12 @@ export function currentRoundData(view, landed = null) {
   return {
     human: questions.filter((q) => q.cls === "human").map((q) => q.data),
     provisional: questions.filter((q) => q.cls === "provisional").map((q) => q.data),
-    send: { locked, unopened: locked ? 0 : view.unopened.length, sent: round.submitted && !topic.ended },
+    send: {
+      round: round.number,
+      locked,
+      unopened: locked ? 0 : view.unopened.length,
+      sent: round.submitted && !topic.ended,
+    },
     fixes: round.review ? fixesData(view, round) : [],
   };
 }

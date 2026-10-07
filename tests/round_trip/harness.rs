@@ -136,6 +136,16 @@ impl Server {
             .as_u16()
     }
 
+    /// Sends the current round through the page API, as "Send all" does; returns the status.
+    pub fn submit(&self) -> u16 {
+        let rounds = &self.view()["topic"]["rounds"];
+        let round = rounds
+            .as_array()
+            .and_then(|rounds| rounds.last())
+            .map_or(0, |round| round["number"].as_u64().unwrap_or_default());
+        self.operate(json!({ "op": "submit", "round": round }))
+    }
+
     /// Waits for the process to exit and returns everything it printed.
     pub fn finish(mut self) -> (String, String) {
         self.child.wait().expect("the server exits");

@@ -20,7 +20,7 @@ const roundThree = {
 
 test.beforeEach(async ({ shoryo, page }) => {
   await twoRounds(shoryo);
-  await shoryo.op({ op: "submit" });
+  await shoryo.submit();
   await shoryo.round(roundThree);
   await page.goto(shoryo.url);
   await tab(page, "map").click();
@@ -105,7 +105,7 @@ test("path_range_shows_only_prerequisites", async ({ page }) => {
 });
 
 test("review_marks_appear_on_dependents", async ({ shoryo, page }) => {
-  await shoryo.op({ op: "submit" });
+  await shoryo.submit();
   await shoryo.round({
     subject: "Revisit",
     questions: [question("q6", "Anything else?")],

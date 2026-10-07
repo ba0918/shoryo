@@ -46,10 +46,14 @@ pub fn topic_from(rounds: Vec<Value>) -> shoryo_core::Topic {
             .apply_round(round(body))
             .expect("the test writes valid rounds");
         if index + 1 < count {
-            topic
-                .apply(shoryo_core::Operation::Submit)
-                .expect("an applied round can be sent");
+            submit_current(&mut topic).expect("an applied round can be sent");
         }
     }
     topic
+}
+
+/// Sends the current round, as the person does with the round on the screen.
+pub fn submit_current(topic: &mut shoryo_core::Topic) -> Result<(), shoryo_core::OperationRefusal> {
+    let round = topic.current_round().map_or(0, |round| round.number);
+    topic.apply(shoryo_core::Operation::Submit { round })
 }

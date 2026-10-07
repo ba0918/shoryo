@@ -60,6 +60,12 @@ export const test = base.extend({
         const response = await fetch(`${url}api/op`, { method: "POST", body: JSON.stringify(body) });
         if (!response.ok) throw new Error(`operation refused: ${await response.text()}`);
       },
+      /// Sends the current round, as "Send all" on the screen does.
+      submit: async () => {
+        const view = await (await fetch(`${url}api/view`)).json();
+        const rounds = view.topic.rounds;
+        await shoryo.op({ op: "submit", round: rounds[rounds.length - 1].number });
+      },
     };
     await use(shoryo);
     const exited = new Promise((resolve) => server.once("exit", resolve));

@@ -75,11 +75,11 @@ fn refused_save_leaves_the_state_as_it_was() {
     };
 
     set_mode(0o500);
-    let refused = server.operate(json!({ "op": "submit" }));
+    let refused = server.submit();
     let submitted = server.view()["topic"]["rounds"][0]["submitted"].clone();
     let after = std::fs::read_to_string(&state).expect("the state can be read");
     set_mode(0o700);
-    let retried = server.operate(json!({ "op": "submit" }));
+    let retried = server.submit();
 
     assert_eq!(refused, 500);
     assert_eq!(submitted, false);
@@ -181,7 +181,7 @@ fn events_while_not_waiting_are_received_later() {
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
     server.operate(json!({ "op": "ask", "question": "q1", "text": "Explain more" }));
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
 
     let first = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
     let again = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
@@ -196,7 +196,7 @@ fn acknowledged_events_are_not_returned_again() {
     let env = Env::new();
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
     let first = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
     let id = first[0]["id"].to_string();
 
@@ -217,7 +217,7 @@ fn wait_returns_when_an_event_happens() {
         .expect("wait starts");
     std::thread::sleep(std::time::Duration::from_millis(500));
 
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
 
     let output = waiting.wait_with_output().expect("wait finishes");
     assert_eq!(events(&output)[0]["kind"], "submitted");
@@ -290,7 +290,7 @@ fn result_is_available_after_end() {
     let env = Env::new();
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
     assert!(env.run(&["end", "store"], "").status.success());
 
     let output = env.run(&["result", "store"], "");
@@ -334,7 +334,7 @@ fn ended_topic_page_stays_served_until_stop() {
     let env = Env::new();
     let mut server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
     env.run(&["end", "store"], "");
 
     let page = Server::agent()
@@ -353,7 +353,7 @@ fn wait_and_reply_are_refused_after_end() {
     let env = Env::new();
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
     env.run(&["end", "store"], "");
 
     let wait = env.run(&["wait", "store", "--timeout", "1"], "");
@@ -377,7 +377,7 @@ fn data_is_written_outside_the_repository() {
     let before = files_under(&env.work);
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
-    server.operate(json!({ "op": "submit" }));
+    server.submit();
     env.run(&["end", "store"], "");
     env.run(&["stop", "store"], "");
     server.finish();
@@ -460,7 +460,7 @@ fn skill_examples_are_accepted() {
             server.operate(json!({ "op": "stop_review", "decision": "d1" }));
             server.operate(json!({ "op": "request_review", "decision": "d2" }));
         }
-        server.operate(json!({ "op": "submit" }));
+        server.submit();
         // Acknowledge what was received, as the skill tells the agent to.
         let ack: Vec<String> = seen.iter().map(|event| event["id"].to_string()).collect();
         let mut args = vec!["wait", "examples", "--timeout", "1"];

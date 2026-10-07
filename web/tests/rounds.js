@@ -54,6 +54,6 @@ export const roundTwo = {
 /// Round 1 sent, round 2 on the screen: q2 and q4 are human questions, q3 is provisional.
 export async function twoRounds(shoryo) {
   await shoryo.round(roundOne);
-  await shoryo.op({ op: "submit" });
+  await shoryo.submit();
   await shoryo.round(roundTwo);
 }

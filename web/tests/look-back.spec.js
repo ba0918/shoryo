@@ -59,7 +59,7 @@ test("past_round_shows_replies_and_diagrams_as_answered", async ({ shoryo, page 
 test("past_round_shows_decision_as_of_that_round", async ({ shoryo, page }) => {
   await action(page, "send").click();
   await shoryo.round(roundThree);
-  await shoryo.op({ op: "submit" });
+  await shoryo.submit();
   await shoryo.round({
     subject: "Revisit",
     questions: [question("q6", "Anything else?")],
@@ -104,7 +104,7 @@ test("decisions_tab_lists_the_seven_kinds", async ({ shoryo, page }) => {
       delegated: [{ text: "The file name", reason: "Any name works the same" }],
     },
   });
-  await shoryo.op({ op: "submit" });
+  await shoryo.submit();
   await shoryo.round({
     subject: "Revisit",
     questions: [question("q6", "Anything else?")],

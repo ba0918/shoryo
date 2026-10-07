@@ -114,6 +114,10 @@ async function operate(op) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     ui.error = body.error ?? `The server refused the action (${response.status}).`;
+    // The action may have been made on what the screen showed before a change; show the
+    // current state with the reason.
+    const current = await fetch("./api/view").catch(() => null);
+    if (current?.ok) accept(await current.json());
   } else {
     ui.error = null;
     accept(await response.json());

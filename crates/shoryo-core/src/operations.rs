@@ -42,7 +42,10 @@ pub enum Operation {
     StopReview {
         decision: DecisionId,
     },
-    Submit,
+    /// Sends the round the person was looking at; `round` is that round's number.
+    Submit {
+        round: u32,
+    },
 }
 
 /// Something that happened on the screen, kept until the agent acknowledges it.
@@ -105,6 +108,7 @@ pub enum OperationRefusal {
     AlreadyReplied { ask: AskId },
     NotInReview { decision: DecisionId },
     NextRoundArrived,
+    NotCurrentRound { round: u32 },
 }
 
 impl fmt::Display for OperationRefusal {
@@ -125,6 +129,10 @@ impl fmt::Display for OperationRefusal {
             Self::NextRoundArrived => write!(
                 f,
                 "the next round has arrived, so the review request can no longer be stopped"
+            ),
+            Self::NotCurrentRound { round } => write!(
+                f,
+                "round {round} is no longer the current round; the screen shows the current one"
             ),
         }
     }
@@ -217,7 +225,7 @@ impl Topic {
             } => self.ask(question, text, follows)?,
             Operation::RequestReview { decision } => self.request_review(decision)?,
             Operation::StopReview { decision } => self.stop_review(decision)?,
-            Operation::Submit => self.submit()?,
+            Operation::Submit { round } => self.submit(round)?,
         }
         Ok(())
     }
@@ -354,7 +362,13 @@ impl Topic {
         Ok(())
     }
 
-    fn submit(&mut self) -> Result<(), OperationRefusal> {
+    fn submit(&mut self, made_on: u32) -> Result<(), OperationRefusal> {
+        if self
+            .current_round()
+            .is_some_and(|round| round.number != made_on)
+        {
+            return Err(OperationRefusal::NotCurrentRound { round: made_on });
+        }
         let round = self.open_round()?;
         round.submitted = true;
         for question in &mut round.questions {

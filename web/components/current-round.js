@@ -17,7 +17,7 @@ class SendBar extends Component {
           class: "primary",
           "data-action": "send",
           disabled: bar.locked,
-          onclick: () => this.emit({ type: "op", op: { op: "submit" } }),
+          onclick: () => this.emit({ type: "op", op: { op: "submit", round: bar.round } }),
         },
         "Send all",
       ),
@@ -60,7 +60,7 @@ export class CurrentRound {
     this.fixes.update(round?.fixes ?? []);
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
-    this.send.update(round ? round.send : { locked: true, unopened: 0, sent: false });
+    this.send.update(round ? round.send : { round: 0, locked: true, unopened: 0, sent: false });
     this.send.el.hidden = round === null;
   }
 }

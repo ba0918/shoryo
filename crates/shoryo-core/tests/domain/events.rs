@@ -4,7 +4,7 @@ use shoryo_core::{
     Topic,
 };
 
-use crate::common::{decision, question, round};
+use crate::common::{decision, question, round, submit_current};
 
 fn q(id: &str) -> QuestionId {
     QuestionId::new(id)
@@ -24,7 +24,7 @@ fn topic_on_a_round() -> Topic {
         })))
         .expect("the first round is valid");
     topic
-        .apply(Operation::Submit)
+        .apply(Operation::Submit { round: 1 })
         .expect("the first round can be sent");
     let mut provisional = question("q3", &["d1"]);
     provisional["class"] = json!("provisional");
@@ -299,7 +299,7 @@ fn review_request_cannot_be_stopped_after_next_round() {
     topic
         .apply(Operation::RequestReview { decision: d("d1") })
         .unwrap();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
     topic
         .apply_round(round(
             json!({ "subject": "Third", "questions": [question("q4", &[])] }),
@@ -324,7 +324,7 @@ fn submit_sends_every_answer_at_once() {
         })
         .unwrap();
 
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     let events = kinds(&topic);
     let [EventKind::Submitted { round, answers }] = events.as_slice() else {
@@ -339,7 +339,7 @@ fn submit_sends_every_answer_at_once() {
 fn submit_marks_untouched_human_question_as_sent_unseen() {
     let mut topic = topic_on_a_round();
 
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     assert!(current_answer(&topic, "q2").sent_unseen);
     assert!(!current_answer(&topic, "q3").sent_unseen);
@@ -355,7 +355,7 @@ fn deferred_question_is_not_an_answer() {
         })
         .unwrap();
 
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     let EventKind::Submitted { answers, .. } = kinds(&topic)[0] else {
         panic!("expected the submitted event");
@@ -367,7 +367,7 @@ fn deferred_question_is_not_an_answer() {
 #[test]
 fn answers_are_refused_after_submit() {
     let mut topic = topic_on_a_round();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     for operation in [
         Operation::Choose {
@@ -382,7 +382,7 @@ fn answers_are_refused_after_submit() {
             question: q("q2"),
             deferred: true,
         },
-        Operation::Submit,
+        Operation::Submit { round: 2 },
     ] {
         assert_eq!(
             topic.apply(operation),
@@ -394,7 +394,7 @@ fn answers_are_refused_after_submit() {
 #[test]
 fn asks_and_swaps_are_refused_after_submit() {
     let mut topic = topic_on_a_round();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     let ask = topic.apply(Operation::Ask {
         question: q("q2"),
@@ -413,7 +413,7 @@ fn unacknowledged_events_are_returned_again() {
     topic
         .apply(Operation::RequestReview { decision: d("d1") })
         .unwrap();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     let first: Vec<_> = topic.pending_events().to_vec();
     let again: Vec<_> = topic.pending_events().to_vec();
@@ -428,7 +428,7 @@ fn acknowledged_events_are_not_returned() {
     topic
         .apply(Operation::RequestReview { decision: d("d1") })
         .unwrap();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
     let first = topic.pending_events()[0].id;
 
     topic.acknowledge(&[first]);
@@ -473,7 +473,7 @@ fn reply_to_ask_in_submitted_round_is_kept_with_that_round() {
         })
         .unwrap();
     let ask = topic.current_round().unwrap().asks[0].id;
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
     topic
         .apply_round(round(
             json!({ "subject": "Third", "questions": [question("q4", &[])] }),
@@ -507,7 +507,7 @@ fn end_is_refused_while_a_round_is_unsent() {
 #[test]
 fn wait_is_refused_after_end() {
     let mut topic = topic_on_a_round();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     topic.end().unwrap();
 
@@ -525,7 +525,7 @@ fn reply_is_refused_after_end() {
         })
         .unwrap();
     let ask = topic.current_round().unwrap().asks[0].id;
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
     topic.end().unwrap();
 
     let refused = topic.reply(
@@ -549,7 +549,7 @@ fn pending_ask_shows_no_reply_after_end() {
             follows: None,
         })
         .unwrap();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
 
     topic.end().unwrap();
 
@@ -559,7 +559,7 @@ fn pending_ask_shows_no_reply_after_end() {
 #[test]
 fn every_input_is_refused_after_end() {
     let mut topic = topic_on_a_round();
-    topic.apply(Operation::Submit).unwrap();
+    submit_current(&mut topic).unwrap();
     topic.end().unwrap();
 
     for operation in [
@@ -577,4 +577,15 @@ fn every_input_is_refused_after_end() {
     ] {
         assert_eq!(topic.apply(operation), Err(OperationRefusal::TopicEnded));
     }
+}
+
+#[test]
+fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
+    let mut topic = topic_on_a_round();
+
+    let refused = topic.apply(Operation::Submit { round: 1 });
+
+    assert_eq!(refused, Err(OperationRefusal::NotCurrentRound { round: 1 }));
+    assert!(!topic.current_round().expect("round 2 is out").submitted);
+    assert!(topic.pending_events().is_empty());
 }
