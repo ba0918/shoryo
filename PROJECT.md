@@ -34,9 +34,12 @@ The specification is in `docs/spec/`:
 | All gates (what CI runs) | `scripts/check.sh` |
 | Browser tests of the screen | `scripts/test-web.sh` (builds the binary, then runs Playwright on `web/tests/`) |
 | Format check | `cargo fmt --all --check` |
+| Release | Promote `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - <date>` with its comparison link, set the version, commit, run the gates, then push the tag `vX.Y.Z`; `.github/workflows/release.yml` checks that the tag, `Cargo.toml` and the changelog agree (`scripts/check-release-version.sh`) and publishes `shoryo-x86_64-unknown-linux-musl.tar.gz` with its SHA-256 |
 | Run locally | `cargo run -- start <topic>` (prints the page URL; the agent commands are `round`, `wait`, `reply`, `end`, `result`, `stop`; see `cargo run -- --help`) |
 
 ## Conventions specific to this project
+
+- The canonical version is `version` under `[workspace.package]` in `Cargo.toml`; every crate inherits it. The release tag and the changelog heading follow it, checked by `scripts/check-release-version.sh`.
 
 - Documents written for agents (`AGENTS.md`, `PROJECT.md`, the shoryo skill) are in English. The specification in `docs/spec/` and the glossary `CONTEXT.md` are in Japanese.
 - Use the terms in `CONTEXT.md` with the meanings given there, in code names and messages as well as documents. For example, the unit shoryo handles is a 議題 (topic), never a "session": "session" means the conversation with the LLM.
