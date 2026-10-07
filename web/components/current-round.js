@@ -1,17 +1,19 @@
 // The current round's tab: the cards, the provisional list and sending, in that order
 // (docs/spec/screen.md, "並び").
 import { Component, KeyedList, h } from "../dom.js";
+import { translator } from "../strings.js";
 import { Card } from "./card.js";
 import { ProvisionalRow } from "./provisional.js";
 import { Fixes } from "./fixes.js";
 
 class SendBar extends Component {
   draw(bar) {
+    const t = translator(bar.lang);
     const status = bar.sent
-      ? h("p", { class: "send-status", "data-sent-notice": true }, "Sent. Waiting for the next round.")
+      ? h("p", { class: "send-status", "data-sent-notice": true }, t("send.sent"))
       : bar.unstamped > 0
-        ? h("p", { class: "send-status warn", "data-unstamped-count": true }, `${bar.unstamped} not approved yet`)
-        : h("p", { class: "send-status" }, bar.locked ? "" : "Every question is approved.");
+        ? h("p", { class: "send-status warn", "data-unstamped-count": true }, t("send.unstamped", { count: bar.unstamped }))
+        : h("p", { class: "send-status" }, bar.locked ? "" : t("send.ready"));
     return h(
       "div",
       { class: "send-bar" },
@@ -25,7 +27,7 @@ class SendBar extends Component {
           disabled: bar.locked || bar.unstamped > 0,
           onclick: () => this.emit({ type: "op", op: { op: "submit", round: bar.round } }),
         },
-        "Send all",
+        t("send.all"),
       ),
     );
   }
@@ -33,7 +35,7 @@ class SendBar extends Component {
 
 export class CurrentRound {
   constructor(emit) {
-    this.empty = h("p", { class: "empty" }, "Waiting for the first round.");
+    this.empty = h("p", { class: "empty" });
     this.cardBox = h("div", { class: "cards" });
     this.rowBox = h("div", { class: "provisional-rows" });
     this.list = h(
@@ -42,8 +44,8 @@ export class CurrentRound {
       h(
         "header",
         { class: "list-head" },
-        h("h2", {}, "Provisional answers"),
-        h("p", { class: "list-hint" }, "Pre-approved by the LLM. Change or send back only what looks wrong."),
+        (this.listTitle = h("h2")),
+        (this.listHint = h("p", { class: "list-hint" })),
       ),
       this.rowBox,
     );
@@ -54,14 +56,18 @@ export class CurrentRound {
     this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.cardBox, this.list, this.send.el);
   }
 
-  /// `round` is null before the first round.
-  update(round) {
+  /// `round` is null before the first round; `lang` is the screen's language.
+  update(round, lang) {
+    const t = translator(lang);
+    this.empty.textContent = t("current.waiting");
+    this.listTitle.textContent = t("provisional.title");
+    this.listHint.textContent = t("provisional.hint");
     this.empty.hidden = round !== null;
     this.list.hidden = round === null || round.provisional.length === 0;
-    this.fixes.update(round?.fixes ?? []);
+    this.fixes.update({ fixes: round?.fixes ?? [], lang });
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
-    this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, sent: false });
+    this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, sent: false, lang });
     this.send.el.hidden = round === null;
   }
 }

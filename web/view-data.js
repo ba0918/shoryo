@@ -1,5 +1,7 @@
 // Turns the server's view into the read-only data each component draws. Decisions about
-// what is shown are made here, once, not inside the components.
+// what is shown are made here, once, not inside the components. `view.lang` is the screen's
+// language, carried into every piece of view data so a switch redraws it.
+import { translator } from "./strings.js";
 
 export function decisionContent(decision, round = Infinity) {
   const versions = decision.history.filter((version) => version.round <= round);
@@ -19,11 +21,11 @@ export function findDecision(topic, id) {
 }
 
 /// The question a decision was decided in, as text, or the fix round it came from.
-export function decisionSource(topic, decision) {
+export function decisionSource(view, decision) {
   if (decision.origin.question !== undefined) {
-    return findQuestion(topic, decision.origin.question)?.question.text ?? decision.origin.question;
+    return findQuestion(view.topic, decision.origin.question)?.question.text ?? decision.origin.question;
   }
-  return `Fixed in round ${decision.origin.fix_round}`;
+  return translator(view.lang)("decision.fixed-in", { round: decision.origin.fix_round });
 }
 
 /// A question as its card or row draws it. `asOf` is the round whose content the
@@ -31,6 +33,7 @@ export function decisionSource(topic, decision) {
 export function questionData(view, round, question, locked, landed = null, asOf = Infinity) {
   const topic = view.topic;
   return {
+    lang: view.lang,
     id: question.id,
     text: question.text,
     why_now: question.why_now,
@@ -69,6 +72,7 @@ export function currentRoundData(view, landed = null) {
       locked,
       unstamped: locked ? 0 : view.unstamped.length,
       sent: round.submitted && !topic.ended,
+      lang: view.lang,
     },
     fixes: round.review ? fixesData(view, round) : [],
   };
@@ -89,6 +93,7 @@ export function reviewState(view, id) {
   const topic = view.topic;
   const mark = topic.records.in_review.find((entry) => entry.decision === id);
   return {
+    lang: view.lang,
     decision: id,
     inReview: mark !== undefined,
     canReview: mark === undefined && !topic.ended,
@@ -101,10 +106,11 @@ export function reviewState(view, id) {
 export function decisionItemData(view, decision, { asDecided = false } = {}) {
   const content = asDecided ? decision.history[0].content : decisionContent(decision);
   return {
+    lang: view.lang,
     id: decision.id,
     name: content.name,
     text: content.text,
-    source: decisionSource(view.topic, decision),
+    source: decisionSource(view, decision),
     revised: asDecided && decision.history.length > 1,
     preApproved: view.pre_approved.includes(decision.id),
     review: reviewState(view, decision.id),
@@ -163,6 +169,7 @@ export function pastRoundsData(view, selected, landed = null) {
       }))
     : [];
   return {
+    lang: view.lang,
     choices: rounds.map((round) => ({ number: round.number, subject: round.subject })),
     selected: chosen?.number ?? null,
     round: chosen
@@ -185,6 +192,7 @@ export function decisionsTabData(view) {
     return decision ? decisionContent(decision).name : id;
   };
   return {
+    lang: view.lang,
     decisions: records.decisions.map((decision) => decisionItemData(view, decision)),
     not_building: records.not_building,
     rejected: records.rejected.map((rejected) => ({
@@ -207,9 +215,9 @@ export function decisionsTabData(view) {
   };
 }
 
-function answerText(question, round) {
+function answerText(view, question, round) {
   if (!round.submitted) return null;
-  if (question.answer.deferred) return "(asked again next round)";
+  if (question.answer.deferred) return translator(view.lang)("map.asked-again");
   return question.options[question.answer.selected]?.text ?? null;
 }
 
@@ -233,12 +241,13 @@ function nodeDetail(view, node) {
       return {
         text: decision ? decisionContent(decision).text : "",
         question: node.question,
-        answer: found ? answerText(found.question, found.round) : null,
+        answer: found ? answerText(view, found.question, found.round) : null,
       };
     }
     case "rejected": {
       const rejected = topic.records.rejected[Number(node.key.slice(2))];
-      return { text: rejected ? `Rejected: ${rejected.reason}` : "", question: node.question, answer: null };
+      const text = rejected ? translator(view.lang)("map.rejected-because", { reason: rejected.reason }) : "";
+      return { text, question: node.question, answer: null };
     }
     default:
       return {
@@ -268,6 +277,7 @@ export function mapData(view, range, selected) {
   const visible = (key) => shown === null || shown.has(key);
   const nodes = new Map(map.nodes.map((node) => [node.key, node]));
   return {
+    lang: view.lang,
     range,
     selected: chosen,
     columns: map.columns.map((column) => ({

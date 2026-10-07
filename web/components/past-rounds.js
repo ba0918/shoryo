@@ -1,12 +1,14 @@
 // 過去のラウンド: a sent round as it was answered, drawn with the same cards and provisional
 // list as the current round, read only (docs/spec/screen.md, "過去のラウンド").
 import { Component, KeyedList, h } from "../dom.js";
+import { translator } from "../strings.js";
 import { Card } from "./card.js";
 import { Fixes } from "./fixes.js";
 import { ProvisionalRow } from "./provisional.js";
 
 class RoundChoices extends Component {
   draw(data) {
+    const t = translator(data.lang);
     return h(
       "ul",
       { class: "round-choices seg-group" },
@@ -23,7 +25,7 @@ class RoundChoices extends Component {
               "aria-pressed": String(choice.number === data.selected),
               onclick: () => this.emit({ type: "choose-round", round: choice.number }),
             },
-            h("span", { class: "round-number" }, `Round ${choice.number}`),
+            h("span", { class: "round-number" }, t("round.number", { number: choice.number })),
             h("span", { class: "round-subject" }, choice.subject),
           ),
         ),
@@ -34,7 +36,7 @@ class RoundChoices extends Component {
 
 export class PastRounds {
   constructor(emit) {
-    this.empty = h("p", { class: "empty" }, "No round has been sent yet.");
+    this.empty = h("p", { class: "empty" });
     this.choices = new RoundChoices(emit);
     this.title = h("h2", { class: "round-title" });
     this.fixes = new Fixes(emit);
@@ -43,7 +45,7 @@ export class PastRounds {
     this.list = h(
       "section",
       { class: "provisional-list", "data-provisional-list": true },
-      h("header", { class: "list-head" }, h("h3", {}, "Provisional answers")),
+      h("header", { class: "list-head" }, (this.listTitle = h("h3"))),
       this.rowBox,
     );
     this.cards = new KeyedList(this.cardBox, () => new Card(emit, { past: true }));
@@ -53,18 +55,24 @@ export class PastRounds {
   }
 
   update(data) {
+    const t = translator(data.lang);
+    this.empty.textContent = t("past.none");
+    this.listTitle.textContent = t("provisional.title");
     const round = data.round;
     this.empty.hidden = data.choices.length > 0;
-    this.choices.update({ choices: data.choices, selected: data.selected });
+    this.choices.update({ choices: data.choices, selected: data.selected, lang: data.lang });
     this.section.hidden = round === null;
     if (round) {
       this.section.dataset.pastRound = String(round.number);
-      this.title.replaceChildren(h("span", { class: "round-number" }, `Round ${round.number}`), h("span", {}, round.subject));
+      this.title.replaceChildren(
+        h("span", { class: "round-number" }, t("round.number", { number: round.number })),
+        h("span", {}, round.subject),
+      );
     } else {
       delete this.section.dataset.pastRound;
     }
     this.list.hidden = round === null || round.provisional.length === 0;
-    this.fixes.update(round?.fixes ?? []);
+    this.fixes.update({ fixes: round?.fixes ?? [], lang: data.lang });
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
   }

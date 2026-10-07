@@ -1,6 +1,7 @@
 // The provisional list: one row per provisional question, changed in place with the same
 // option choice the cards use, opened into a card (docs/spec/screen.md, "仮決めの一覧").
 import { Component, h } from "../dom.js";
+import { translator } from "../strings.js";
 import {
   answerExtras,
   chainLine,
@@ -32,6 +33,7 @@ export class ProvisionalRow extends Component {
   }
 
   draw(question) {
+    const t = translator(question.lang);
     return h(
       "div",
       {
@@ -58,8 +60,8 @@ export class ProvisionalRow extends Component {
         ? h(
             "div",
             { class: "row-card" },
-            h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, "Why now"), question.why_now),
-            chainLine(question.chains, this.emit),
+            h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, t("card.why-now")), question.why_now),
+            chainLine(question, this.emit),
             details(question),
             optionList(question, this.emit, true),
             consequence(question),
@@ -82,7 +84,7 @@ export class ProvisionalRow extends Component {
               this.redraw();
             },
           },
-          this.open ? "Fold" : "Open as a card",
+          this.open ? t("provisional.fold") : t("provisional.open"),
         ),
         this.past
           ? null
@@ -95,7 +97,7 @@ export class ProvisionalRow extends Component {
                 disabled: question.locked,
                 onclick: () => this.emit({ type: "op", op: { op: "swap_class", question: question.id } }),
               },
-              "Decide myself",
+              t("provisional.decide-myself"),
             ),
       ),
     );

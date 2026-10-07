@@ -1,7 +1,9 @@
-// The top-level component: holds the server's view and the screen-wide state (the tab and
-// the open dialog), turns them into each region's view data, and carries the person's
-// actions to the server. No region talks to another; everything passes through here.
+// The top-level component: holds the server's view and the screen-wide state (the tab, the
+// open dialog, the language and theme), turns them into each region's view data, and
+// carries the person's actions to the server. No region talks to another; everything
+// passes through here.
 import { h } from "./dom.js";
+import { translator } from "./strings.js";
 import { CurrentRound } from "./components/current-round.js";
 import { DialogLayer } from "./components/dialog.js";
 import { Header, Tabs } from "./components/header.js";
@@ -11,12 +13,10 @@ import { renderDiagram } from "./diagram.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { currentRoundData, decisionDetail, decisionsTabData, mapData, pastRoundsData } from "./view-data.js";
 
-const TABS = [
-  { id: "current", name: "Current round" },
-  { id: "past", name: "Past rounds" },
-  { id: "map", name: "Map" },
-  { id: "decisions", name: "Decisions" },
-];
+const TABS = [{ id: "current" }, { id: "past" }, { id: "map" }, { id: "decisions" }];
+
+/// What the screen shows until the config is read, and when it cannot be.
+const DEFAULT_CONFIG = { language: "en", theme: "system", unreadable: false };
 
 const ui = {
   tab: "current",
@@ -29,6 +29,8 @@ const ui = {
   landed: null,
   /// Where each jump came from, so "Back" can return there.
   history: [],
+  /// The language and theme, read from the config when the page opens.
+  config: null,
 };
 let view = null;
 
@@ -39,26 +41,24 @@ const tabs = new Tabs(emit);
 const current = new CurrentRound(emit);
 const past = new PastRounds(emit);
 const decisions = new DecisionsTab(emit);
-const ended = h(
-  "p",
-  { class: "ended", "data-ended": true, hidden: true },
-  "This brainstorm has ended. Everything stays readable; nothing more can be sent.",
-);
+const ended = h("p", { class: "ended", "data-ended": true, hidden: true });
 const map = new MapTab(emit);
 const dialogs = new DialogLayer(emit, {
-  "finished-picture": (picture) => ({
-    label: "Finished picture",
-    attrs: { "data-finished-picture": true },
-    body: [
-      h("h2", { class: "dialog-title" }, "Finished picture"),
-      picture ? h("div", { class: "diagram-box" }, renderDiagram(picture)) : h("p", { class: "empty" }, "No finished picture yet."),
-    ],
-  }),
+  "finished-picture": ({ picture, lang }) => {
+    const t = translator(lang);
+    return {
+      label: t("header.finished-picture"),
+      attrs: { "data-finished-picture": true },
+      body: [
+        h("h2", { class: "dialog-title" }, t("header.finished-picture")),
+        picture ? h("div", { class: "diagram-box" }, renderDiagram(picture)) : h("p", { class: "empty" }, t("dialog.no-picture")),
+      ],
+    };
+  },
 });
 const back = h(
   "button",
   { type: "button", class: "btn quiet small back", "data-action": "back", hidden: true, onclick: () => emit({ type: "back" }) },
-  "Back",
 );
 const error = h("p", { class: "error", role: "alert", hidden: true });
 const panels = Object.fromEntries(
@@ -73,31 +73,80 @@ const page = h("main", { class: "page" }, ended, h("div", { class: "nav-row" }, 
 document.body.append(header.el, page, dialogs.el);
 
 function render() {
-  if (!view) return;
-  header.update({ title: view.topic.title, original_request: view.topic.original_request });
-  tabs.update({ tabs: TABS, current: ui.tab });
+  if (!view || !ui.config) return;
+  const lang = ui.config.language;
+  const t = translator(lang);
+  const shown = { ...view, lang };
+  header.update({
+    title: view.topic.title,
+    original_request: view.topic.original_request,
+    lang,
+    theme: ui.config.theme,
+    unreadable: ui.config.unreadable,
+  });
+  tabs.update({ tabs: TABS, current: ui.tab, lang });
   for (const [id, panel] of Object.entries(panels)) panel.hidden = id !== ui.tab;
   ended.hidden = !view.topic.ended;
+  ended.textContent = t("screen.ended");
   back.hidden = ui.history.length === 0;
-  current.update(currentRoundData(view, ui.landed));
-  past.update(pastRoundsData(view, ui.pastRound, ui.landed));
-  map.update(mapData(view, ui.mapRange, ui.mapSelected));
-  decisions.update(decisionsTabData(view));
+  back.textContent = t("screen.back");
+  current.update(currentRoundData(shown, ui.landed), lang);
+  past.update(pastRoundsData(shown, ui.pastRound, ui.landed));
+  map.update(mapData(shown, ui.mapRange, ui.mapSelected));
+  decisions.update(decisionsTabData(shown));
   error.hidden = !ui.error;
-  error.textContent = ui.error ?? "";
-  dialogs.update(dialogData());
+  error.textContent = ui.error ? (ui.error.text ?? t(ui.error.key, ui.error.vars)) : "";
+  dialogs.update(dialogData(shown));
 }
 
-function dialogData() {
+function dialogData(shown) {
   const dialog = ui.dialog;
   if (dialog?.kind === "decision") {
-    const detail = decisionDetail(view, dialog.decision);
-    return detail ? { kind: "decision", data: detail } : null;
+    const detail = decisionDetail(shown, dialog.decision);
+    return detail ? { kind: "decision", data: detail, lang: shown.lang } : null;
   }
   if (dialog?.kind === "finished-picture") {
-    return { kind: "finished-picture", data: view.topic.finished_picture };
+    return { kind: "finished-picture", data: { picture: view.topic.finished_picture, lang: shown.lang }, lang: shown.lang };
   }
   return null;
+}
+
+/// Puts the theme on the root element, where the colour tokens switch; "system" leaves it
+/// to the OS's setting.
+function applyConfig() {
+  const root = document.documentElement;
+  if (ui.config.theme === "system") delete root.dataset.theme;
+  else root.dataset.theme = ui.config.theme;
+  root.lang = ui.config.language;
+}
+
+async function loadConfig() {
+  try {
+    const response = await fetch("./api/config");
+    ui.config = response.ok ? await response.json() : { ...DEFAULT_CONFIG, unreadable: true };
+  } catch {
+    ui.config = { ...DEFAULT_CONFIG, unreadable: true };
+  }
+  applyConfig();
+  render();
+}
+
+/// A switch takes effect on this page at once; it is kept in the config file unless the file
+/// cannot be read, and a failed write leaves it for this page only.
+let configQueue = Promise.resolve();
+function changeConfig(change) {
+  ui.config = { ...ui.config, ...change };
+  applyConfig();
+  render();
+  if (ui.config.unreadable) return;
+  configQueue = configQueue.then(async () => {
+    const response = await fetch("./api/config", { method: "POST", body: JSON.stringify(change) }).catch(() => null);
+    if (!response?.ok) {
+      ui.config = { ...ui.config, unreadable: true };
+      ui.error = { key: "screen.config-not-saved" };
+      render();
+    }
+  });
 }
 
 // Actions go to the server one at a time, in the order the person made them, so a quick
@@ -105,7 +154,7 @@ function dialogData() {
 let queue = Promise.resolve();
 function enqueue(op) {
   queue = queue.then(() => operate(op)).catch((failure) => {
-    ui.error = `The server could not be reached: ${failure.message}`;
+    ui.error = { key: "screen.unreachable", vars: { reason: failure.message } };
     render();
   });
 }
@@ -114,7 +163,7 @@ async function operate(op) {
   const response = await fetch("./api/op", { method: "POST", body: JSON.stringify(op) });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    ui.error = body.error ?? `The server refused the action (${response.status}).`;
+    ui.error = body.error ? { text: body.error } : { key: "screen.refused", vars: { status: response.status } };
     // The action may have been made on what the screen showed before a change; show the
     // current state with the reason.
     const current = await fetch("./api/view").catch(() => null);
@@ -169,6 +218,9 @@ function handle(event) {
     case "show-finished-picture":
       ui.dialog = { kind: "finished-picture" };
       break;
+    case "config":
+      changeConfig(event.change);
+      return;
     case "close-dialog":
       ui.dialog = null;
       break;
@@ -178,6 +230,7 @@ function handle(event) {
   render();
 }
 
+loadConfig();
 const stream = new EventSource("./api/events");
 stream.addEventListener("view", (message) => {
   accept(JSON.parse(message.data));

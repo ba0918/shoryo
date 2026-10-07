@@ -1,15 +1,18 @@
 // Pieces shared by the question card and the provisional row: the small set of components
 // every question is drawn from.
 import { h } from "../dom.js";
+import { translator } from "../strings.js";
 import { decisionItem } from "./decision-item.js";
 
 /// 前提の行: each direct prerequisite's chain of short names, side by side.
-export function chainLine(chains, emit) {
+export function chainLine(question, emit) {
+  const chains = question.chains;
   if (chains.length === 0) return null;
+  const t = translator(question.lang);
   return h(
     "div",
     { class: "chain", "data-chain": true },
-    h("span", { class: "chain-label" }, "Rests on"),
+    h("span", { class: "chain-label" }, t("card.rests-on")),
     chains.map((chain, index) => [
       index > 0 ? h("span", { class: "chain-gap", "aria-hidden": "true" }, "/") : null,
       h(
@@ -26,7 +29,7 @@ export function chainLine(chains, emit) {
               onclick: () => emit({ type: "show-decision", decision: link.decision }),
             },
             link.name,
-            link.in_review ? h("span", { class: "badge review", "data-mark": "in-review" }, "In review") : null,
+            link.in_review ? h("span", { class: "badge review", "data-mark": "in-review" }, t("card.in-review")) : null,
           ),
         ]),
       ),
@@ -37,10 +40,11 @@ export function chainLine(chains, emit) {
 /// The options as bordered rows: the chosen row tinted, the recommendation tagged, and each
 /// option's description once the card is open.
 export function optionList(question, emit, open) {
+  const t = translator(question.lang);
   return h(
     "fieldset",
     { class: "options", disabled: question.locked },
-    h("legend", { class: "visually-hidden" }, "Options"),
+    h("legend", { class: "visually-hidden" }, t("card.options")),
     question.options.map((option) => {
       const chosen = option.index === question.selected;
       return h(
@@ -61,7 +65,7 @@ export function optionList(question, emit, open) {
             "span",
             { class: "option-head" },
             h("span", { class: "option-text" }, option.text),
-            option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, "Recommended") : null,
+            option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, t("card.recommended")) : null,
           ),
           open ? h("span", { class: "option-description" }, option.description) : null,
         ),
@@ -72,10 +76,11 @@ export function optionList(question, emit, open) {
 
 /// The options as one compact segmented choice, for a folded provisional row.
 export function optionSegments(question, emit) {
+  const t = translator(question.lang);
   return h(
     "fieldset",
     { class: "segments", disabled: question.locked },
-    h("legend", { class: "visually-hidden" }, "Options"),
+    h("legend", { class: "visually-hidden" }, t("card.options")),
     question.options.map((option) =>
       h(
         "label",
@@ -89,7 +94,7 @@ export function optionSegments(question, emit) {
           onchange: () => emit({ type: "op", op: { op: "choose", question: question.id, option: option.index } }),
         }),
         h("span", {}, option.text),
-        option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, "Recommended") : null,
+        option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, t("card.recommended")) : null,
       ),
     ),
   );
@@ -98,22 +103,24 @@ export function optionSegments(question, emit) {
 /// この答えだと: the consequence of the option chosen now, as a tinted band.
 export function consequence(question) {
   const chosen = question.options.find((option) => option.index === question.selected);
+  const t = translator(question.lang);
   return h(
     "div",
     { class: "consequence" },
-    h("span", { class: "consequence-head" }, "With this answer"),
+    h("span", { class: "consequence-head" }, t("card.consequence")),
     h("p", { "data-consequence": true }, chosen?.consequence ?? ""),
   );
 }
 
 /// The prerequisites' full text and the background, shown once the card is open.
 export function details(question) {
+  const t = translator(question.lang);
   const parts = [
     question.premises.length > 0
       ? h(
           "div",
           { class: "context-part", "data-premise-text": true },
-          h("h4", {}, "Prerequisites"),
+          h("h4", {}, t("card.prerequisites")),
           h(
             "dl",
             {},
@@ -122,7 +129,7 @@ export function details(question) {
         )
       : null,
     question.background
-      ? h("div", { class: "context-part" }, h("h4", {}, "Background"), h("p", {}, question.background))
+      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), h("p", {}, question.background))
       : null,
   ].filter(Boolean);
   return parts.length > 0 ? h("div", { class: "context" }, parts) : null;
@@ -133,28 +140,29 @@ export function details(question) {
 export function answerExtras(question, emit) {
   const save = noteSaver(question, emit);
   if (question.past && question.note === "") return null;
+  const t = translator(question.lang);
   return h(
     "div",
     { class: "extras" },
     h(
       "label",
       { class: "note", "data-field": "note" },
-      h("span", { class: "visually-hidden" }, "Note"),
+      h("span", { class: "visually-hidden" }, t("card.note")),
       h("textarea", {
         rows: 1,
         value: question.note,
-        placeholder: "Add a note (optional)",
+        placeholder: t("card.note-placeholder"),
         disabled: question.locked,
         "data-focus": `note-${question.id}`,
         oninput: (event) => save.later(event.target.value),
         onchange: (event) => save.now(event.target.value),
       }),
     ),
-    question.past ? null : deferSwitch(question, emit),
+    question.past ? null : deferSwitch(question, emit, t),
   );
 }
 
-function deferSwitch(question, emit) {
+function deferSwitch(question, emit, t) {
   return h(
     "label",
     { class: "toggle defer", "data-field": "defer" },
@@ -167,7 +175,7 @@ function deferSwitch(question, emit) {
       onchange: (event) => emit({ type: "op", op: { op: "defer", question: question.id, deferred: event.target.checked } }),
     }),
     h("span", { class: "toggle-track", "aria-hidden": "true" }),
-    h("span", {}, "Ask me again next round"),
+    h("span", {}, t("card.defer")),
   );
 }
 
@@ -193,6 +201,7 @@ function noteSaver(question, emit) {
 /// 判子: pressed by the person, or pre-approved by the LLM; pressing a pressed stamp lifts it.
 export function stampButton(question, emit) {
   const stamped = question.stamp !== null;
+  const t = translator(question.lang);
   return h(
     "button",
     {
@@ -204,16 +213,17 @@ export function stampButton(question, emit) {
       disabled: question.locked,
       onclick: () => emit({ type: "op", op: { op: "stamp", question: question.id, stamped: !stamped } }),
     },
-    h("span", { class: "stamp-face" }, question.stamp === "pre_approved" ? "Pre-approved" : stamped ? "Approved" : "Approve"),
+    h("span", { class: "stamp-face" }, t(`stamp.${question.stamp ?? "none"}`)),
   );
 }
 
 /// The marks a sent question carries in a past round.
 export function pastMarks(question) {
   if (!question.past) return null;
+  const t = translator(question.lang);
   return [
-    question.past.preApproved ? h("span", { class: "badge pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
-    question.deferred ? h("span", { class: "badge deferred", "data-mark": "deferred" }, "Ask me again next round") : null,
+    question.past.preApproved ? h("span", { class: "badge pre-approved", "data-mark": "pre-approved" }, t("card.pre-approved")) : null,
+    question.deferred ? h("span", { class: "badge deferred", "data-mark": "deferred" }, t("card.defer")) : null,
   ];
 }
 
@@ -222,20 +232,21 @@ export function pastMarks(question) {
 export function pastAnswer(question, emit) {
   const past = question.past;
   if (!past) return null;
+  const t = translator(question.lang);
   return h(
     "div",
     { class: "past-answer" },
     h(
       "dl",
       { class: "answer-facts" },
-      h("div", { "data-chosen": true }, h("dt", {}, "Answer"), h("dd", {}, past.chosen ?? "(deferred)")),
-      h("div", { "data-recommended": true }, h("dt", {}, "Recommended"), h("dd", {}, past.recommended)),
+      h("div", { "data-chosen": true }, h("dt", {}, t("card.answer")), h("dd", {}, past.chosen ?? t("card.deferred-answer"))),
+      h("div", { "data-recommended": true }, h("dt", {}, t("card.recommended")), h("dd", {}, past.recommended)),
     ),
     past.decisions.length > 0
       ? h(
           "div",
           { class: "decided-here" },
-          h("h4", {}, "Decided here"),
+          h("h4", {}, t("card.decided-here")),
           past.decisions.map((item) => decisionItem(item, emit)),
         )
       : null,

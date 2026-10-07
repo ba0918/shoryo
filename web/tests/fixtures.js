@@ -3,7 +3,7 @@
 import { test as base, expect } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +41,9 @@ function started(child) {
 }
 
 export const test = base.extend({
-  shoryo: async ({}, use) => {
+  /// The config file's text before the server starts; null leaves no file.
+  configText: [null, { option: true }],
+  shoryo: async ({ configText }, use) => {
     if (!existsSync(bin)) throw new Error(`${bin} is missing: run scripts/test-web.sh`);
     const scratch = await mkdtemp(path.join(tmpdir(), "shoryo-web-"));
     const dirs = {
@@ -52,6 +54,10 @@ export const test = base.extend({
         XDG_CONFIG_HOME: path.join(scratch, ".config"),
       },
     };
+    if (configText !== null) {
+      await mkdir(path.join(scratch, ".config", "shoryo"), { recursive: true });
+      await writeFile(path.join(scratch, ".config", "shoryo", "config.toml"), configText);
+    }
     const server = spawn(bin, ["start", "topic"], { cwd: dirs.work, env: dirs.env });
     const url = await started(server);
     const shoryo = {

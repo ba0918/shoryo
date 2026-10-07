@@ -1,6 +1,7 @@
 // 地図: the decisions and the current questions by round, drawn from the computed map
 // (docs/spec/screen.md, "地図"). Hover details float over the map and never move it.
 import { Component, h } from "../dom.js";
+import { translator } from "../strings.js";
 import { reviewControls } from "./decision-item.js";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -32,16 +33,17 @@ const clip = (value, length) => ([...value].length > length ? `${[...value].slic
 
 export class MapTab extends Component {
   draw(map) {
+    const t = translator(map.lang);
     this.hover = h("div", { class: "map-hover", "data-map-hover": true, hidden: true });
     return h(
       "div",
       { class: "map-tab" },
       h(
         "div",
-        { class: "map-ranges seg-group", role: "group", "aria-label": "Range" },
+        { class: "map-ranges seg-group", role: "group", "aria-label": t("map.range") },
         [
-          { id: "path", name: "Path" },
-          { id: "all", name: "All" },
+          { id: "path", name: t("map.path") },
+          { id: "all", name: t("map.all") },
         ].map((range) =>
           h(
             "button",
@@ -56,7 +58,7 @@ export class MapTab extends Component {
           ),
         ),
         map.range === "path" && !map.selected
-          ? h("span", { class: "label" }, " Select a point to see what it rests on.")
+          ? h("span", { class: "map-hint" }, t("map.pick-for-path"))
           : null,
       ),
       h("div", { class: "map-wrap", "data-map": true }, this.svg(map), this.hover),
@@ -65,34 +67,36 @@ export class MapTab extends Component {
   }
 
   selection(map) {
+    const t = translator(map.lang);
     const node = map.columns.flatMap((column) => column.nodes).find((n) => n.key === map.selected);
     return h(
       "div",
       { class: "map-selection", "data-map-selection": true },
       node
         ? [
-            h("span", {}, h("span", { class: "label" }, "Selected: "), node.label, " "),
+            h("span", {}, h("span", { class: "label" }, `${t("map.selected")}: `), node.label, " "),
             node.jump
               ? h(
                   "button",
                   { type: "button", class: "btn small", "data-action": "jump", onclick: () => this.emit({ type: "jump", target: node.jump }) },
-                  "Go to its question",
+                  t("map.go-to-question"),
                 )
               : null,
             reviewControls(node.review, this.emit),
           ]
-        : h("span", { class: "label" }, "Click a point to select it."),
+        : h("span", { class: "label" }, t("map.click-to-select")),
     );
   }
 
   svg(map) {
+    const t = translator(map.lang);
     const height = TOP + Math.max(1, ...map.columns.map((c) => c.nodes.length)) * ROW_H + PAD;
     const width = PAD * 2 + Math.max(1, map.columns.length) * COLUMN_W;
     const svg = el("svg", { class: "map", width, height, viewBox: `0 0 ${width} ${height}` });
     const at = new Map();
     map.columns.forEach((column, x) => {
       const left = PAD + x * COLUMN_W;
-      svg.append(text({ x: left + COLUMN_W / 2, y: 22, class: "column-head", "text-anchor": "middle" }, clip(`Round ${column.round}: ${column.subject}`, 30)));
+      svg.append(text({ x: left + COLUMN_W / 2, y: 22, class: "column-head", "text-anchor": "middle" }, clip(t("map.column", { round: column.round, subject: column.subject }), 30)));
       column.nodes.forEach((node, y) => at.set(node.key, { x: left + (COLUMN_W - NODE_W) / 2, y: TOP + y * ROW_H, node }));
     });
     const edges = el("g", { class: "edges" });
@@ -128,6 +132,7 @@ export class MapTab extends Component {
   }
 
   node(node, x, y) {
+    const t = translator(this.data.lang);
     // A question point has no second line, so its own text may take two.
     const chars = [...node.label];
     const lines = node.question
@@ -144,9 +149,9 @@ export class MapTab extends Component {
       el("rect", { x, y, width: NODE_W, height: NODE_H, rx: 6 }),
       text({ x: x + 8, y: y + 20, class: "node-label" }, lines[0]),
       lines[1] ? text({ x: x + 8, y: y + 38, class: "node-question" }, lines[1]) : null,
-      node.inReview ? text({ x: x + 8, y: y + 55, class: "node-mark review", "data-mark": "in-review" }, "In review") : null,
+      node.inReview ? text({ x: x + 8, y: y + 55, class: "node-mark review", "data-mark": "in-review" }, t("map.in-review")) : null,
       node.reviewMark
-        ? text({ x: x + NODE_W - 8, y: y + 55, class: "node-mark recheck", "text-anchor": "end", "data-mark": "review" }, "Premise changed")
+        ? text({ x: x + NODE_W - 8, y: y + 55, class: "node-mark recheck", "text-anchor": "end", "data-mark": "review" }, t("map.premise-changed"))
         : null,
     );
     group.addEventListener("click", () => this.emit({ type: "select-node", key: node.key }));
@@ -157,11 +162,12 @@ export class MapTab extends Component {
 
   /// Fills the floating detail box beside the node; nothing else on the screen moves.
   showHover(node, x, y) {
+    const t = translator(this.data.lang);
     this.hover.replaceChildren(
       h("p", {}, h("strong", {}, node.label)),
       node.detail.text ? h("p", {}, node.detail.text) : null,
-      node.detail.question ? h("p", {}, h("span", { class: "label" }, "Question: "), node.detail.question) : null,
-      node.detail.answer ? h("p", {}, h("span", { class: "label" }, "Answer then: "), node.detail.answer) : null,
+      node.detail.question ? h("p", {}, h("span", { class: "label" }, `${t("map.question")}: `), node.detail.question) : null,
+      node.detail.answer ? h("p", {}, h("span", { class: "label" }, `${t("map.answer-then")}: `), node.detail.answer) : null,
     );
     this.hover.style.left = `${x + NODE_W + 8}px`;
     this.hover.style.top = `${y}px`;

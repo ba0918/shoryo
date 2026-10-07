@@ -3,6 +3,7 @@
 // consequence and the stamp are the body; the note, the defer switch and asking back sit
 // below as secondary parts.
 import { Component, h } from "../dom.js";
+import { translator } from "../strings.js";
 import {
   answerExtras,
   chainLine,
@@ -38,6 +39,7 @@ export class Card extends Component {
   }
 
   draw(question) {
+    const t = translator(question.lang);
     return h(
       "article",
       {
@@ -53,12 +55,12 @@ export class Card extends Component {
         h(
           "div",
           { class: "badges", "data-question-marks": true },
-          h("span", { class: "badge human", "data-mark": "human" }, "Human decides"),
+          h("span", { class: "badge human", "data-mark": "human" }, t("card.human")),
           pastMarks(question),
         ),
       ),
-      h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, "Why now"), question.why_now),
-      chainLine(question.chains, this.emit),
+      h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, t("card.why-now")), question.why_now),
+      chainLine(question, this.emit),
       this.open ? details(question) : null,
       h(
         "div",
@@ -78,7 +80,7 @@ export class Card extends Component {
           h(
             "button",
             { type: "button", class: "link", "data-action": "open", "aria-expanded": String(this.open), onclick: () => this.toggle() },
-            this.open ? "Hide details" : "Show details",
+            this.open ? t("card.hide-details") : t("card.show-details"),
           ),
           this.past
             ? null
@@ -91,7 +93,7 @@ export class Card extends Component {
                   disabled: question.locked,
                   onclick: () => this.emit({ type: "op", op: { op: "swap_class", question: question.id } }),
                 },
-                "Make provisional",
+                t("card.make-provisional"),
               ),
         ),
       ),
