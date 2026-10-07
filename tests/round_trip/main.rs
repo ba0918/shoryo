@@ -1,0 +1,344 @@
+//! The round trip between the agent's commands, the server and the page API, run against
+//! the built binary (`docs/spec/server.md`, "起動", "往復", "状態データ", "記録の置き場所と寿命").
+
+mod harness;
+
+use std::io::{BufRead, BufReader};
+use std::process::Command;
+
+use harness::{Env, Server, files_under, first_round, text, wait_until};
+use serde_json::{Value, json};
+
+fn events(output: &std::process::Output) -> Vec<Value> {
+    let parsed: Value =
+        serde_json::from_slice(&output.stdout).expect("wait prints the events as JSON");
+    parsed["events"]
+        .as_array()
+        .expect("the events are a list")
+        .clone()
+}
+
+#[test]
+fn version_prints_the_package_version() {
+    let env = Env::new();
+
+    let output = env.run(&["--version"], "");
+
+    assert!(text(&output).contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn second_start_of_same_topic_is_refused() {
+    let env = Env::new();
+    let _first = env.start("store", &[]);
+
+    let second = env.run(&["start", "store"], "");
+
+    assert!(!second.status.success());
+    assert!(text(&second).contains("already running"));
+}
+
+#[test]
+fn restart_restores_rounds_and_pre_submit_state() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "choose", "question": "q1", "option": 1 }));
+    server.operate(json!({ "op": "defer", "question": "q1", "deferred": true }));
+    assert!(env.run(&["stop", "store"], "").status.success());
+    server.finish();
+
+    let again = env.start("store", &[]);
+
+    let answer = &again.view()["topic"]["rounds"][0]["questions"][0]["answer"];
+    assert_eq!(answer["selected"], 1);
+    assert_eq!(answer["deferred"], true);
+}
+
+#[test]
+fn round_output_contains_no_question_text() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+
+    let output = env.run(&["round", "store"], &first_round());
+    env.run(&["stop", "store"], "");
+    let (server_out, server_err) = server.finish();
+
+    let printed = format!("{}{server_out}{server_err}", text(&output));
+    assert!(output.status.success(), "{printed}");
+    assert!(text(&output).contains("Round 1 is on the screen"));
+    for content in [
+        "Which store keeps",
+        "A single JSON file",
+        "An embedded database",
+        "Choosing",
+    ] {
+        assert!(!printed.contains(content), "printed {content:?}");
+    }
+}
+
+#[test]
+fn refused_round_returns_the_reason() {
+    let env = Env::new();
+    let _server = env.start("store", &[]);
+    let mut round: Value = serde_json::from_str(&first_round()).expect("the round is JSON");
+    round["questions"][0]["options"][1]["recommended"] = json!(true);
+
+    let output = env.run(&["round", "store"], &round.to_string());
+
+    assert!(!output.status.success());
+    assert!(text(&output).contains("q1"));
+}
+
+#[test]
+fn default_bind_is_loopback() {
+    let env = Env::new();
+
+    let server = env.start("store", &[]);
+
+    assert!(
+        server.url.starts_with("http://127.0.0.1:"),
+        "{}",
+        server.url
+    );
+}
+
+#[test]
+fn bind_elsewhere_prints_plain_http_warning() {
+    let env = Env::new();
+    let server = env.start("store", &["--bind", "0.0.0.0"]);
+
+    env.run(&["stop", "store"], "");
+    let (_, err) = server.finish();
+
+    assert!(err.contains("plain HTTP"), "{err}");
+}
+
+#[test]
+fn port_flag_fixes_the_port() {
+    let env = Env::new();
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("a free port can be found")
+        .local_addr()
+        .expect("the port is known")
+        .port();
+
+    let server = env.start("store", &["--port", &port.to_string()]);
+
+    assert!(server.url.contains(&format!(":{port}/")), "{}", server.url);
+}
+
+#[test]
+fn events_while_not_waiting_are_received_later() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "ask", "question": "q1", "text": "Explain more" }));
+    server.operate(json!({ "op": "submit" }));
+
+    let first = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
+    let again = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
+
+    let kinds: Vec<&str> = first.iter().map(|e| e["kind"].as_str().unwrap()).collect();
+    assert_eq!(kinds, ["ask", "submitted"]);
+    assert_eq!(first, again);
+}
+
+#[test]
+fn acknowledged_events_are_not_returned_again() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "submit" }));
+    let first = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
+    let id = first[0]["id"].to_string();
+
+    let after = events(&env.run(&["wait", "store", "--ack", &id, "--timeout", "1"], ""));
+
+    assert!(after.is_empty(), "{after:?}");
+}
+
+#[test]
+fn wait_returns_when_an_event_happens() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    let waiting = env
+        .command(&["wait", "store", "--timeout", "20"])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("wait starts");
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    server.operate(json!({ "op": "submit" }));
+
+    let output = waiting.wait_with_output().expect("wait finishes");
+    assert_eq!(events(&output)[0]["kind"], "submitted");
+}
+
+fn read_page_stream_until(server: &Server, needle: &str) -> bool {
+    let mut response = Server::agent()
+        .get(format!("{}api/events", server.url))
+        .call()
+        .expect("the event stream opens");
+    let reader = BufReader::new(response.body_mut().as_reader());
+    for line in reader.lines() {
+        let Ok(line) = line else { return false };
+        if line.contains(needle) {
+            return true;
+        }
+    }
+    false
+}
+
+#[test]
+fn reply_reaches_open_page_without_reload() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "ask", "question": "q1", "text": "Explain more" }));
+    let ask = events(&env.run(&["wait", "store", "--timeout", "1"], ""))[0]["ask"].to_string();
+
+    std::thread::scope(|scope| {
+        let page = scope.spawn(|| read_page_stream_until(&server, "It is one file"));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let reply = env.run(
+            &["reply", "store", &ask],
+            &json!({ "text": "It is one file on disk." }).to_string(),
+        );
+        assert!(reply.status.success(), "{}", text(&reply));
+        assert!(page.join().expect("the page reader finishes"));
+    });
+}
+
+#[test]
+fn two_open_pages_receive_the_same_change() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+
+    std::thread::scope(|scope| {
+        let first = scope.spawn(|| read_page_stream_until(&server, "Which store keeps"));
+        let second = scope.spawn(|| read_page_stream_until(&server, "Which store keeps"));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        env.run(&["round", "store"], &first_round());
+        assert!(first.join().expect("the first page finishes"));
+        assert!(second.join().expect("the second page finishes"));
+    });
+}
+
+#[test]
+fn end_refuses_while_a_round_is_unsent() {
+    let env = Env::new();
+    let _server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+
+    let output = env.run(&["end", "store"], "");
+
+    assert!(!output.status.success());
+    assert!(text(&output).contains("not been sent"));
+}
+
+#[test]
+fn result_is_available_after_end() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "submit" }));
+    assert!(env.run(&["end", "store"], "").status.success());
+
+    let output = env.run(&["result", "store"], "");
+
+    let result: Value = serde_json::from_slice(&output.stdout).expect("the result is JSON");
+    assert_eq!(result["ended"], true);
+    assert_eq!(result["rounds"][0]["questions"][0]["id"], "q1");
+}
+
+#[test]
+fn result_reads_the_file_when_no_server_runs() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    let while_running = env.run(&["result", "store"], "");
+    env.run(&["stop", "store"], "");
+    server.finish();
+
+    let stopped = env.run(&["result", "store"], "");
+
+    assert!(stopped.status.success(), "{}", text(&stopped));
+    assert_eq!(stopped.stdout, while_running.stdout);
+}
+
+#[test]
+fn short_commands_ask_for_the_server_when_none_runs() {
+    let env = Env::new();
+
+    let output = env.run(&["round", "store"], &first_round());
+
+    assert!(!output.status.success());
+    assert!(
+        text(&output).contains("shoryo start store"),
+        "{}",
+        text(&output)
+    );
+}
+
+#[test]
+fn ended_topic_page_stays_served_until_stop() {
+    let env = Env::new();
+    let mut server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "submit" }));
+    env.run(&["end", "store"], "");
+
+    let page = Server::agent()
+        .get(&server.url)
+        .call()
+        .expect("the page answers");
+    assert_eq!(page.status().as_u16(), 200);
+    assert!(server.is_running());
+
+    env.run(&["stop", "store"], "");
+    wait_until(|| !server.is_running());
+}
+
+#[test]
+fn wait_and_reply_are_refused_after_end() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "submit" }));
+    env.run(&["end", "store"], "");
+
+    let wait = env.run(&["wait", "store", "--timeout", "1"], "");
+    let reply = env.run(&["reply", "store", "1"], r#"{ "text": "Too late." }"#);
+
+    assert!(!wait.status.success());
+    assert!(text(&wait).contains("ended"));
+    assert!(!reply.status.success());
+    assert!(text(&reply).contains("ended"));
+}
+
+#[test]
+fn data_is_written_outside_the_repository() {
+    let env = Env::new();
+    let init = Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&env.work)
+        .status()
+        .expect("git runs");
+    assert!(init.success());
+    let before = files_under(&env.work);
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.operate(json!({ "op": "submit" }));
+    env.run(&["end", "store"], "");
+    env.run(&["stop", "store"], "");
+    server.finish();
+
+    assert_eq!(files_under(&env.work), before);
+    let stored = files_under(&env.data);
+    assert!(
+        stored.iter().any(|path| path.ends_with("store/state.json")),
+        "{stored:?}"
+    );
+}

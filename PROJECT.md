@@ -32,7 +32,7 @@ The specification is in `docs/spec/`:
 | Domain purity | `scripts/check-domain-purity.sh` |
 | All gates (what CI runs) | `scripts/check.sh` |
 | Format check | `cargo fmt --all --check` |
-| Run locally | (not yet) |
+| Run locally | `cargo run -- start <topic>` (prints the page URL; the agent commands are `round`, `wait`, `reply`, `end`, `result`, `stop`; see `cargo run -- --help`) |
 
 ## Conventions specific to this project
 

@@ -10,3 +10,15 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["tokio", "http1", "json"] }
+dirs = "7.0.0"
+futures-util = { version = "0.3.34", default-features = false }
+getrandom = "0.4.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+shoryo-core = { version = "0.1.0", path = "../shoryo-core" }
+shoryo-webview = { version = "0.1.0", path = "../shoryo-webview" }
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }

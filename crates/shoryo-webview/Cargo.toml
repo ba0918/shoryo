@@ -10,3 +10,6 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+rust-embed = { version = "8.13.0", features = ["debug-embed", "include-exclude"] }
