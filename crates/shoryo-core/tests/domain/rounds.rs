@@ -1,41 +1,9 @@
-use serde_json::{Value, json};
+use serde_json::json;
 use shoryo_core::{
     DecisionContent, DecisionId, InReview, QuestionId, RoundInput, RoundRefusal, Topic,
 };
 
-fn option(text: &str, recommended: bool) -> Value {
-    json!({
-        "text": text,
-        "description": format!("About {text}."),
-        "recommended": recommended,
-        "consequence": format!("With {text}, this follows."),
-    })
-}
-
-fn question(id: &str, premises: &[&str]) -> Value {
-    json!({
-        "id": id,
-        "text": format!("Question {id}?"),
-        "class": "human",
-        "why_now": "Later questions rest on it.",
-        "premises": premises,
-        "background": "Terms used here.",
-        "options": [option("A", true), option("B", false)],
-    })
-}
-
-fn decision(id: &str, question: &str, name: &str) -> Value {
-    json!({
-        "id": id,
-        "name": name,
-        "text": format!("{name}, in full."),
-        "decided_by": { "question": question },
-    })
-}
-
-fn round(body: Value) -> RoundInput {
-    RoundInput::from_json(&body.to_string()).expect("the test writes a valid round")
-}
+use crate::common::{decision, option, question, round};
 
 fn first_round() -> RoundInput {
     round(json!({
