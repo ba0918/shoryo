@@ -280,3 +280,23 @@ fn fix_that_changed_a_decision_keeps_its_before_and_after() {
     assert_eq!(change.before.as_ref().unwrap().name, "One file");
     assert_eq!(change.after.name, "One JSON file");
 }
+
+#[test]
+fn unknown_field_in_a_nested_object_is_refused() {
+    let mut misspelt_option = question("q1", &[]);
+    misspelt_option["options"][0]["recomended"] = json!(true);
+    let nested = [
+        json!({ "subject": "S", "questions": [misspelt_option] }),
+        json!({ "subject": "S", "records": { "undecided": [{ "text": "T", "decider": "me", "by": "x" }] } }),
+        json!({ "subject": "S", "records": { "delegated": [{ "text": "T", "reason": "R", "why": "x" }] } }),
+        json!({ "subject": "S", "records": { "rejected": [{ "text": "T", "reason": "R", "question": "q1", "round": 1 }] } }),
+        json!({ "subject": "S", "review_conclusions": [{ "decision": "d1", "outcome": "unchanged", "note": "x" }] }),
+    ];
+
+    for body in nested {
+        assert!(
+            RoundInput::from_json(&body.to_string()).is_err(),
+            "accepted {body}"
+        );
+    }
+}

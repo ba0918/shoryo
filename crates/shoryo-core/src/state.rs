@@ -76,7 +76,9 @@ pub struct Question {
     pub answer: Answer,
 }
 
+// The agent writes it inside a round, where a misspelt field must be refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Choice {
     pub text: String,
     pub description: String,
@@ -98,7 +100,9 @@ pub struct Answer {
     pub sent_unseen: bool,
 }
 
+// The agent writes it inside a round, where a misspelt field must be refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReviewConclusion {
     pub decision: DecisionId,
     pub outcome: ReviewOutcome,
@@ -166,20 +170,26 @@ pub struct Records {
     pub in_review: Vec<InReview>,
 }
 
+// The agent writes it inside a round, where a misspelt field must be refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Undecided {
     pub text: String,
     /// Who decides it.
     pub decider: String,
 }
 
+// The agent writes it inside a round, where a misspelt field must be refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Delegated {
     pub text: String,
     pub reason: String,
 }
 
+// The agent writes it inside a round, where a misspelt field must be refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rejected {
     pub text: String,
     pub reason: String,
