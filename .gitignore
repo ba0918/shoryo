@@ -5,6 +5,7 @@
 /.agents/artifacts/
 /.agents/runtime/
 /.agents/tmp/
+/.agents/worktrees/
 /.agents/HANDOFF.md
 
 
