@@ -26,6 +26,8 @@ const ui = {
   pastRound: null,
   mapRange: "all",
   mapSelected: null,
+  /// The point the 道筋 range leads to; set only by "Show path to this" or the 道筋 button.
+  mapRoot: null,
   /// The map's zoom and position; null is the default view.
   mapView: null,
   /// The question a jump landed on, highlighted until the person moves on.
@@ -98,7 +100,7 @@ function render() {
   back.textContent = t("screen.back");
   current.update(currentRoundData(shown, ui.landed), lang);
   past.update(pastRoundsData(shown, ui.pastRound, ui.landed));
-  map.update({ ...mapData(shown, ui.mapRange, ui.mapSelected), view: ui.mapView ?? DEFAULT_VIEW, visible: ui.tab === "map" });
+  map.update({ ...mapData(shown, ui.mapRange, ui.mapSelected, ui.mapRoot), view: ui.mapView ?? DEFAULT_VIEW, visible: ui.tab === "map" });
   decisions.update(decisionsTabData(shown));
   error.hidden = !ui.error;
   error.textContent = ui.error ? (ui.error.text ?? t(ui.error.key, ui.error.vars)) : "";
@@ -234,6 +236,7 @@ function remember() {
     pastRound: ui.pastRound,
     mapRange: ui.mapRange,
     mapSelected: ui.mapSelected,
+    mapRoot: ui.mapRoot,
     mapView: ui.mapView,
   });
 }
@@ -251,6 +254,15 @@ function handle(event) {
       if (event.range === ui.mapRange) return;
       remember();
       ui.mapRange = event.range;
+      // The 道筋 button leads to the selected point, or back to the last root.
+      if (event.range === "path") ui.mapRoot = ui.mapSelected ?? ui.mapRoot;
+      break;
+    case "show-path":
+      if (ui.mapRange === "path" && ui.mapRoot === event.key) return;
+      remember();
+      ui.mapRange = "path";
+      ui.mapRoot = event.key;
+      ui.mapSelected = event.key;
       break;
     case "select-node":
       if (event.key === ui.mapSelected) return;

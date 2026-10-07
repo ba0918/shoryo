@@ -312,17 +312,20 @@ function nodeTarget(view, node) {
   return null;
 }
 
-/// The map as drawn: the range, the selected point, and only the points the range shows.
-export function mapData(view, range, selected) {
+/// The map as drawn: the range, the point the 道筋 leads to (`root`), the selected point, and
+/// only the points the range shows. Selecting a point never changes the 道筋; only its root does.
+export function mapData(view, range, selected, root) {
   const map = view.map;
-  const exists = map.nodes.some((node) => node.key === selected);
-  const chosen = exists ? selected : null;
-  const shown = range === "path" && chosen ? new Set(view.paths[chosen]) : null;
+  const exists = (key) => map.nodes.some((node) => node.key === key);
+  const rooted = range === "path" && exists(root) ? root : null;
+  const shown = rooted ? new Set(view.paths[rooted]) : null;
   const visible = (key) => shown === null || shown.has(key);
+  const chosen = exists(selected) && visible(selected) ? selected : null;
   const nodes = new Map(map.nodes.map((node) => [node.key, node]));
   return {
     lang: view.lang,
     range,
+    root: rooted,
     selected: chosen,
     columns: map.columns.map((column) => ({
       round: column.round,

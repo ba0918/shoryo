@@ -107,7 +107,7 @@ export class MapTab extends Component {
           h("button", { type: "button", class: "seg", "data-action": "map-fit", "data-focus": "map-fit", onclick: () => this.fit() }, t("map.fit")),
           h("button", { type: "button", class: "seg", "data-action": "map-zoom-in", "data-focus": "map-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => this.zoomBy(1.25) }, "+"),
         ),
-        h("span", { class: "map-hint" }, map.range === "path" && !map.selected ? t("map.pick-for-path") : t("map.how-to-move")),
+        h("span", { class: "map-hint" }, map.range === "path" && !map.root ? t("map.pick-for-path") : t("map.how-to-move")),
       ),
       wrap,
     );
@@ -261,9 +261,13 @@ export class MapTab extends Component {
       h(
         "div",
         { class: "details-actions" },
-        map.range === "path"
+        map.range === "path" && node.key === map.root
           ? null
-          : h("button", { type: "button", class: "btn small", "data-action": "show-path", onclick: () => this.emit({ type: "map-range", range: "path" }) }, t("map.show-path")),
+          : h(
+              "button",
+              { type: "button", class: "btn small", "data-action": "show-path", onclick: () => this.emit({ type: "show-path", key: node.key }) },
+              t("map.show-path"),
+            ),
         node.jump
           ? h("button", { type: "button", class: "btn small", "data-action": "jump", onclick: () => this.emit({ type: "jump", target: node.jump }) }, t("map.go-to-question"))
           : null,
