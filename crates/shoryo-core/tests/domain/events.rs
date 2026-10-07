@@ -261,6 +261,33 @@ fn follow_up_to_an_unknown_ask_is_refused() {
 }
 
 #[test]
+fn follow_up_to_an_ask_of_another_question_is_refused() {
+    let mut topic = topic_on_a_round();
+    topic
+        .apply(Operation::Ask {
+            question: q("q3"),
+            text: "Explain more".into(),
+            follows: None,
+        })
+        .unwrap();
+    let other = topic.current_round().unwrap().asks[0].id;
+
+    let refusal = topic
+        .apply(Operation::Ask {
+            question: q("q2"),
+            text: "And then?".into(),
+            follows: Some(other),
+        })
+        .unwrap_err();
+
+    assert_eq!(
+        refusal,
+        OperationRefusal::FollowsAnotherQuestion { ask: other }
+    );
+    assert_eq!(topic.current_round().unwrap().asks.len(), 1);
+}
+
+#[test]
 fn review_request_marks_decision_in_review_and_records_event() {
     let mut topic = topic_on_a_round();
 

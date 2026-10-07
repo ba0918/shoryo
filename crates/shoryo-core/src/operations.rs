@@ -109,6 +109,7 @@ pub enum OperationRefusal {
     NotInReview { decision: DecisionId },
     NextRoundArrived,
     NotCurrentRound { round: u32 },
+    FollowsAnotherQuestion { ask: AskId },
 }
 
 impl fmt::Display for OperationRefusal {
@@ -130,6 +131,12 @@ impl fmt::Display for OperationRefusal {
                 f,
                 "the next round has arrived, so the review request can no longer be stopped"
             ),
+            Self::FollowsAnotherQuestion { ask } => {
+                write!(
+                    f,
+                    "ask {ask} is about another question, so this cannot follow it"
+                )
+            }
             Self::NotCurrentRound { round } => write!(
                 f,
                 "round {round} is no longer the current round; the screen shows the current one"
@@ -301,10 +308,15 @@ impl Topic {
         follows: Option<AskId>,
     ) -> Result<(), OperationRefusal> {
         let round = self.open_round()?;
-        if let Some(ask) = follows
-            && !round.asks.iter().any(|candidate| candidate.id == ask)
-        {
-            return Err(OperationRefusal::UnknownAsk { ask });
+        if let Some(ask) = follows {
+            let followed = round
+                .asks
+                .iter()
+                .find(|candidate| candidate.id == ask)
+                .ok_or(OperationRefusal::UnknownAsk { ask })?;
+            if followed.question != question {
+                return Err(OperationRefusal::FollowsAnotherQuestion { ask });
+            }
         }
         let number = round.number;
         self.open_question(&question)?.answer.touched = true;
