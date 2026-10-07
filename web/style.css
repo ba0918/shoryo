@@ -389,3 +389,115 @@ svg.diagram .edge text {
 .mark.revised {
   color: var(--review);
 }
+
+.back {
+  margin-bottom: 0.5rem;
+}
+
+.map-ranges {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.map-ranges [aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.map-wrap {
+  position: relative;
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.map-hover {
+  position: absolute;
+  z-index: 2;
+  width: 18rem;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  padding: 0.25rem 0.75rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  pointer-events: none;
+}
+
+.map-selection {
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+svg.map .column-head {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--muted);
+}
+
+svg.map .map-node {
+  cursor: pointer;
+}
+
+svg.map .map-node rect {
+  fill: var(--paper);
+  stroke: var(--ink);
+}
+
+svg.map .map-node.question rect {
+  fill: #ddf4ff;
+}
+
+svg.map .map-node.rejected rect {
+  stroke-dasharray: 5 4;
+  stroke: var(--muted);
+}
+
+svg.map .map-node.selected rect {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+svg.map .node-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+svg.map .node-question,
+svg.map .edge-label {
+  font-size: 11px;
+  fill: var(--muted);
+}
+
+svg.map .node-mark {
+  font-size: 10px;
+}
+
+svg.map .node-mark.review {
+  fill: var(--review);
+}
+
+svg.map .node-mark.recheck {
+  fill: var(--warn);
+}
+
+svg.map .map-edge path {
+  fill: none;
+  stroke: var(--muted);
+}
+
+svg.map .map-edge.dashed path {
+  stroke-dasharray: 5 4;
+}
+
+button.link {
+  border: none;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+}

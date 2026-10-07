@@ -9,8 +9,8 @@
 // Blank lines are ignored.
 
 const SVG = "http://www.w3.org/2000/svg";
-const CELL_W = 180;
-const CELL_H = 100;
+const CELL_W = 250;
+const CELL_H = 130;
 const BOX_W = 150;
 const BOX_H = 64;
 const PAD = 24;

@@ -26,7 +26,7 @@ export function decisionSource(topic, decision) {
   return `Fixed in round ${decision.origin.fix_round}`;
 }
 
-export function questionData(view, round, question, locked) {
+export function questionData(view, round, question, locked, landed = null) {
   const topic = view.topic;
   return {
     id: question.id,
@@ -46,17 +46,18 @@ export function questionData(view, round, question, locked) {
     unopened: view.unopened.includes(question.id),
     asks: round.asks.filter((ask) => ask.question === question.id).map(askData),
     locked,
+    landed: question.id === landed,
   };
 }
 
-export function currentRoundData(view) {
+export function currentRoundData(view, landed = null) {
   const topic = view.topic;
   const round = topic.rounds[topic.rounds.length - 1];
   if (!round) return null;
   const locked = round.submitted || topic.ended;
   const questions = round.questions.map((question) => ({
     cls: question.class,
-    data: questionData(view, round, question, locked),
+    data: questionData(view, round, question, locked, landed),
   }));
   return {
     human: questions.filter((q) => q.cls === "human").map((q) => q.data),
@@ -106,6 +107,7 @@ export function decisionItemData(view, decision, { asDecided = false } = {}) {
     revised: asDecided && decision.history.length > 1,
     sentUnseen: fromUnseenAnswer(view.topic, decision),
     review: reviewState(view, decision.id),
+    jump: decision.origin.question !== undefined ? questionTarget(view.topic, decision.origin.question) : null,
   };
 }
 
@@ -138,13 +140,14 @@ export function fixesData(view, round) {
 }
 
 /// Every sent round, as it was answered.
-export function pastRoundsData(view, selected) {
+export function pastRoundsData(view, selected, landed = null) {
   const topic = view.topic;
   const rounds = topic.rounds.filter((round) => round.submitted);
   const chosen = rounds.find((round) => round.number === selected) ?? rounds[rounds.length - 1];
   return {
     choices: rounds.map((round) => ({ number: round.number, subject: round.subject })),
     selected: chosen?.number ?? null,
+    highlight: landed,
     round: chosen
       ? {
           number: chosen.number,
@@ -196,5 +199,90 @@ export function decisionsTabData(view) {
       .map((entry) => findDecision(topic, entry.decision))
       .filter((decision) => decision !== null)
       .map((decision) => decisionItemData(view, decision)),
+  };
+}
+
+function answerText(question, round) {
+  if (!round.submitted) return null;
+  if (question.answer.deferred) return "(asked again next round)";
+  return question.options[question.answer.selected]?.text ?? null;
+}
+
+/// Where a jump to a question lands: its card in the current round, or the past round.
+function questionTarget(topic, questionId) {
+  const found = findQuestion(topic, questionId);
+  if (!found) return null;
+  const current = topic.rounds[topic.rounds.length - 1];
+  if (found.round.number === current.number && !current.submitted) {
+    return { tab: "current", round: null, question: questionId };
+  }
+  return { tab: "past", round: found.round.number, question: questionId };
+}
+
+function nodeDetail(view, node) {
+  const topic = view.topic;
+  const found = node.question_id ? findQuestion(topic, node.question_id) : null;
+  switch (node.kind) {
+    case "decision": {
+      const decision = findDecision(topic, node.key.slice(2));
+      return {
+        text: decision ? decisionContent(decision).text : "",
+        question: node.question,
+        answer: found ? answerText(found.question, found.round) : null,
+      };
+    }
+    case "rejected": {
+      const rejected = topic.records.rejected[Number(node.key.slice(2))];
+      return { text: rejected ? `Rejected: ${rejected.reason}` : "", question: node.question, answer: null };
+    }
+    default:
+      return {
+        text: null,
+        question: node.label,
+        answer: found ? found.question.options[found.question.answer.selected]?.text ?? null : null,
+      };
+  }
+}
+
+function nodeTarget(view, node) {
+  const topic = view.topic;
+  if (node.question_id) return questionTarget(topic, node.question_id);
+  const decision = node.kind === "decision" ? findDecision(topic, node.key.slice(2)) : null;
+  if (decision?.origin.fix_round !== undefined) {
+    return { tab: "past", round: decision.origin.fix_round, question: null };
+  }
+  return null;
+}
+
+/// The map as drawn: the range, the selected point, and only the points the range shows.
+export function mapData(view, range, selected) {
+  const map = view.map;
+  const exists = map.nodes.some((node) => node.key === selected);
+  const chosen = exists ? selected : null;
+  const shown = range === "path" && chosen ? new Set(view.paths[chosen]) : null;
+  const visible = (key) => shown === null || shown.has(key);
+  const nodes = new Map(map.nodes.map((node) => [node.key, node]));
+  return {
+    range,
+    selected: chosen,
+    columns: map.columns.map((column) => ({
+      round: column.round,
+      subject: column.subject,
+      nodes: column.nodes.filter(visible).map((key) => {
+        const node = nodes.get(key);
+        return {
+          key,
+          kind: node.kind,
+          label: node.label,
+          question: node.kind === "question" ? null : node.question,
+          inReview: node.in_review,
+          reviewMark: node.review_mark,
+          selected: key === chosen,
+          detail: nodeDetail(view, node),
+          jump: nodeTarget(view, node),
+        };
+      }),
+    })),
+    edges: map.edges.filter((edge) => visible(edge.from) && visible(edge.to)),
   };
 }

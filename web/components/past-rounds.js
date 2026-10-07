@@ -54,6 +54,7 @@ export class PastRounds extends Component {
       {
         class: `card past${question.id === highlight ? " landed" : ""}`,
         "data-past-question": question.id,
+        "data-landed": question.id === highlight,
       },
       h(
         "div",

@@ -29,7 +29,11 @@ export class Card extends Component {
   draw(question) {
     return h(
       "section",
-      { class: `card${this.open ? " open" : ""}`, "data-card": question.id },
+      {
+        class: `card${this.open ? " open" : ""}${question.landed ? " landed" : ""}`,
+        "data-card": question.id,
+        "data-landed": question.landed,
+      },
       h(
         "div",
         { class: "card-marks" },

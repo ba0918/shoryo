@@ -81,9 +81,16 @@ impl Shared {
             .filter(|question| topic.shows_unopened_mark(&question.id))
             .map(|question| question.id.clone())
             .collect();
+        let map = topic.map();
+        let paths = map
+            .nodes
+            .iter()
+            .map(|node| (node.key.clone(), map.path(&node.key)))
+            .collect();
         View {
             version: *self.version.borrow(),
-            map: topic.map(),
+            map,
+            paths,
             chains,
             unopened,
             topic: state.clone(),
@@ -98,6 +105,8 @@ struct View {
     topic: StoredTopic,
     chains: BTreeMap<QuestionId, Vec<Vec<ChainLink>>>,
     map: Map,
+    /// 道筋 for each map node: the keys shown when that node is selected.
+    paths: BTreeMap<String, Vec<String>>,
     /// The current round's questions that carry the unopened mark.
     unopened: Vec<QuestionId>,
 }

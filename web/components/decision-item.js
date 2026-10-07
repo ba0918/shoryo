@@ -40,7 +40,24 @@ export function decisionItem(item, emit) {
     h(
       "p",
       { class: "decision-meta" },
-      item.source ? [h("span", { class: "label" }, "Decided in: "), item.source, " "] : null,
+      item.source
+        ? [
+            h("span", { class: "label" }, "Decided in: "),
+            item.jump
+              ? h(
+                  "button",
+                  {
+                    type: "button",
+                    class: "link",
+                    "data-action": "go-to-source",
+                    onclick: () => emit({ type: "jump", target: item.jump }),
+                  },
+                  item.source,
+                )
+              : item.source,
+            " ",
+          ]
+        : null,
       item.revised ? h("span", { class: "mark revised", "data-mark": "revised" }, "Revised later") : null,
       item.sentUnseen
         ? h("span", { class: "mark unopened", "data-mark": "sent-unseen" }, "Sent without opening")

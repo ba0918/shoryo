@@ -6,8 +6,10 @@ import { CurrentRound } from "./components/current-round.js";
 import { DialogLayer } from "./components/dialog.js";
 import { Header, Tabs } from "./components/header.js";
 import { DecisionsTab } from "./components/decisions.js";
+import { MapTab } from "./components/map.js";
+import { renderDiagram } from "./diagram.js";
 import { PastRounds } from "./components/past-rounds.js";
-import { currentRoundData, decisionDetail, decisionsTabData, pastRoundsData } from "./view-data.js";
+import { currentRoundData, decisionDetail, decisionsTabData, mapData, pastRoundsData } from "./view-data.js";
 
 const TABS = [
   { id: "current", name: "Current round" },
@@ -16,7 +18,18 @@ const TABS = [
   { id: "decisions", name: "Decisions" },
 ];
 
-const ui = { tab: "current", dialog: null, error: null, pastRound: null };
+const ui = {
+  tab: "current",
+  dialog: null,
+  error: null,
+  pastRound: null,
+  mapRange: "all",
+  mapSelected: null,
+  /// The question a jump landed on, highlighted until the person moves on.
+  landed: null,
+  /// Where each jump came from, so "Back" can return there.
+  history: [],
+};
 let view = null;
 
 const emit = (event) => handle(event);
@@ -31,7 +44,22 @@ const ended = h(
   { class: "ended", "data-ended": true, hidden: true },
   "This brainstorm has ended. Everything stays readable; nothing more can be sent.",
 );
-const dialogs = new DialogLayer(emit);
+const map = new MapTab(emit);
+const dialogs = new DialogLayer(emit, {
+  "finished-picture": (picture) => ({
+    label: "Finished picture",
+    attrs: { "data-finished-picture": true },
+    body: [
+      h("h3", {}, "Finished picture"),
+      picture ? h("div", { class: "diagram-box" }, renderDiagram(picture)) : h("p", { class: "empty" }, "No finished picture yet."),
+    ],
+  }),
+});
+const back = h(
+  "button",
+  { type: "button", class: "back", "data-action": "back", hidden: true, onclick: () => emit({ type: "back" }) },
+  "Back",
+);
 const error = h("p", { class: "error", role: "alert", hidden: true });
 const panels = Object.fromEntries(
   TABS.map((tab) => [tab.id, h("section", { class: "panel", role: "tabpanel", "data-panel": tab.id })]),
@@ -39,8 +67,9 @@ const panels = Object.fromEntries(
 panels.current.appendChild(current.el);
 panels.past.appendChild(past.el);
 panels.decisions.appendChild(decisions.el);
+panels.map.appendChild(map.el);
 
-document.body.append(header.el, ended, tabs.el, error, ...Object.values(panels), dialogs.el);
+document.body.append(header.el, ended, tabs.el, back, error, ...Object.values(panels), dialogs.el);
 
 function render() {
   if (!view) return;
@@ -48,8 +77,10 @@ function render() {
   tabs.update({ tabs: TABS, current: ui.tab });
   for (const [id, panel] of Object.entries(panels)) panel.hidden = id !== ui.tab;
   ended.hidden = !view.topic.ended;
-  current.update(currentRoundData(view));
-  past.update(pastRoundsData(view, ui.pastRound));
+  back.hidden = ui.history.length === 0;
+  current.update(currentRoundData(view, ui.landed));
+  past.update(pastRoundsData(view, ui.pastRound, ui.landed));
+  map.update(mapData(view, ui.mapRange, ui.mapSelected));
   decisions.update(decisionsTabData(view));
   error.hidden = !ui.error;
   error.textContent = ui.error ?? "";
@@ -61,6 +92,9 @@ function dialogData() {
   if (dialog?.kind === "decision") {
     const detail = decisionDetail(view, dialog.decision);
     return detail ? { kind: "decision", data: detail } : null;
+  }
+  if (dialog?.kind === "finished-picture") {
+    return { kind: "finished-picture", data: view.topic.finished_picture };
   }
   return null;
 }
@@ -99,7 +133,28 @@ function handle(event) {
       return;
     case "tab":
       ui.tab = event.tab;
+      ui.landed = null;
       break;
+    case "map-range":
+      ui.mapRange = event.range;
+      break;
+    case "select-node":
+      ui.mapSelected = event.key;
+      break;
+    case "jump":
+      ui.history.push({ tab: ui.tab, pastRound: ui.pastRound, mapRange: ui.mapRange, mapSelected: ui.mapSelected });
+      ui.tab = event.target.tab;
+      if (event.target.round !== null) ui.pastRound = event.target.round;
+      ui.landed = event.target.question;
+      ui.dialog = null;
+      render();
+      document.querySelector("[data-landed]")?.scrollIntoView({ block: "center" });
+      return;
+    case "back": {
+      const place = ui.history.pop();
+      if (place) Object.assign(ui, place, { landed: null });
+      break;
+    }
     case "choose-round":
       ui.pastRound = event.round;
       break;
