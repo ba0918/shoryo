@@ -1,0 +1,12 @@
+# Claude
+/.claude/**/*.lock
+
+# Agent
+/.agents/artifacts/
+/.agents/runtime/
+/.agents/tmp/
+/.agents/HANDOFF.md
+
+
+# Rust
+/target/
