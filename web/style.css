@@ -331,3 +331,61 @@ svg.diagram .arrow-head {
 svg.diagram .edge text {
   fill: var(--muted);
 }
+
+.ended {
+  background: #fff8c5;
+  border: 1px solid #d4a72c;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.round-choices {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.round-choices [aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.card.landed {
+  outline: 3px solid var(--review);
+}
+
+.fixes,
+.record {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.fixes h2,
+.record h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.fix {
+  border-top: 1px solid var(--line);
+  padding: 0.25rem 0;
+}
+
+.decision-item {
+  border-top: 1px solid var(--line);
+  padding: 0.25rem 0;
+}
+
+.decision-line,
+.decision-meta {
+  margin: 0.2rem 0;
+}
+
+.mark.revised {
+  color: var(--review);
+}

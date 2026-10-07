@@ -5,7 +5,9 @@ import { h } from "./dom.js";
 import { CurrentRound } from "./components/current-round.js";
 import { DialogLayer } from "./components/dialog.js";
 import { Header, Tabs } from "./components/header.js";
-import { currentRoundData, decisionDetail } from "./view-data.js";
+import { DecisionsTab } from "./components/decisions.js";
+import { PastRounds } from "./components/past-rounds.js";
+import { currentRoundData, decisionDetail, decisionsTabData, pastRoundsData } from "./view-data.js";
 
 const TABS = [
   { id: "current", name: "Current round" },
@@ -14,7 +16,7 @@ const TABS = [
   { id: "decisions", name: "Decisions" },
 ];
 
-const ui = { tab: "current", dialog: null, error: null };
+const ui = { tab: "current", dialog: null, error: null, pastRound: null };
 let view = null;
 
 const emit = (event) => handle(event);
@@ -22,21 +24,33 @@ const emit = (event) => handle(event);
 const header = new Header(emit);
 const tabs = new Tabs(emit);
 const current = new CurrentRound(emit);
+const past = new PastRounds(emit);
+const decisions = new DecisionsTab(emit);
+const ended = h(
+  "p",
+  { class: "ended", "data-ended": true, hidden: true },
+  "This brainstorm has ended. Everything stays readable; nothing more can be sent.",
+);
 const dialogs = new DialogLayer(emit);
 const error = h("p", { class: "error", role: "alert", hidden: true });
 const panels = Object.fromEntries(
   TABS.map((tab) => [tab.id, h("section", { class: "panel", role: "tabpanel", "data-panel": tab.id })]),
 );
 panels.current.appendChild(current.el);
+panels.past.appendChild(past.el);
+panels.decisions.appendChild(decisions.el);
 
-document.body.append(header.el, tabs.el, error, ...Object.values(panels), dialogs.el);
+document.body.append(header.el, ended, tabs.el, error, ...Object.values(panels), dialogs.el);
 
 function render() {
   if (!view) return;
   header.update({ title: view.topic.title, original_request: view.topic.original_request });
   tabs.update({ tabs: TABS, current: ui.tab });
   for (const [id, panel] of Object.entries(panels)) panel.hidden = id !== ui.tab;
+  ended.hidden = !view.topic.ended;
   current.update(currentRoundData(view));
+  past.update(pastRoundsData(view, ui.pastRound));
+  decisions.update(decisionsTabData(view));
   error.hidden = !ui.error;
   error.textContent = ui.error ?? "";
   dialogs.update(dialogData());
@@ -49,6 +63,16 @@ function dialogData() {
     return detail ? { kind: "decision", data: detail } : null;
   }
   return null;
+}
+
+// Actions go to the server one at a time, in the order the person made them, so a quick
+// "Send all" can never overtake the choice made just before it.
+let queue = Promise.resolve();
+function enqueue(op) {
+  queue = queue.then(() => operate(op)).catch((failure) => {
+    ui.error = `The server could not be reached: ${failure.message}`;
+    render();
+  });
 }
 
 async function operate(op) {
@@ -71,10 +95,13 @@ function accept(next) {
 function handle(event) {
   switch (event.type) {
     case "op":
-      operate(event.op);
+      enqueue(event.op);
       return;
     case "tab":
       ui.tab = event.tab;
+      break;
+    case "choose-round":
+      ui.pastRound = event.round;
       break;
     case "show-decision":
       ui.dialog = { kind: "decision", decision: event.decision };

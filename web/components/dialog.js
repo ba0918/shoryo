@@ -1,16 +1,13 @@
 // The one dialog layer: at most one dialog is open, named by the top-level component.
 import { Component, h } from "../dom.js";
+import { decisionItem } from "./decision-item.js";
 
 const bodies = {
   /// The full text of a decision and where it was decided.
-  decision: (detail) => ({
+  decision: (detail, emit) => ({
     label: "Decision",
     attrs: { "data-decision-detail": detail.id },
-    body: [
-      h("h3", {}, detail.name),
-      h("p", {}, detail.text),
-      h("p", { class: "source" }, h("span", { class: "label" }, "Decided in: "), detail.source),
-    ],
+    body: decisionItem(detail, emit),
   }),
 };
 

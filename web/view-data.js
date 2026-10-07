@@ -44,15 +44,7 @@ export function questionData(view, round, question, locked) {
     note: question.answer.note,
     deferred: question.answer.deferred,
     unopened: view.unopened.includes(question.id),
-    asks: round.asks
-      .filter((ask) => ask.question === question.id)
-      .map((ask) => ({
-        id: ask.id,
-        text: ask.text,
-        follows: ask.follows,
-        status: ask.state.status,
-        reply: ask.state.status === "replied" ? { text: ask.state.text, diagram: ask.state.diagram } : null,
-      })),
+    asks: round.asks.filter((ask) => ask.question === question.id).map(askData),
     locked,
   };
 }
@@ -69,13 +61,140 @@ export function currentRoundData(view) {
   return {
     human: questions.filter((q) => q.cls === "human").map((q) => q.data),
     provisional: questions.filter((q) => q.cls === "provisional").map((q) => q.data),
-    send: { locked, unopened: locked ? 0 : view.unopened.length, sent: round.submitted },
+    send: { locked, unopened: locked ? 0 : view.unopened.length, sent: round.submitted && !topic.ended },
+    fixes: round.review ? fixesData(view, round) : [],
   };
 }
 
 export function decisionDetail(view, id) {
   const decision = findDecision(view.topic, id);
   if (!decision) return null;
-  const content = decisionContent(decision);
-  return { id, name: content.name, text: content.text, source: decisionSource(view.topic, decision) };
+  return decisionItemData(view, decision);
+}
+
+function currentNumber(topic) {
+  return topic.rounds.length > 0 ? topic.rounds[topic.rounds.length - 1].number : 0;
+}
+
+/// Whether 見直したい can be pressed or stopped for this decision now.
+export function reviewState(view, id) {
+  const topic = view.topic;
+  const mark = topic.records.in_review.find((entry) => entry.decision === id);
+  return {
+    decision: id,
+    inReview: mark !== undefined,
+    canReview: mark === undefined && !topic.ended,
+    canStop: mark !== undefined && !topic.ended && mark.since_round === currentNumber(topic),
+  };
+}
+
+/// 見ずに送った: the answer the decision came from was sent without being opened.
+function fromUnseenAnswer(topic, decision) {
+  if (decision.origin.question === undefined) return false;
+  return findQuestion(topic, decision.origin.question)?.question.answer.sent_unseen ?? false;
+}
+
+/// A decision for a list. `asDecided` shows the content it had when it was decided, marked
+/// when it was revised later; otherwise its current content.
+export function decisionItemData(view, decision, { asDecided = false } = {}) {
+  const content = asDecided ? decision.history[0].content : decisionContent(decision);
+  return {
+    id: decision.id,
+    name: content.name,
+    text: content.text,
+    source: decisionSource(view.topic, decision),
+    revised: asDecided && decision.history.length > 1,
+    sentUnseen: fromUnseenAnswer(view.topic, decision),
+    review: reviewState(view, decision.id),
+  };
+}
+
+function decidedBy(topic, questionId) {
+  return topic.records.decisions.filter((decision) => decision.origin.question === questionId);
+}
+
+function askData(ask) {
+  return {
+    id: ask.id,
+    text: ask.text,
+    follows: ask.follows,
+    status: ask.state.status,
+    reply: ask.state.status === "replied" ? { text: ask.state.text, diagram: ask.state.diagram } : null,
+  };
+}
+
+export function fixesData(view, round) {
+  return round.fixes.map((fix, index) => ({
+    index,
+    text: fix.text,
+    change: fix.change
+      ? {
+          before: fix.change.before,
+          after: fix.change.after,
+          review: reviewState(view, fix.change.decision),
+        }
+      : null,
+  }));
+}
+
+/// Every sent round, as it was answered.
+export function pastRoundsData(view, selected) {
+  const topic = view.topic;
+  const rounds = topic.rounds.filter((round) => round.submitted);
+  const chosen = rounds.find((round) => round.number === selected) ?? rounds[rounds.length - 1];
+  return {
+    choices: rounds.map((round) => ({ number: round.number, subject: round.subject })),
+    selected: chosen?.number ?? null,
+    round: chosen
+      ? {
+          number: chosen.number,
+          subject: chosen.subject,
+          fixes: fixesData(view, chosen),
+          questions: chosen.questions.map((question) => ({
+            id: question.id,
+            text: question.text,
+            human: question.class === "human",
+            chosen: question.answer.deferred ? null : question.options[question.answer.selected].text,
+            recommended: question.options.find((option) => option.recommended)?.text ?? "",
+            note: question.answer.note,
+            deferred: question.answer.deferred,
+            sentUnseen: question.answer.sent_unseen,
+            asks: chosen.asks.filter((ask) => ask.question === question.id).map(askData),
+            decisions: decidedBy(topic, question.id).map((decision) =>
+              decisionItemData(view, decision, { asDecided: true }),
+            ),
+          })),
+        }
+      : null,
+  };
+}
+
+export function decisionsTabData(view) {
+  const topic = view.topic;
+  const records = topic.records;
+  const name = (id) => {
+    const decision = findDecision(topic, id);
+    return decision ? decisionContent(decision).name : id;
+  };
+  return {
+    decisions: records.decisions.map((decision) => decisionItemData(view, decision)),
+    not_building: records.not_building,
+    rejected: records.rejected.map((rejected) => ({
+      text: rejected.text,
+      reason: rejected.reason,
+      question: findQuestion(topic, rejected.question)?.question.text ?? rejected.question,
+    })),
+    undecided: records.undecided,
+    delegated: records.delegated,
+    revisions: records.revisions.map((revision) => ({
+      name: name(revision.decision),
+      round: revision.round,
+      before: revision.before,
+      after: revision.after,
+    })),
+    in_review: records.in_review
+      .map((entry) => findDecision(topic, entry.decision))
+      .filter((decision) => decision !== null)
+      .map((decision) => decisionItemData(view, decision)),
+  };
 }

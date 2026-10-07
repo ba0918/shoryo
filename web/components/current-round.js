@@ -3,6 +3,7 @@
 import { Component, KeyedList, h } from "../dom.js";
 import { Card } from "./card.js";
 import { ProvisionalRow } from "./provisional.js";
+import { fixList } from "./fixes.js";
 
 class SendBar extends Component {
   draw(bar) {
@@ -28,6 +29,12 @@ class SendBar extends Component {
   }
 }
 
+class Fixes extends Component {
+  draw(fixes) {
+    return fixList(fixes, this.emit) ?? h("div", { hidden: true });
+  }
+}
+
 export class CurrentRound {
   constructor(emit) {
     this.empty = h("p", { class: "empty" }, "Waiting for the first round.");
@@ -40,15 +47,17 @@ export class CurrentRound {
       this.rowBox,
     );
     this.send = new SendBar(emit);
+    this.fixes = new Fixes(emit);
     this.cards = new KeyedList(this.cardBox, () => new Card(emit));
     this.rows = new KeyedList(this.rowBox, () => new ProvisionalRow(emit));
-    this.el = h("div", { class: "current-round" }, this.empty, this.cardBox, this.list, this.send.el);
+    this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.cardBox, this.list, this.send.el);
   }
 
   /// `round` is null before the first round.
   update(round) {
     this.empty.hidden = round !== null;
     this.list.hidden = round === null || round.provisional.length === 0;
+    this.fixes.update(round?.fixes ?? []);
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
     this.send.update(round ? round.send : { locked: true, unopened: 0, sent: false });
