@@ -19,9 +19,14 @@ The first release.
   data (also when no server runs), `stop` stops the server.
 - The screen, built into the binary: the current round as folded cards with the recommendation
   preselected, the consequence of the chosen option, prerequisite chains, a list for provisional
-  questions, a defer switch, an unopened mark, asking back with replies and grid diagrams, past
-  rounds as answered, the decisions tab with review requests, review rounds with their fixes,
-  the map of decisions and questions with path and all ranges, and the finished picture.
+  questions pre-approved by the LLM, a defer switch, a stamp on every question before the round
+  can be sent, a confirmation of what is sent, asking back (multi-line) with replies and grid
+  diagrams, past rounds as answered, the decisions tab with review requests, review rounds with
+  their fixes, the result of a converged topic, the map of decisions and questions with path and
+  all ranges, zoom, moving and going back, and the finished picture.
+- The screen's language (English or Japanese) and theme (light, dark or following the OS) are
+  switched from its header and kept in the per-user config file (`~/.config/shoryo/config.toml`
+  on Linux).
 - A topic's data is one JSON file per topic in the per-user data directory
   (`~/.local/share/shoryo/` on Linux), never in the repository, and is never deleted by shoryo.
 - The shoryo skill (`skills/shoryo/`) tells a coding agent how to run a brainstorm through these
