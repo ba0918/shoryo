@@ -1041,6 +1041,50 @@ textarea:disabled {
   font-weight: 600;
 }
 
+button.send-status {
+  border: none;
+  background: none;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- 結果 ---- */
+
+.result {
+  display: grid;
+  gap: 1rem;
+}
+
+.result-head {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.result-head h2 {
+  font-family: var(--font-serif);
+  font-size: 1.3rem;
+}
+
+.result-picture {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.result-picture h3 {
+  font-size: 1rem;
+}
+
+.result-records {
+  display: grid;
+  gap: 1rem;
+}
+
 /* ---- 聞き返し ---- */
 
 .thread {
@@ -1415,6 +1459,66 @@ svg.diagram .edge text {
 
 .dialog .decision-item {
   border-top: none;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  position: sticky;
+  bottom: -1.25rem;
+  background: var(--sheet);
+  padding: 0.5rem 0 0.25rem;
+}
+
+.confirm-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.confirm-item {
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.confirm-question {
+  font-weight: 600;
+}
+
+.confirm-answer,
+.confirm-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.9rem;
+  margin-top: 0.2rem;
+}
+
+.badge.stamped {
+  background: var(--sheet-sunk);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+}
+
+.confirm-reviews {
+  background: var(--review-soft);
+  border-radius: var(--radius-small);
+  padding: 0.5rem 0.85rem;
+  font-size: 0.9rem;
+}
+
+.confirm-reviews h3 {
+  font-size: 0.8rem;
+  color: var(--review);
+}
+
+.confirm-reviews ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
 }
 
 /* ---- 地図 ---- */

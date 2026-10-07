@@ -5,6 +5,7 @@ import { translator } from "../strings.js";
 import { Card } from "./card.js";
 import { ProvisionalRow } from "./provisional.js";
 import { Fixes } from "./fixes.js";
+import { ResultView } from "./result.js";
 
 class SendBar extends Component {
   draw(bar) {
@@ -12,8 +13,18 @@ class SendBar extends Component {
     const status = bar.sent
       ? h("p", { class: "send-status", "data-sent-notice": true }, t("send.sent"))
       : bar.unstamped > 0
-        ? h("p", { class: "send-status warn", "data-unstamped-count": true }, t("send.unstamped", { count: bar.unstamped }))
-        : h("p", { class: "send-status" }, bar.locked ? "" : t("send.ready"));
+        ? h(
+            "button",
+            {
+              type: "button",
+              class: "send-status warn link-like",
+              "data-unstamped-count": true,
+              title: t("send.go-unstamped"),
+              onclick: () => this.emit({ type: "go-unstamped" }),
+            },
+            t("send.unstamped", { count: bar.unstamped }),
+          )
+        : h("p", { class: "send-status" }, bar.locked || bar.result ? "" : t("send.ready"));
     return h(
       "div",
       { class: "send-bar" },
@@ -25,9 +36,9 @@ class SendBar extends Component {
           class: "btn primary",
           "data-action": "send",
           disabled: bar.locked || bar.unstamped > 0,
-          onclick: () => this.emit({ type: "op", op: { op: "submit", round: bar.round } }),
+          onclick: () => this.emit({ type: "confirm-send" }),
         },
-        t("send.all"),
+        t(bar.label),
       ),
     );
   }
@@ -50,10 +61,11 @@ export class CurrentRound {
       this.rowBox,
     );
     this.send = new SendBar(emit);
+    this.result = new ResultView(emit);
     this.fixes = new Fixes(emit);
     this.cards = new KeyedList(this.cardBox, () => new Card(emit));
     this.rows = new KeyedList(this.rowBox, () => new ProvisionalRow(emit));
-    this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.cardBox, this.list, this.send.el);
+    this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.result.el, this.cardBox, this.list, this.send.el);
   }
 
   /// `round` is null before the first round; `lang` is the screen's language.
@@ -65,9 +77,10 @@ export class CurrentRound {
     this.empty.hidden = round !== null;
     this.list.hidden = round === null || round.provisional.length === 0;
     this.fixes.update({ fixes: round?.fixes ?? [], lang });
+    this.result.update(round?.result ?? null);
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
-    this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, sent: false, lang });
+    this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, sent: false, label: "send.all", lang });
     this.send.el.hidden = round === null;
   }
 }

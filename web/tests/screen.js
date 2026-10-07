@@ -6,7 +6,7 @@ export const row = (scope, id) => scope.locator(`[data-provisional-row="${id}"]`
 export const action = (scope, name) => scope.locator(`[data-action="${name}"]`);
 export const mark = (scope, name) => scope.locator(`[data-mark="${name}"]`);
 
-/// Stamps every question still without a stamp, then presses "Send all".
+/// Stamps every question still without a stamp, presses "Send all" and confirms.
 export async function sendAll(page) {
   const unstamped = page.locator('[data-panel=current] [data-action=stamp][aria-pressed="false"]');
   while ((await unstamped.count()) > 0) {
@@ -15,4 +15,5 @@ export async function sendAll(page) {
     await expect(unstamped).toHaveCount(before - 1);
   }
   await page.locator("[data-panel=current] [data-action=send]").click();
+  await page.locator("[data-confirm-send] [data-action=confirm-send]").click();
 }

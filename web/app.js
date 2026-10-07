@@ -11,7 +11,8 @@ import { DecisionsTab } from "./components/decisions.js";
 import { MapTab } from "./components/map.js";
 import { renderDiagram } from "./diagram.js";
 import { PastRounds } from "./components/past-rounds.js";
-import { currentRoundData, decisionDetail, decisionsTabData, mapData, pastRoundsData } from "./view-data.js";
+import { confirmSend } from "./components/confirm-send.js";
+import { confirmData, currentRoundData, decisionDetail, decisionsTabData, mapData, pastRoundsData } from "./view-data.js";
 
 const TABS = [{ id: "current" }, { id: "past" }, { id: "map" }, { id: "decisions" }];
 
@@ -44,6 +45,7 @@ const decisions = new DecisionsTab(emit);
 const ended = h("p", { class: "ended", "data-ended": true, hidden: true });
 const map = new MapTab(emit);
 const dialogs = new DialogLayer(emit, {
+  "confirm-send": confirmSend,
   "finished-picture": ({ picture, lang }) => {
     const t = translator(lang);
     return {
@@ -104,6 +106,9 @@ function dialogData(shown) {
   if (dialog?.kind === "decision") {
     const detail = decisionDetail(shown, dialog.decision);
     return detail ? { kind: "decision", data: detail, lang: shown.lang } : null;
+  }
+  if (dialog?.kind === "confirm-send") {
+    return { kind: "confirm-send", data: confirmData(shown), lang: shown.lang };
   }
   if (dialog?.kind === "finished-picture") {
     return { kind: "finished-picture", data: { picture: view.topic.finished_picture, lang: shown.lang }, lang: shown.lang };
@@ -221,6 +226,21 @@ function handle(event) {
     case "config":
       changeConfig(event.change);
       return;
+    case "confirm-send":
+      ui.dialog = { kind: "confirm-send" };
+      break;
+    case "send":
+      ui.dialog = null;
+      enqueue({ op: "submit", round: event.round });
+      break;
+    case "go-unstamped":
+      ui.tab = "current";
+      ui.landed = view.unstamped[0] ?? null;
+      render();
+      (document.querySelector("[data-landed] [data-action=stamp]") ?? document.querySelector("[data-landed]"))?.scrollIntoView({
+        block: "center",
+      });
+      return;
     case "close-dialog":
       ui.dialog = null;
       break;
@@ -229,6 +249,11 @@ function handle(event) {
   }
   render();
 }
+
+// Escape closes the open dialog, the way its close button does.
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && ui.dialog) handle({ type: "close-dialog" });
+});
 
 loadConfig();
 const stream = new EventSource("./api/events");

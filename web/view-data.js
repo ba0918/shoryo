@@ -64,7 +64,11 @@ export function currentRoundData(view, landed = null) {
     cls: question.class,
     data: questionData(view, round, question, locked, landed),
   }));
+  const result = round.questions.length === 0;
+  const reviewing = topic.records.in_review.length > 0;
   return {
+    lang: view.lang,
+    result: result ? resultData(view) : null,
     human: questions.filter((q) => q.cls === "human").map((q) => q.data),
     provisional: questions.filter((q) => q.cls === "provisional").map((q) => q.data),
     send: {
@@ -72,9 +76,49 @@ export function currentRoundData(view, landed = null) {
       locked,
       unstamped: locked ? 0 : view.unstamped.length,
       sent: round.submitted && !topic.ended,
+      result,
+      label: result ? (reviewing ? "send.review-requests" : "send.proceed") : "send.all",
       lang: view.lang,
     },
     fixes: round.review ? fixesData(view, round) : [],
+  };
+}
+
+/// 結果: what a round without questions shows — the finished picture and the records.
+function resultData(view) {
+  const records = decisionsTabData(view);
+  return {
+    lang: view.lang,
+    picture: view.topic.finished_picture,
+    decisions: records.decisions,
+    not_building: records.not_building,
+    rejected: records.rejected,
+    undecided: records.undecided,
+    delegated: records.delegated,
+  };
+}
+
+/// What "Send all" is about to send, for the confirmation: each question's answer, stamp,
+/// defer switch and note, and the review requests waiting to go with it.
+export function confirmData(view) {
+  const topic = view.topic;
+  const round = topic.rounds[topic.rounds.length - 1];
+  return {
+    lang: view.lang,
+    round: round.number,
+    result: round.questions.length === 0,
+    questions: round.questions.map((question) => ({
+      id: question.id,
+      text: question.text,
+      answer: question.answer.deferred ? null : question.options[question.answer.selected]?.text ?? "",
+      deferred: question.answer.deferred,
+      note: question.answer.note,
+      stamp: question.answer.stamp,
+    })),
+    reviews: topic.records.in_review
+      .map((entry) => findDecision(topic, entry.decision))
+      .filter((decision) => decision !== null)
+      .map((decision) => ({ id: decision.id, name: decisionContent(decision).name })),
   };
 }
 
