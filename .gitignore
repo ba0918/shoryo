@@ -11,3 +11,8 @@
 
 # Rust
 /target/
+
+# Browser tests
+/node_modules/
+/test-results/
+/playwright-report/

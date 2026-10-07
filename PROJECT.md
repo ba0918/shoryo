@@ -16,7 +16,7 @@ The specification is in `docs/spec/`:
 - `crates/shoryo-core/`: the domain (the topic state, round validation, events, derived views). It holds no I/O; `scripts/check-domain-purity.sh` enforces this.
 - `crates/shoryo-server/`: the HTTP server, the page and agent APIs, and the data directory.
 - `crates/shoryo-webview/`: embeds `web/` into the binary.
-- `web/`: the screen (HTML, CSS and plain JavaScript, no build step).
+- `web/`: the screen (HTML, CSS and plain JavaScript, no build step). `web/tests/`: its browser tests (Playwright; `package.json` at the root exists only for them).
 - The screen's files are embedded in the binary; the release is that one binary (`docs/spec/server.md`, "作り方と配り方").
 - `docs/spec/`: the specification. `CONTEXT.md`: the glossary.
 - Not built yet: the server, the screen, and the shoryo skill.
@@ -25,12 +25,13 @@ The specification is in `docs/spec/`:
 
 | Purpose | Command |
 |---|---|
-| Install | (none beyond the pinned toolchain; rustup reads `rust-toolchain.toml`) |
+| Install | (none beyond the pinned toolchain; rustup reads `rust-toolchain.toml`). For the browser tests: `npm ci` and `npx playwright install chromium` |
 | Build | `cargo build --workspace --locked` |
 | Test | `cargo test --workspace --locked` |
 | Lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Domain purity | `scripts/check-domain-purity.sh` |
 | All gates (what CI runs) | `scripts/check.sh` |
+| Browser tests of the screen | `scripts/test-web.sh` (builds the binary, then runs Playwright on `web/tests/`) |
 | Format check | `cargo fmt --all --check` |
 | Run locally | `cargo run -- start <topic>` (prints the page URL; the agent commands are `round`, `wait`, `reply`, `end`, `result`, `stop`; see `cargo run -- --help`) |
 

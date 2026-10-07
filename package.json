@@ -1,0 +1,13 @@
+{
+  "name": "shoryo-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests of the shoryo screen; the screen itself has no build step.",
+  "license": "MIT",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
