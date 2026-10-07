@@ -250,3 +250,84 @@ button.primary {
 .dialog .close {
   float: right;
 }
+
+.thread {
+  border-top: 1px dashed var(--line);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.thread-modes,
+.quick-asks,
+.free-ask {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.25rem 0;
+}
+
+.thread-modes .selected {
+  background: var(--wash);
+  font-weight: 600;
+}
+
+.free-ask input {
+  flex: 1 1 14rem;
+  font: inherit;
+}
+
+.exchange {
+  margin: 0.4rem 0;
+}
+
+.follow-ups {
+  margin-left: 1.25rem;
+  border-left: 2px solid var(--line);
+  padding-left: 0.75rem;
+}
+
+.asked {
+  margin: 0.2rem 0;
+}
+
+.reply {
+  background: var(--wash);
+  border-radius: 6px;
+  padding: 0.25rem 0.75rem;
+}
+
+.mark.writing {
+  display: inline-block;
+  color: var(--muted);
+}
+
+.diagram-box {
+  overflow-x: auto;
+}
+
+svg.diagram .node rect {
+  fill: var(--paper);
+  stroke: var(--ink);
+}
+
+svg.diagram .node.slot rect {
+  stroke-dasharray: 6 4;
+  stroke: var(--muted);
+}
+
+svg.diagram text {
+  font-size: 12px;
+  fill: var(--ink);
+}
+
+svg.diagram .edge line {
+  stroke: var(--muted);
+}
+
+svg.diagram .arrow-head {
+  fill: var(--muted);
+}
+
+svg.diagram .edge text {
+  fill: var(--muted);
+}

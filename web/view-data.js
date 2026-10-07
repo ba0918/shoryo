@@ -26,7 +26,7 @@ export function decisionSource(topic, decision) {
   return `Fixed in round ${decision.origin.fix_round}`;
 }
 
-export function questionData(view, question, locked) {
+export function questionData(view, round, question, locked) {
   const topic = view.topic;
   return {
     id: question.id,
@@ -44,6 +44,15 @@ export function questionData(view, question, locked) {
     note: question.answer.note,
     deferred: question.answer.deferred,
     unopened: view.unopened.includes(question.id),
+    asks: round.asks
+      .filter((ask) => ask.question === question.id)
+      .map((ask) => ({
+        id: ask.id,
+        text: ask.text,
+        follows: ask.follows,
+        status: ask.state.status,
+        reply: ask.state.status === "replied" ? { text: ask.state.text, diagram: ask.state.diagram } : null,
+      })),
     locked,
   };
 }
@@ -55,7 +64,7 @@ export function currentRoundData(view) {
   const locked = round.submitted || topic.ended;
   const questions = round.questions.map((question) => ({
     cls: question.class,
-    data: questionData(view, question, locked),
+    data: questionData(view, round, question, locked),
   }));
   return {
     human: questions.filter((q) => q.cls === "human").map((q) => q.data),

@@ -2,11 +2,21 @@
 // card (docs/spec/screen.md, "仮決めの一覧").
 import { Component, h } from "../dom.js";
 import { answerExtras, chainLine, consequence, details, optionList } from "./question-parts.js";
+import { thread } from "./thread.js";
 
 export class ProvisionalRow extends Component {
   constructor(emit) {
     super(emit);
     this.open = false;
+    this.thread = { mode: "latest", follows: null };
+  }
+
+  threadFor(question) {
+    const onLocal = (change) => {
+      this.thread = { ...this.thread, ...change };
+      this.redraw();
+    };
+    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit);
   }
 
   draw(question) {
@@ -69,6 +79,7 @@ export class ProvisionalRow extends Component {
             optionList(question, this.emit, true),
             consequence(question),
             answerExtras(question, this.emit),
+            this.threadFor(question),
           )
         : null,
     );

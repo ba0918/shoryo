@@ -2,11 +2,21 @@
 // option details (docs/spec/screen.md, "たたんだカード").
 import { Component, h } from "../dom.js";
 import { answerExtras, chainLine, consequence, details, optionList } from "./question-parts.js";
+import { thread } from "./thread.js";
 
 export class Card extends Component {
   constructor(emit) {
     super(emit);
     this.open = false;
+    this.thread = { mode: "latest", follows: null };
+  }
+
+  threadFor(question) {
+    const onLocal = (change) => {
+      this.thread = { ...this.thread, ...change };
+      this.redraw();
+    };
+    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit);
   }
 
   toggle() {
@@ -33,6 +43,7 @@ export class Card extends Component {
       optionList(question, this.emit, this.open),
       consequence(question),
       answerExtras(question, this.emit),
+      this.threadFor(question),
       h(
         "div",
         { class: "card-actions" },
