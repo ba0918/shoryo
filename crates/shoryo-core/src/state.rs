@@ -133,7 +133,7 @@ pub struct Ask {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", rename_all = "snake_case")]
+#[serde(tag = "status", rename_all = "snake_case")]
 pub enum AskState {
     Waiting,
     Replied(Reply),
