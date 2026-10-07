@@ -116,6 +116,20 @@ test("follow_up_attaches_to_chosen_reply", async ({ shoryo, page }) => {
   ).toBeVisible();
 });
 
+test("shift_enter_inserts_a_newline_and_enter_sends", async ({ shoryo, page }) => {
+  const field = card(page, "q2").locator("[data-field=ask]");
+  await field.click();
+  await field.pressSequentially("First line");
+  await field.press("Shift+Enter");
+  await field.pressSequentially("Second line");
+  await expect(field).toHaveValue("First line\nSecond line");
+
+  await field.press("Enter");
+
+  const [ask] = await askEvents(shoryo, 1);
+  expect(ask.text).toBe("First line\nSecond line");
+});
+
 const gridDiagram = [
   "a = Screen",
   "b = Server",

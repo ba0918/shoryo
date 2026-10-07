@@ -107,14 +107,18 @@ function askBox(question, local, onLocal, emit, t) {
     send(text);
   };
   const following = question.asks.find((ask) => ask.id === local.follows);
-  const input = h("input", {
-    type: "text",
+  // Enter sends and Shift+Enter starts a new line; Enter that confirms an input method's
+  // conversion belongs to the input method.
+  const input = h("textarea", {
+    rows: 1,
     "data-field": "ask",
     "aria-label": t("thread.ask-placeholder"),
     placeholder: following ? t("thread.follow-up-placeholder") : t("thread.ask-placeholder"),
     "data-focus": `ask-${question.id}`,
     onkeydown: (event) => {
-      if (event.key === "Enter") sendTyped();
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      sendTyped();
     },
   });
   return h(
