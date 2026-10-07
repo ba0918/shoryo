@@ -21,6 +21,7 @@ use shoryo_core::{
 };
 use tokio::sync::watch;
 
+use crate::config::{Config, ConfigChange, ConfigError, ConfigFile};
 use crate::location::TopicLocation;
 use crate::store::{self, StoredTopic};
 
@@ -28,6 +29,7 @@ use crate::store::{self, StoredTopic};
 pub struct Shared {
     state: Mutex<StoredTopic>,
     location: TopicLocation,
+    config: ConfigFile,
     url: String,
     /// Increases on every change; the page stream and `wait` watch it.
     version: watch::Sender<u64>,
@@ -36,10 +38,16 @@ pub struct Shared {
 }
 
 impl Shared {
-    pub fn new(state: StoredTopic, location: TopicLocation, url: String) -> Arc<Self> {
+    pub fn new(
+        state: StoredTopic,
+        location: TopicLocation,
+        config: ConfigFile,
+        url: String,
+    ) -> Arc<Self> {
         Arc::new(Self {
             state: Mutex::new(state),
             location,
+            config,
             url,
             version: watch::channel(0).0,
             shutdown: watch::channel(false).0,
@@ -128,6 +136,10 @@ pub fn router(shared: Arc<Shared>, secret: &str) -> Router {
         .route(&format!("{base}/api/view"), get(view))
         .route(&format!("{base}/api/events"), get(events))
         .route(&format!("{base}/api/op"), post(operate))
+        .route(
+            &format!("{base}/api/config"),
+            get(config).post(change_config),
+        )
         .route(&format!("{base}/api/round"), post(round))
         .route(&format!("{base}/api/wait"), post(wait))
         .route(&format!("{base}/api/reply"), post(reply))
@@ -213,6 +225,45 @@ async fn operate(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
     let operation: Operation = parse(&body)?;
     shared.change(|state| state.topic.apply(operation))?;
     Ok(axum::Json(shared.view()).into_response())
+}
+
+/// The language and theme as the page shows them, read from the file each time the page
+/// opens; `unreadable` tells the page that switches will not be kept.
+#[derive(Serialize)]
+struct ConfigView {
+    #[serde(flatten)]
+    config: Config,
+    unreadable: bool,
+}
+
+async fn config(State(shared): State<Arc<Shared>>) -> Response {
+    let view = match shared.config.read() {
+        Ok(config) => ConfigView {
+            config,
+            unreadable: false,
+        },
+        Err(_) => ConfigView {
+            config: Config::default(),
+            unreadable: true,
+        },
+    };
+    axum::Json(view).into_response()
+}
+
+async fn change_config(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
+    let change: ConfigChange = parse(&body)?;
+    let config = shared.config.change(change).map_err(|error| {
+        let status = match error {
+            ConfigError::NoConfigDirectory | ConfigError::Unreadable { .. } => StatusCode::CONFLICT,
+            ConfigError::Write { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        ApiError::new(status, error)
+    })?;
+    Ok(axum::Json(ConfigView {
+        config,
+        unreadable: false,
+    })
+    .into_response())
 }
 
 async fn round(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {

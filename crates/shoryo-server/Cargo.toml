@@ -22,3 +22,4 @@ sha2 = "0.11.0"
 shoryo-core = { version = "0.1.0", path = "../shoryo-core" }
 shoryo-webview = { version = "0.1.0", path = "../shoryo-webview" }
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+toml = "1.1.6"

@@ -11,10 +11,11 @@ use serde_json::{Value, json};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-/// A data directory and a start directory that belong to one test.
+/// A data directory, a config directory and a start directory that belong to one test.
 pub struct Env {
     root: PathBuf,
     pub data: PathBuf,
+    pub config: PathBuf,
     pub work: PathBuf,
 }
 
@@ -26,10 +27,16 @@ impl Env {
             NEXT.fetch_add(1, Ordering::SeqCst)
         ));
         let data = root.join("data");
+        let config = root.join("config");
         let work = root.join("work");
         std::fs::create_dir_all(&data).expect("the temporary data directory can be created");
         std::fs::create_dir_all(&work).expect("the temporary start directory can be created");
-        Self { root, data, work }
+        Self {
+            root,
+            data,
+            config,
+            work,
+        }
     }
 
     pub fn command(&self, args: &[&str]) -> Command {
@@ -38,6 +45,7 @@ impl Env {
             .args(args)
             .current_dir(&self.work)
             .env("XDG_DATA_HOME", &self.data)
+            .env("XDG_CONFIG_HOME", &self.config)
             .env_remove("HTTP_PROXY")
             .env_remove("http_proxy");
         command
@@ -131,6 +139,27 @@ impl Server {
         Self::agent()
             .post(format!("{}api/op", self.url))
             .send(operation.to_string())
+            .expect("the page API answers")
+            .status()
+            .as_u16()
+    }
+
+    /// The language and theme as the page reads them when it opens.
+    pub fn config(&self) -> Value {
+        Self::agent()
+            .get(format!("{}api/config", self.url))
+            .call()
+            .expect("the page API answers")
+            .body_mut()
+            .read_json()
+            .expect("the config is JSON")
+    }
+
+    /// Switches the language or the theme from the page; returns the status.
+    pub fn set_config(&self, change: Value) -> u16 {
+        Self::agent()
+            .post(format!("{}api/config", self.url))
+            .send(change.to_string())
             .expect("the page API answers")
             .status()
             .as_u16()

@@ -46,7 +46,11 @@ export const test = base.extend({
     const scratch = await mkdtemp(path.join(tmpdir(), "shoryo-web-"));
     const dirs = {
       work: scratch,
-      env: { ...process.env, XDG_DATA_HOME: path.join(scratch, ".data") },
+      env: {
+        ...process.env,
+        XDG_DATA_HOME: path.join(scratch, ".data"),
+        XDG_CONFIG_HOME: path.join(scratch, ".config"),
+      },
     };
     const server = spawn(bin, ["start", "topic"], { cwd: dirs.work, env: dirs.env });
     const url = await started(server);

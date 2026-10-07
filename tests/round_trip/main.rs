@@ -1,6 +1,7 @@
 //! The round trip between the agent's commands, the server and the page API, run against
 //! the built binary (`docs/spec/server.md`, "起動", "往復", "状態データ", "記録の置き場所と寿命").
 
+mod config;
 mod harness;
 
 use std::io::{BufRead, BufReader};

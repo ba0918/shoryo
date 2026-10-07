@@ -82,7 +82,7 @@ fn run(command: Commands) -> Result<(), String> {
                 },
                 |started| {
                     println!("shoryo is serving topic {topic} at {}", started.url);
-                    if let Some(warning) = &started.warning {
+                    for warning in &started.warnings {
                         eprintln!("shoryo: warning: {warning}");
                     }
                 },

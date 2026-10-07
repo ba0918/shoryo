@@ -2,6 +2,7 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod app;
+pub mod config;
 pub mod location;
 pub mod store;
 
@@ -9,6 +10,7 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
+use config::ConfigFile;
 use location::TopicLocation;
 use store::{Endpoint, EndpointFile, Lock};
 
@@ -89,8 +91,9 @@ pub struct ServeOptions {
 /// What the binary prints once the server listens.
 pub struct Started {
     pub url: String,
-    /// Set when the page is reachable from other machines over plain HTTP.
-    pub warning: Option<String>,
+    /// What the person should know: the page reachable from other machines over plain HTTP,
+    /// or a config file that cannot be read.
+    pub warnings: Vec<String>,
 }
 
 /// Runs the topic's server until it is told to stop, a stop command or SIGINT or SIGTERM.
@@ -126,7 +129,9 @@ pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result
                 url: url.clone(),
             },
         )?;
-        let warning = (!options.bind.is_loopback()).then(|| {
+        let config = ConfigFile::per_user();
+        let config_warning = config.read().err().map(|error| error.to_string());
+        let bind_warning = (!options.bind.is_loopback()).then(|| {
             format!(
                 "listening on {}: the page is served over plain HTTP, readable by anyone on \
                  the network path; anyone who has the URL can answer for you",
@@ -134,14 +139,16 @@ pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result
             )
         });
 
-        let shared = app::Shared::new(state, options.location, url.clone());
+        let warnings = bind_warning.into_iter().chain(config_warning).collect();
+
+        let shared = app::Shared::new(state, options.location, config, url.clone());
         let mut stopping = shared.shutdown.subscribe();
         let signals = shared.shutdown.clone();
         tokio::spawn(async move {
             stop_on_signal().await;
             signals.send_replace(true);
         });
-        on_started(&Started { url, warning });
+        on_started(&Started { url, warnings });
 
         axum::serve(listener, app::router(shared, &secret))
             .with_graceful_shutdown(async move {
