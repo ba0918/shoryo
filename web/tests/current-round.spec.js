@@ -132,3 +132,13 @@ test("send_locks_the_round", async ({ page }) => {
   await expect(row(page, "q3").getByRole("combobox")).toBeDisabled();
   await expect(action(page, "send")).toBeDisabled();
 });
+
+test("note_typed_is_kept_when_the_page_is_reopened_without_leaving_the_field", async ({ page }) => {
+  const note = card(page, "q2").locator("[data-field=note] textarea");
+  await note.fill("Only while testing.");
+  await page.waitForTimeout(1000);
+
+  await page.reload();
+
+  await expect(card(page, "q2").locator("[data-field=note] textarea")).toHaveValue("Only while testing.");
+});

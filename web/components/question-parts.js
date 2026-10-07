@@ -81,6 +81,7 @@ export function details(question) {
 
 /// The defer switch and the note.
 export function answerExtras(question, emit) {
+  const save = noteSaver(question, emit);
   return h(
     "div",
     { class: "extras" },
@@ -109,9 +110,28 @@ export function answerExtras(question, emit) {
         value: question.note,
         disabled: question.locked,
         "data-focus": `note-${question.id}`,
-        onchange: (event) =>
-          emit({ type: "op", op: { op: "note", question: question.id, text: event.target.value } }),
+        oninput: (event) => save.later(event.target.value),
+        onchange: (event) => save.now(event.target.value),
       }),
     ),
   );
+}
+
+/// How long typing pauses before the note is saved, so a closed page keeps what was typed.
+const NOTE_PAUSE_MS = 400;
+
+function noteSaver(question, emit) {
+  let timer = null;
+  let saved = question.note;
+  const now = (text) => {
+    clearTimeout(timer);
+    if (text === saved) return;
+    saved = text;
+    emit({ type: "op", op: { op: "note", question: question.id, text } });
+  };
+  const later = (text) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => now(text), NOTE_PAUSE_MS);
+  };
+  return { now, later };
 }
