@@ -2,10 +2,12 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod ids;
+mod operations;
 mod round;
 mod state;
 
 pub use ids::{AskId, DecisionId, EventId, QuestionId};
+pub use operations::{Event, EventKind, Operation, OperationRefusal, SentAnswer};
 pub use round::{
     DecidedBy, DecisionInput, FixInput, InputError, QuestionInput, RecordsInput, RoundInput,
     RoundRefusal,

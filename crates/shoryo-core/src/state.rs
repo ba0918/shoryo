@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
+use crate::operations::Event;
 
 /// One topic: the unit shoryo starts for and keeps data for.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,6 +16,8 @@ pub struct Topic {
     pub records: Records,
     /// The latest finished picture, as diagram text.
     pub finished_picture: Option<String>,
+    /// Events the agent has not acknowledged yet.
+    pub(crate) events: Vec<Event>,
     next_ask: u64,
     next_event: u64,
 }
@@ -251,6 +254,7 @@ impl Topic {
             rounds: Vec::new(),
             records: Records::default(),
             finished_picture: None,
+            events: Vec::new(),
             next_ask: 1,
             next_event: 1,
         }
