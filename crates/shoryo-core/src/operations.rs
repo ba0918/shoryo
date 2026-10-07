@@ -187,8 +187,10 @@ impl Topic {
     }
 
     /// Carries out one of the person's operations; nothing changes when it is refused.
+    /// Opening a card is reading, which stays possible after sending and after the end, so
+    /// it is never refused for those; it only has nothing left to record.
     pub fn apply(&mut self, operation: Operation) -> Result<(), OperationRefusal> {
-        if self.ended {
+        if self.ended && !matches!(operation, Operation::Open { .. }) {
             return Err(OperationRefusal::TopicEnded);
         }
         match operation {
@@ -211,7 +213,7 @@ impl Topic {
                 q.answer.touched = true;
             }
             Operation::Open { question } => {
-                if self.current_round().is_some_and(|round| round.submitted) {
+                if self.ended || self.current_round().is_some_and(|round| round.submitted) {
                     return Ok(());
                 }
                 self.open_question(&question)?.answer.opened = true;

@@ -616,3 +616,16 @@ fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
     assert!(!topic.current_round().expect("round 2 is out").submitted);
     assert!(topic.pending_events().is_empty());
 }
+
+#[test]
+fn opening_a_card_after_end_changes_nothing_and_is_not_refused() {
+    let mut topic = topic_on_a_round();
+    submit_current(&mut topic).unwrap();
+    topic.end().unwrap();
+    let before = topic.clone();
+
+    let opened = topic.apply(Operation::Open { question: q("q2") });
+
+    assert_eq!(opened, Ok(()));
+    assert_eq!(topic, before);
+}
