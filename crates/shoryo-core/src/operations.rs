@@ -97,8 +97,10 @@ pub struct SentAnswer {
     pub stamp: Stamp,
 }
 
-/// Why an operation was not carried out.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Why an operation was not carried out. Serialised with its `kind`, so the screen can say it
+/// in the person's language.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum OperationRefusal {
     NoRound,
     RoundSubmitted,

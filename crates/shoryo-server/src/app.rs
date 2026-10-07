@@ -17,7 +17,8 @@ use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use shoryo_core::{
-    AskId, ChainLink, DecisionId, EventId, Map, Operation, QuestionId, Reply, RoundInput,
+    AskId, ChainLink, DecisionId, EventId, Map, Operation, OperationRefusal, QuestionId, Reply,
+    RoundInput,
 };
 use tokio::sync::watch;
 
@@ -67,10 +68,18 @@ impl Shared {
         &self,
         change: impl FnOnce(&mut StoredTopic) -> Result<T, E>,
     ) -> Result<T, ApiError> {
+        self.change_or(change, |error| ApiError::new(StatusCode::CONFLICT, error))
+    }
+
+    /// `change`, with `refuse` turning a refusal into the response.
+    fn change_or<T, E>(
+        &self,
+        change: impl FnOnce(&mut StoredTopic) -> Result<T, E>,
+        refuse: impl FnOnce(E) -> ApiError,
+    ) -> Result<T, ApiError> {
         let mut state = self.lock();
         let mut changed = state.clone();
-        let value =
-            change(&mut changed).map_err(|error| ApiError::new(StatusCode::CONFLICT, error))?;
+        let value = change(&mut changed).map_err(refuse)?;
         store::save(&self.location, &changed)
             .map_err(|error| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, error))?;
         *state = changed;
@@ -160,10 +169,12 @@ fn asset(path: &str) -> Response {
     }
 }
 
-/// A refusal or failure, returned as `{"error": "..."}` with its status.
+/// A refusal or failure, returned as `{"error": "..."}` with its status. A refusal of a page
+/// operation also carries `refusal`, its kind and details, for the screen to word.
 struct ApiError {
     status: StatusCode,
     message: String,
+    refusal: Option<serde_json::Value>,
 }
 
 impl ApiError {
@@ -171,13 +182,25 @@ impl ApiError {
         Self {
             status,
             message: error.to_string(),
+            refusal: None,
+        }
+    }
+
+    fn refused(refusal: &OperationRefusal) -> Self {
+        Self {
+            refusal: serde_json::to_value(refusal).ok(),
+            ..Self::new(StatusCode::CONFLICT, refusal)
         }
     }
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, axum::Json(json!({ "error": self.message }))).into_response()
+        let body = match self.refusal {
+            Some(refusal) => json!({ "error": self.message, "refusal": refusal }),
+            None => json!({ "error": self.message }),
+        };
+        (self.status, axum::Json(body)).into_response()
     }
 }
 
@@ -223,7 +246,10 @@ async fn events(
 
 async fn operate(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
     let operation: Operation = parse(&body)?;
-    shared.change(|state| state.topic.apply(operation))?;
+    shared.change_or(
+        |state| state.topic.apply(operation),
+        |refusal| ApiError::refused(&refusal),
+    )?;
     Ok(axum::Json(shared.view()).into_response())
 }
 

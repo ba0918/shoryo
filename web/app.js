@@ -3,7 +3,7 @@
 // carries the person's actions to the server. No region talks to another; everything
 // passes through here.
 import { h } from "./dom.js";
-import { translator } from "./strings.js";
+import { knows, translator } from "./strings.js";
 import { CurrentRound } from "./components/current-round.js";
 import { DialogLayer } from "./components/dialog.js";
 import { Header, Tabs } from "./components/header.js";
@@ -201,7 +201,7 @@ async function operate(op) {
   const response = await fetch("./api/op", { method: "POST", body: JSON.stringify(op) });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    ui.error = body.error ? { text: body.error } : { key: "screen.refused", vars: { status: response.status } };
+    ui.error = refusalError(body) ?? { key: "screen.refused", vars: { status: response.status } };
     // The action may have been made on what the screen showed before a change; show the
     // current state with the reason.
     const current = await fetch("./api/view").catch(() => null);
@@ -211,6 +211,14 @@ async function operate(op) {
     accept(await response.json());
   }
   render();
+}
+
+/// A refusal in the screen's language when its kind is known; otherwise the server's words.
+function refusalError(body) {
+  const refusal = body.refusal;
+  const key = refusal ? `refusal.${refusal.kind}` : null;
+  if (key && knows(key)) return { key, vars: { ...refusal, questions: refusal.questions?.join(", ") } };
+  return body.error ? { text: body.error } : null;
 }
 
 /// Keeps the newest view: the answer to an action and the live stream may arrive in either order.

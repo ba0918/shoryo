@@ -22,6 +22,21 @@ const en = {
   "screen.refused": "The server refused the action ({status}).",
   "screen.config-not-saved": "The switch applies to this page only; the settings file could not be written.",
 
+  "refusal.no_round": "No round has arrived yet.",
+  "refusal.round_submitted": "This round has already been sent.",
+  "refusal.round_unsent": "Round {round} has not been sent yet.",
+  "refusal.topic_ended": "The topic has ended.",
+  "refusal.unknown_question": "Question {question} is not in the current round.",
+  "refusal.unknown_option": "That option does not exist.",
+  "refusal.unknown_ask": "That ask does not exist.",
+  "refusal.unknown_decision": "Decision {decision} does not exist.",
+  "refusal.already_replied": "That ask already has a reply.",
+  "refusal.not_in_review": "Decision {decision} is not in review.",
+  "refusal.next_round_arrived": "The next round has arrived, so the review request can no longer be withdrawn.",
+  "refusal.not_current_round": "Round {round} is no longer the current round; the screen now shows the current one.",
+  "refusal.follows_another_question": "That ask is about another question, so this cannot follow it.",
+  "refusal.unstamped": "Some questions are not approved yet ({questions}); approve every question before sending.",
+
   "card.human": "Human decides",
   "card.why-now": "Why now",
   "card.rests-on": "Rests on",
@@ -165,6 +180,21 @@ const ja = {
   "screen.refused": "サーバーが操作を断った（{status}）。",
   "screen.config-not-saved": "設定ファイルに書けなかったので、切替はこの画面だけに効く。",
 
+  "refusal.no_round": "まだラウンドが届いていない。",
+  "refusal.round_submitted": "このラウンドはもう送った。",
+  "refusal.round_unsent": "第 {round} ラウンドはまだ送っていない。",
+  "refusal.topic_ended": "この議題は終わった。",
+  "refusal.unknown_question": "問い {question} は今のラウンドにない。",
+  "refusal.unknown_option": "その選択肢はない。",
+  "refusal.unknown_ask": "その聞き返しはない。",
+  "refusal.unknown_decision": "決まったこと {decision} はない。",
+  "refusal.already_replied": "その聞き返しには、もう返事がある。",
+  "refusal.not_in_review": "決まったこと {decision} は見直し中ではない。",
+  "refusal.next_round_arrived": "次のラウンドが届いたので、もう見直したいをやめられない。",
+  "refusal.not_current_round": "第 {round} ラウンドは、もう今のラウンドではない。今のラウンドを出している。",
+  "refusal.follows_another_question": "その聞き返しは別の問いについてのものなので、続けられない。",
+  "refusal.unstamped": "判子のない問いがある（{questions}）。すべての問いに判子を押してから送る。",
+
   "card.human": "人が決める",
   "card.why-now": "なぜ今",
   "card.rests-on": "前提",
@@ -288,6 +318,9 @@ const ja = {
 };
 
 const TABLES = { en, ja };
+
+/// Whether the table has a text for `key`; the text function falls back to the key itself.
+export const knows = (key) => key in en;
 
 /// The text function for `lang`: `t("send.unstamped", { count: 2 })`. An unknown language
 /// falls back to English.

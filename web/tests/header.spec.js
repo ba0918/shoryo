@@ -25,6 +25,22 @@ test.describe("with a readable config", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(roundOne.title);
   });
 
+  test("refusal_of_an_action_is_shown_in_the_chosen_language", async ({ shoryo, page }) => {
+    await banner(page).locator('[data-language="ja"]').click();
+    const note = card(page, "q2").locator("[data-field=note] textarea");
+    await page.clock.install();
+    await note.fill("Written while the round is sent from another tab.");
+    await shoryo.submit();
+    await expect(page.locator("[data-sent-notice]")).toBeAttached();
+
+    await note.blur();
+
+    const refusal = page.getByRole("alert");
+    await expect(refusal).toBeVisible();
+    await expect(refusal).toHaveText(/[\u3040-\u30ff\u4e00-\u9fff]/);
+    await expect(refusal).not.toHaveText(/[A-Za-z]{3,}/);
+  });
+
   test("default_language_is_english", async ({ page }) => {
     await expect(banner(page).locator('[data-language="en"]')).toHaveAttribute("aria-pressed", "true");
     for (const id of ["current", "past", "map", "decisions"]) {
