@@ -100,6 +100,13 @@ function askBox(question, local, onLocal, emit) {
     });
     onLocal({ follows: null });
   };
+  // An emptied field holds nothing to lose, so the card can redraw at once.
+  const sendTyped = () => {
+    const text = input.value;
+    if (!text.trim()) return;
+    input.value = "";
+    send(text);
+  };
   const following = question.asks.find((ask) => ask.id === local.follows);
   const input = h("input", {
     type: "text",
@@ -108,7 +115,7 @@ function askBox(question, local, onLocal, emit) {
     placeholder: following ? "Your follow-up" : "Ask about this question",
     "data-focus": `ask-${question.id}`,
     onkeydown: (event) => {
-      if (event.key === "Enter") send(event.target.value);
+      if (event.key === "Enter") sendTyped();
     },
   });
   return h(
@@ -135,7 +142,7 @@ function askBox(question, local, onLocal, emit) {
       "div",
       { class: "free-ask" },
       input,
-      h("button", { type: "button", "data-action": "ask", onclick: () => send(input.value) }, "Ask"),
+      h("button", { type: "button", "data-action": "ask", onclick: sendTyped }, "Ask"),
     ),
   );
 }

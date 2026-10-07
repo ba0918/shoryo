@@ -29,9 +29,11 @@ function append(element, children) {
   }
 }
 
+/// A text field the person is writing in: redrawing it would take away what is typed.
 const typing = (element) =>
-  element instanceof HTMLTextAreaElement ||
-  (element instanceof HTMLInputElement && element.type === "text");
+  (element instanceof HTMLTextAreaElement ||
+    (element instanceof HTMLInputElement && element.type === "text")) &&
+  element.value !== "";
 
 /// A region of the screen. Subclasses implement `draw(data)`, returning one element, and may
 /// keep their own local state in fields. `emit` reports the person's actions upwards.
