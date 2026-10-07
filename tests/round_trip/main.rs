@@ -386,12 +386,15 @@ fn shapes(events: &[Value]) -> Vec<(String, Vec<String>)> {
 fn skill_examples_are_accepted() {
     let rounds = skill_examples("json round");
     let replies = skill_examples("json reply");
+    let diagrams = skill_examples("text diagram");
     let outputs = skill_examples("json output");
-    assert!(rounds.len() >= 3 && !replies.is_empty() && !outputs.is_empty());
+    assert!(
+        rounds.len() >= 3 && !replies.is_empty() && !diagrams.is_empty() && !outputs.is_empty()
+    );
     let env = Env::new();
     let server = env.start("examples", &[]);
 
-    let mut seen = Vec::new();
+    let mut seen: Vec<Value> = Vec::new();
     for (index, round) in rounds.iter().enumerate() {
         let output = env.run(&["round", "examples"], round);
         assert!(
@@ -405,27 +408,42 @@ fn skill_examples_are_accepted() {
             server.operate(json!({ "op": "swap_class", "question": "q2" }));
         }
         if index == 1 {
+            server.operate(json!({ "op": "ask", "question": "q3", "text": "Show me" }));
+            server.operate(json!({ "op": "request_review", "decision": "d1" }));
+            server.operate(json!({ "op": "stop_review", "decision": "d1" }));
             server.operate(json!({ "op": "request_review", "decision": "d2" }));
         }
         server.operate(json!({ "op": "submit" }));
-        seen.extend(events(
-            &env.run(&["wait", "examples", "--timeout", "1"], ""),
-        ));
+        // Acknowledge what was received, as the skill tells the agent to.
+        let ack: Vec<String> = seen.iter().map(|event| event["id"].to_string()).collect();
+        let mut args = vec!["wait", "examples", "--timeout", "1"];
+        let joined = ack.join(",");
+        if !ack.is_empty() {
+            args.extend(["--ack", joined.as_str()]);
+        }
+        seen.extend(events(&env.run(&args, "")));
     }
     for reply in &replies {
         let output = env.run(&["reply", "examples", "1"], reply);
         assert!(output.status.success(), "reply example: {}", text(&output));
     }
+    for diagram in &diagrams {
+        let reply = json!({ "text": "The diagram example.", "diagram": diagram }).to_string();
+        let output = env.run(&["reply", "examples", "2"], &reply);
+        assert!(
+            output.status.success(),
+            "diagram example: {}",
+            text(&output)
+        );
+    }
 
+    let actual = shapes(&seen);
     for output in &outputs {
         let documented: Value = serde_json::from_str(output).expect("the output example is JSON");
         let documented = shapes(documented["events"].as_array().expect("it lists events"));
-        let actual = shapes(&seen);
-        for shape in documented {
-            assert!(
-                actual.contains(&shape),
-                "documented event {shape:?} is not what wait prints"
-            );
-        }
+        assert_eq!(
+            documented, actual,
+            "the documented events differ from what wait prints"
+        );
     }
 }

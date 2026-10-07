@@ -24,7 +24,7 @@ One item per line. Blank lines are ignored.
 
 ## Example
 
-```text
+```text diagram
 screen = Screen
 server = Local server
 file = One JSON file

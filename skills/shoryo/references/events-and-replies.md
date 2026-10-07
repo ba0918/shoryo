@@ -17,13 +17,17 @@ between receiving and handling loses nothing.
 | `review_stopped` | `decision` | The person withdrew that request. |
 | `class_swapped` | `question`, `class` | The person moved a question between `human` and `provisional`. |
 
-An example of what `wait` prints after an ask, a swap and a send:
+An example of what `wait` prints after an ask, a swap, a review request withdrawn, another
+review request, and a send:
 
 ```json output
 {"events":[
   {"id":1,"kind":"ask","ask":1,"round":1,"question":"q1","text":"Explain more","follows":null},
   {"id":2,"kind":"class_swapped","question":"q2","class":"human"},
-  {"id":3,"kind":"submitted","round":1,"answers":[
+  {"id":3,"kind":"review_requested","decision":"d1"},
+  {"id":4,"kind":"review_stopped","decision":"d1"},
+  {"id":5,"kind":"review_requested","decision":"d2"},
+  {"id":6,"kind":"submitted","round":1,"answers":[
     {"question":"q1","class":"human","choice":0,"note":"","deferred":false,"sent_unseen":false},
     {"question":"q2","class":"human","choice":0,"note":"","deferred":false,"sent_unseen":true}
   ]}
