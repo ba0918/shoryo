@@ -34,7 +34,7 @@ The specification is in `docs/spec/`:
 | All gates (what CI runs) | `scripts/check.sh` |
 | Browser tests of the screen | `scripts/test-web.sh` (builds the binary, then runs Playwright on `web/tests/`) |
 | Format check | `cargo fmt --all --check` |
-| Release | Promote `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - <date>` with its comparison link, set the version, commit, run the gates, then push the tag `vX.Y.Z`; `.github/workflows/release.yml` checks that the tag, `Cargo.toml` and the changelog agree (`scripts/check-release-version.sh`) and publishes `shoryo-x86_64-unknown-linux-musl.tar.gz` with its SHA-256 |
+| Release | Promote `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - <date>` with its comparison link (raise `version` in `Cargo.toml` first when the release carries a user-visible change since the last one; the first release ships the version already there), commit, run the gates, then push the tag `vX.Y.Z`; `.github/workflows/release.yml` checks that the tag, `Cargo.toml` and the changelog agree (`scripts/check-release-version.sh`) and publishes `shoryo-x86_64-unknown-linux-musl.tar.gz` with its SHA-256 |
 | Run locally | `cargo run -- start <topic>` (prints the page URL; the agent commands are `round`, `wait`, `reply`, `end`, `result`, `stop`; see `cargo run -- --help`) |
 
 ## Conventions specific to this project
