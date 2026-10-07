@@ -2,9 +2,14 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod ids;
+mod round;
 mod state;
 
 pub use ids::{AskId, DecisionId, EventId, QuestionId};
+pub use round::{
+    DecidedBy, DecisionInput, FixInput, InputError, QuestionInput, RecordsInput, RoundInput,
+    RoundRefusal,
+};
 pub use state::{
     Answer, Ask, AskState, Choice, Class, Decision, DecisionChange, DecisionContent, Delegated,
     Fix, InReview, LoadError, NodeRef, Origin, Question, Records, Rejected, Reply,
