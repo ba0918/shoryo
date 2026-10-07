@@ -3,11 +3,13 @@
 shoryo runs grill-me style brainstorm rounds — an LLM interviewing you until a specification is
 settled — on a local browser screen instead of in the chat.
 
-Each round's questions arrive as cards. You can ask back about a question before answering, and
-you send the whole round at once. Questions whose answer is cheap to change later sit in a
-separate list with the recommendation filled in. The screen also shows how the decisions connect
-(the map) and what the topic will end up as (the finished picture), and keeps every past round,
-reply and decision readable.
+Each round's questions arrive as cards. You can ask back about a question before answering,
+stamp each answer once you have checked it, and send the whole round at once. Questions whose
+answer is cheap to change later sit in a separate list with the recommendation filled in and
+already stamped by the LLM; you send back only the ones that look wrong. When the topic
+converges, the screen shows the result for you to check before the specification is written.
+The screen also shows how the decisions connect (the map) and what the topic will end up as
+(the finished picture), and keeps every past round, reply and decision readable.
 
 shoryo has two parts:
 
@@ -48,6 +50,10 @@ ln -s "$PWD/skills/shoryo" ~/.claude/skills/shoryo
 Ask your agent to run the brainstorm on shoryo ("do this brainstorm in shoryo"). It starts the
 topic's server and tells you the URL; open it in your browser. The page listens on 127.0.0.1
 only, unless the server is started with `--bind`.
+
+The header switches the screen between English and Japanese and between light and dark. The
+choice is kept for every topic in your per-user config file (`~/.config/shoryo/config.toml` on
+Linux).
 
 A topic's data stays in your per-user data directory (`~/.local/share/shoryo/` on Linux), never
 in the repository. shoryo never deletes it; remove a topic's directory yourself when you no

@@ -14,7 +14,8 @@ The specification is in `docs/spec/`:
 
 - A Cargo workspace. The root package `shoryo` is the binary (`src/main.rs`, the CLI). The edition, the minimum supported Rust version, the version and the lint configuration are declared once under `[workspace.*]` in `Cargo.toml` and inherited by every member; the toolchain version is in `rust-toolchain.toml`.
 - `crates/shoryo-core/`: the domain (the topic state, round validation, events, derived views). It holds no I/O; `scripts/check-domain-purity.sh` enforces this.
-- `crates/shoryo-server/`: the HTTP server, the page and agent APIs, and the data directory.
+- `crates/shoryo-server/`: the HTTP server, the page and agent APIs, the data directory, and the per-user config file (the screen's language and theme).
+- `web/strings.js`: the screen's fixed text in English and Japanese.
 - `crates/shoryo-webview/`: embeds `web/` into the binary.
 - `web/`: the screen (HTML, CSS and plain JavaScript, no build step). `web/tests/`: its browser tests (Playwright; `package.json` at the root exists only for them).
 - The screen's files are embedded in the binary; the release is that one binary (`docs/spec/server.md`, "作り方と配り方").
