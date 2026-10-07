@@ -88,6 +88,7 @@ export class MapTab extends Component {
                 type: "button",
                 class: `seg${range === map.range ? " on" : ""}`,
                 "data-map-range": range,
+                "data-focus": `map-range-${range}`,
                 "aria-pressed": String(range === map.range),
                 onclick: () => this.emit({ type: "map-range", range }),
               },
@@ -98,9 +99,9 @@ export class MapTab extends Component {
         h(
           "div",
           { class: "map-zoom seg-group", role: "group", "aria-label": t("map.zoom") },
-          h("button", { type: "button", class: "seg", "data-action": "map-zoom-out", "aria-label": t("map.zoom-out"), onclick: () => this.zoomBy(1 / 1.25) }, "−"),
-          h("button", { type: "button", class: "seg", "data-action": "map-fit", onclick: () => this.fit() }, t("map.fit")),
-          h("button", { type: "button", class: "seg", "data-action": "map-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => this.zoomBy(1.25) }, "+"),
+          h("button", { type: "button", class: "seg", "data-action": "map-zoom-out", "data-focus": "map-zoom-out", "aria-label": t("map.zoom-out"), onclick: () => this.zoomBy(1 / 1.25) }, "−"),
+          h("button", { type: "button", class: "seg", "data-action": "map-fit", "data-focus": "map-fit", onclick: () => this.fit() }, t("map.fit")),
+          h("button", { type: "button", class: "seg", "data-action": "map-zoom-in", "data-focus": "map-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => this.zoomBy(1.25) }, "+"),
         ),
         h("span", { class: "map-hint" }, map.range === "path" && !map.selected ? t("map.pick-for-path") : t("map.how-to-move")),
       ),
@@ -169,6 +170,7 @@ export class MapTab extends Component {
       {
         class: `map-node ${node.kind}${node.selected ? " selected" : ""}`,
         "data-map-node": node.key,
+        "data-focus": `map-node-${node.key}`,
         "data-selected": node.selected,
         tabindex: 0,
         role: "button",

@@ -208,6 +208,7 @@ export function stampButton(question, emit) {
       type: "button",
       class: `stamp ${question.stamp ?? "none"}`,
       "data-action": "stamp",
+      "data-focus": `stamp-${question.id}`,
       "data-stamp": question.stamp ?? "none",
       "aria-pressed": String(stamped),
       disabled: question.locked,

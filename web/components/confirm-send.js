@@ -50,7 +50,7 @@ export function confirmSend(data, emit) {
         { class: "dialog-actions" },
         h(
           "button",
-          { type: "button", class: "btn", "data-action": "cancel-send", onclick: () => emit({ type: "close-dialog" }) },
+          { type: "button", class: "btn", "data-action": "cancel-send", "data-focus": "cancel-send", onclick: () => emit({ type: "close-dialog" }) },
           t("confirm.back"),
         ),
         h(
@@ -59,6 +59,7 @@ export function confirmSend(data, emit) {
             type: "button",
             class: "btn primary",
             "data-action": "confirm-send",
+            "data-focus": "confirm-send",
             onclick: () => emit({ type: "send", round: data.round }),
           },
           t("confirm.send"),
