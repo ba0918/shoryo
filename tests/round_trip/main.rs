@@ -286,6 +286,16 @@ fn end_refuses_while_a_round_is_unsent() {
 }
 
 #[test]
+fn reply_that_is_not_an_object_is_refused_with_status_one() {
+    let env = Env::new();
+    let _server = env.start("store", &[]);
+
+    let output = env.run(&["reply", "store", "1"], "[1]");
+
+    assert_eq!(output.status.code(), Some(1), "{}", text(&output));
+}
+
+#[test]
 fn result_is_available_after_end() {
     let env = Env::new();
     let server = env.start("store", &[]);

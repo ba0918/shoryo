@@ -108,9 +108,11 @@ fn run(command: Commands) -> Result<(), String> {
             Ok(())
         }
         Commands::Reply { topic, ask, file } => {
-            let mut body: serde_json::Value = serde_json::from_str(&read_input(file)?)
-                .map_err(|error| format!("the reply is not JSON: {error}"))?;
-            body["ask"] = ask.into();
+            let mut body: serde_json::Map<String, serde_json::Value> =
+                serde_json::from_str(&read_input(file)?)
+                    .map_err(|error| format!("the reply is not a JSON object: {error}"))?;
+            body.insert("ask".to_string(), ask.into());
+            let body = serde_json::Value::Object(body);
             client::connect(&locate(&topic)?)?.post("reply", body.to_string())?;
             Ok(())
         }
