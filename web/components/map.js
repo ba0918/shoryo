@@ -386,12 +386,14 @@ export class MapTab extends Component {
 }
 
 /// Puts a floating box beside `anchor` (a viewport rectangle): right of it when there is
-/// room, otherwise left, and always inside the viewport below the fixed header.
+/// room, otherwise left, and always inside the viewport below the fixed header. A box taller
+/// than that room is cut to it and scrolls inside, so all of its text and buttons can be reached.
 function place(box, anchor) {
   const margin = 8;
   const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0) + margin;
   box.style.left = "0px";
   box.style.top = "0px";
+  box.style.maxHeight = `${Math.max(0, window.innerHeight - margin - top)}px`;
   const width = box.offsetWidth;
   const height = box.offsetHeight;
   let left = anchor.right + margin;

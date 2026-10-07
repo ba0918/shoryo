@@ -1578,6 +1578,9 @@ svg.diagram .edge text {
   font-size: 0.85rem;
   display: grid;
   gap: 0.3rem;
+  /* place() caps the height at the room below the header; long details scroll inside. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .map-hover {
