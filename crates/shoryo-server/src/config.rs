@@ -5,6 +5,9 @@ use std::fmt;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::process;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
@@ -78,13 +81,19 @@ impl std::error::Error for ConfigError {}
 #[derive(Debug, Clone)]
 pub struct ConfigFile {
     path: Option<PathBuf>,
+    /// Held for a whole read-change-write, so two switches on one server never interleave.
+    writing: Arc<Mutex<()>>,
 }
+
+/// Makes each temporary file name unique within this process.
+static TEMPORARY_FILES: AtomicU64 = AtomicU64::new(0);
 
 impl ConfigFile {
     /// The per-user config file, honouring `XDG_CONFIG_HOME`.
     pub fn per_user() -> Self {
         Self {
             path: dirs::config_dir().map(|dir| dir.join("shoryo").join("config.toml")),
+            writing: Arc::default(),
         }
     }
 
@@ -100,7 +109,13 @@ impl ConfigFile {
 
     /// Applies a switch and writes the whole file through a temporary file and a rename, so a
     /// crash leaves the old file or the new one. An unreadable file is refused, untouched.
+    /// The temporary file's name carries the process id and a counter, because servers of
+    /// other topics write the same file at the same time.
     pub fn change(&self, change: ConfigChange) -> Result<Config, ConfigError> {
+        let _writing = self
+            .writing
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut config = self.read()?;
         let path = self.path.as_deref().ok_or(ConfigError::NoConfigDirectory)?;
         config.language = change.language.unwrap_or(config.language);
@@ -114,7 +129,11 @@ impl ConfigFile {
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(|error| write(dir, error))?;
         }
-        let temporary = path.with_extension("toml.tmp");
+        let temporary = path.with_extension(format!(
+            "toml.{}.{}.tmp",
+            process::id(),
+            TEMPORARY_FILES.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::write(&temporary, text).map_err(|error| write(&temporary, error))?;
         fs::rename(&temporary, path).map_err(|error| write(path, error))?;
         Ok(config)
