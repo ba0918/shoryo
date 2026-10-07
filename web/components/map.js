@@ -18,8 +18,12 @@ const TEXT_W = NODE_W - 2 * TEXT_X;
 /// An edge's name sits in the gap left of the point it leads to, inside that point's row.
 const LABEL_GAP = 8;
 const LABEL_W = COLUMN_W - NODE_W - 2 * LABEL_GAP;
+/// The least zoom the person can reach by hand; "fit" goes below it when the whole range
+/// needs that, and zooming in or out from there never jumps back up to it.
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 3;
+/// A floor for "fit", so an area with no size never gives a zoom of zero.
+const FIT_MIN_ZOOM = 0.01;
 /// Below this zoom the edges' names are left out unless their point is hovered or selected.
 const FAR_ZOOM = 0.65;
 /// How far a pointer moves before a press becomes a drag rather than a click.
@@ -299,7 +303,7 @@ export class MapTab extends Component {
 
   zoomAt(factor, cx, cy, commit) {
     const v = this.view;
-    const k = clamp(v.k * factor, MIN_ZOOM, MAX_ZOOM);
+    const k = clamp(v.k * factor, Math.min(MIN_ZOOM, v.k), MAX_ZOOM);
     const ratio = k / v.k;
     this.apply({ k, x: cx - (cx - v.x) * ratio, y: cy - (cy - v.y) * ratio }, commit);
   }
@@ -312,7 +316,7 @@ export class MapTab extends Component {
   /// Fits every point of the range into the area.
   fit() {
     const box = this.wrap.getBoundingClientRect();
-    const k = clamp(Math.min(box.width / this.size.width, box.height / this.size.height), MIN_ZOOM, 1.5);
+    const k = clamp(Math.min(box.width / this.size.width, box.height / this.size.height), FIT_MIN_ZOOM, 1.5);
     this.apply({ k, x: (box.width - this.size.width * k) / 2, y: (box.height - this.size.height * k) / 2 }, "now");
   }
 
@@ -357,7 +361,7 @@ export class MapTab extends Component {
         const [c, d] = now;
         const before = Math.hypot(a.x - b.x, a.y - b.y) || 1;
         const factor = Math.hypot(c.x - d.x, c.y - d.y) / before;
-        const k = clamp(gesture.view.k * factor, MIN_ZOOM, MAX_ZOOM);
+        const k = clamp(gesture.view.k * factor, Math.min(MIN_ZOOM, gesture.view.k), MAX_ZOOM);
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const to = { x: (c.x + d.x) / 2, y: (c.y + d.y) / 2 };
         const ratio = k / gesture.view.k;
