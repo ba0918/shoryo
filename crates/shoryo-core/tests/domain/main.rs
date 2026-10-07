@@ -4,3 +4,4 @@ mod common;
 mod events;
 mod rounds;
 mod state;
+mod views;

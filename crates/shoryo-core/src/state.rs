@@ -326,4 +326,9 @@ impl Decision {
             .find(|version| version.round <= round)
             .map(|version| &version.content)
     }
+
+    /// The round the decision was first decided in.
+    pub fn decided_in(&self) -> u32 {
+        self.history.first().map_or(0, |version| version.round)
+    }
 }

@@ -5,6 +5,7 @@ mod ids;
 mod operations;
 mod round;
 mod state;
+mod views;
 
 pub use ids::{AskId, DecisionId, EventId, QuestionId};
 pub use operations::{Event, EventKind, Operation, OperationRefusal, SentAnswer};
@@ -17,3 +18,4 @@ pub use state::{
     Fix, InReview, LoadError, NodeRef, Origin, Question, Records, Rejected, Reply,
     ReviewConclusion, ReviewOutcome, Revision, Round, Topic, Undecided,
 };
+pub use views::{ChainLink, Column, Map, MapEdge, MapNode, NodeKind};
