@@ -45,7 +45,7 @@ export function questionData(view, round, question, locked, landed = null, asOf 
     selected: question.answer.selected,
     note: question.answer.note,
     deferred: question.answer.deferred,
-    unopened: view.unopened.includes(question.id),
+    stamp: question.answer.stamp,
     asks: round.asks.filter((ask) => ask.question === question.id).map(askData),
     locked,
     landed: question.id === landed,
@@ -67,7 +67,7 @@ export function currentRoundData(view, landed = null) {
     send: {
       round: round.number,
       locked,
-      unopened: locked ? 0 : view.unopened.length,
+      unstamped: locked ? 0 : view.unstamped.length,
       sent: round.submitted && !topic.ended,
     },
     fixes: round.review ? fixesData(view, round) : [],
@@ -96,12 +96,6 @@ export function reviewState(view, id) {
   };
 }
 
-/// 見ずに送った: the answer the decision came from was sent without being opened.
-function fromUnseenAnswer(topic, decision) {
-  if (decision.origin.question === undefined) return false;
-  return findQuestion(topic, decision.origin.question)?.question.answer.sent_unseen ?? false;
-}
-
 /// A decision for a list. `asDecided` shows the content it had when it was decided, marked
 /// when it was revised later; otherwise its current content.
 export function decisionItemData(view, decision, { asDecided = false } = {}) {
@@ -112,7 +106,7 @@ export function decisionItemData(view, decision, { asDecided = false } = {}) {
     text: content.text,
     source: decisionSource(view.topic, decision),
     revised: asDecided && decision.history.length > 1,
-    sentUnseen: fromUnseenAnswer(view.topic, decision),
+    preApproved: view.pre_approved.includes(decision.id),
     review: reviewState(view, decision.id),
     jump: decision.origin.question !== undefined ? questionTarget(view.topic, decision.origin.question) : null,
   };
@@ -160,7 +154,7 @@ export function pastRoundsData(view, selected, landed = null) {
           past: {
             chosen: question.answer.deferred ? null : question.options[question.answer.selected].text,
             recommended: question.options.find((option) => option.recommended)?.text ?? "",
-            sentUnseen: question.answer.sent_unseen,
+            preApproved: question.answer.stamp === "pre_approved",
             decisions: decidedBy(topic, question.id).map((decision) =>
               decisionItemData(view, decision, { asDecided: true }),
             ),

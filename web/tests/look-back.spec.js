@@ -3,7 +3,7 @@
 // docs/spec/server.md, "終える").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, card, mark, row } from "./screen.js";
+import { action, card, mark, row, sendAll } from "./screen.js";
 
 const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
 const pastRound = (page, number) => page.locator(`[data-past-round="${number}"]`);
@@ -42,7 +42,7 @@ test("past_round_shows_replies_and_diagrams_as_answered", async ({ shoryo, page 
   await card(page, "q2").locator("[data-field=note] textarea").fill("Only while testing.");
   await card(page, "q2").locator("[data-field=note] textarea").blur();
   await expect(card(page, "q2").locator("[data-field=note] textarea")).toHaveValue("Only while testing.");
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.round(roundThree);
 
   await tab(page, "past").click();
@@ -57,7 +57,7 @@ test("past_round_shows_replies_and_diagrams_as_answered", async ({ shoryo, page 
 });
 
 test("past_round_shows_cards_as_answered_and_provisional_questions_as_a_list", async ({ shoryo, page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.round(roundThree);
 
   await tab(page, "past").click();
@@ -77,7 +77,7 @@ test("past_round_shows_cards_as_answered_and_provisional_questions_as_a_list", a
 });
 
 test("past_round_shows_decision_as_of_that_round", async ({ shoryo, page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.round(roundThree);
   await shoryo.submit();
   await shoryo.round({
@@ -95,25 +95,27 @@ test("past_round_shows_decision_as_of_that_round", async ({ shoryo, page }) => {
   await expect(mark(item, "revised")).toBeVisible();
 });
 
-test("answer_sent_unseen_is_marked_in_past_round_and_decisions_tab", async ({ shoryo, page }) => {
-  await card(page, "q2").getByRole("radio", { name: /A database/ }).check();
-  await action(page, "send").click();
-  await shoryo.round(roundThree);
+test("pre_approved_answers_are_marked_in_past_rounds_and_decisions", async ({ shoryo, page }) => {
+  await sendAll(page);
+  await shoryo.round({
+    ...roundThree,
+    records: { decisions: [...roundThree.records.decisions, decision("d4", "File named state.json", "q3")] },
+  });
 
   await tab(page, "past").click();
   await action(page.locator('[data-round-choice="2"]'), "choose-round").click();
   const marks = (id) => pastRound(page, 2).locator(`[data-past-question="${id}"] [data-question-marks]`);
-  await expect(mark(marks("q4"), "sent-unseen")).toBeVisible();
-  await expect(mark(marks("q2"), "sent-unseen")).toHaveCount(0);
+  await expect(mark(marks("q3"), "pre-approved")).toBeVisible();
+  await expect(mark(marks("q2"), "pre-approved")).toHaveCount(0);
 
   await tab(page, "decisions").click();
   const decisions = page.locator("[data-panel=decisions]");
-  await expect(mark(decisionItem(decisions, "d3"), "sent-unseen")).toBeVisible();
-  await expect(mark(decisionItem(decisions, "d2"), "sent-unseen")).toHaveCount(0);
+  await expect(mark(decisionItem(decisions, "d4"), "pre-approved")).toBeVisible();
+  await expect(mark(decisionItem(decisions, "d2"), "pre-approved")).toHaveCount(0);
 });
 
 test("decisions_tab_lists_the_seven_kinds", async ({ shoryo, page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.round({
     ...roundThree,
     records: {
@@ -183,7 +185,7 @@ const reviewRound = {
 };
 
 test("review_round_lists_fixed_items_before_cards", async ({ shoryo, page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.round(reviewRound);
 
   const order = await page
@@ -194,7 +196,7 @@ test("review_round_lists_fixed_items_before_cards", async ({ shoryo, page }) => 
 });
 
 test("fixed_item_that_changed_a_decision_offers_review_request", async ({ shoryo, page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.round(reviewRound);
 
   const items = page.locator("[data-fixes] [data-fix]");
@@ -208,7 +210,7 @@ test("fixed_item_that_changed_a_decision_offers_review_request", async ({ shoryo
 });
 
 test("ended_topic_blocks_all_input", async ({ shoryo, page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
   await shoryo.end();
 
   await expect(page.locator("[data-ended]")).toBeVisible();

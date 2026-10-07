@@ -108,7 +108,7 @@ button.primary {
   color: var(--accent);
 }
 
-.mark.unopened {
+.mark.pre-approved {
   color: var(--warn);
 }
 
@@ -219,7 +219,7 @@ button.primary {
   gap: 1rem;
 }
 
-.unopened-count {
+.unstamped-count {
   color: var(--warn);
 }
 

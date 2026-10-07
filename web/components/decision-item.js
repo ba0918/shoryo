@@ -59,9 +59,7 @@ export function decisionItem(item, emit) {
           ]
         : null,
       item.revised ? h("span", { class: "mark revised", "data-mark": "revised" }, "Revised later") : null,
-      item.sentUnseen
-        ? h("span", { class: "mark unopened", "data-mark": "sent-unseen" }, "Sent without opening")
-        : null,
+      item.preApproved ? h("span", { class: "mark pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
       reviewControls(item.review, emit),
     ),
   );

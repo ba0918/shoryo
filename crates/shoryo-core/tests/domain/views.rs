@@ -191,3 +191,31 @@ fn confirmed_point_clears_review_mark() {
 
     assert!(!map.node("d:d2").unwrap().review_mark);
 }
+
+#[test]
+fn decision_from_pre_approved_answer_is_marked_and_loses_mark_when_revised() {
+    let mut provisional = question("q2", &[]);
+    provisional["class"] = json!("provisional");
+    let decided = json!({
+        "subject": "R2",
+        "questions": [question("q3", &[])],
+        "records": { "decisions": [decision("d1", "q1", "One"), decision("d2", "q2", "Two")] },
+    });
+    let mut topic = topic_from(vec![
+        json!({ "subject": "R1", "questions": [question("q1", &[]), provisional] }),
+        decided,
+    ]);
+    assert!(!topic.decided_pre_approved(&DecisionId::new("d1")));
+    assert!(topic.decided_pre_approved(&DecisionId::new("d2")));
+    crate::common::submit_current(&mut topic).unwrap();
+
+    topic
+        .apply_round(crate::common::round(json!({
+            "subject": "R3",
+            "records": { "decisions": [decision("d2", "q2", "Two, asked again")] },
+            "review_conclusions": [{ "decision": "d2", "outcome": "changed" }],
+        })))
+        .unwrap();
+
+    assert!(!topic.decided_pre_approved(&DecisionId::new("d2")));
+}

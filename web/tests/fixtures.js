@@ -60,9 +60,10 @@ export const test = base.extend({
         const response = await fetch(`${url}api/op`, { method: "POST", body: JSON.stringify(body) });
         if (!response.ok) throw new Error(`operation refused: ${await response.text()}`);
       },
-      /// Sends the current round, as "Send all" on the screen does.
+      /// Stamps every question and sends the current round, as the person does on the screen.
       submit: async () => {
         const view = await (await fetch(`${url}api/view`)).json();
+        for (const question of view.unstamped) await shoryo.op({ op: "stamp", question, stamped: true });
         const rounds = view.topic.rounds;
         await shoryo.op({ op: "submit", round: rounds[rounds.length - 1].number });
       },

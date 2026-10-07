@@ -1,7 +1,7 @@
 // The provisional list: one row per provisional question, changed in place, opened into a
 // card (docs/spec/screen.md, "仮決めの一覧").
 import { Component, h } from "../dom.js";
-import { answerExtras, chainLine, consequence, details, optionList, pastAnswer, pastMarks } from "./question-parts.js";
+import { answerExtras, chainLine, consequence, details, optionList, pastAnswer, pastMarks, stampButton } from "./question-parts.js";
 import { thread } from "./thread.js";
 
 export class ProvisionalRow extends Component {
@@ -54,6 +54,7 @@ export class ProvisionalRow extends Component {
               ),
             ),
         this.open ? null : consequence(question),
+        this.past ? null : stampButton(question, this.emit),
         h(
           "button",
           {

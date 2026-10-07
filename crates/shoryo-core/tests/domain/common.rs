@@ -52,8 +52,24 @@ pub fn topic_from(rounds: Vec<Value>) -> shoryo_core::Topic {
     topic
 }
 
-/// Sends the current round, as the person does with the round on the screen.
+/// Stamps every unstamped question and sends the current round, as the person does with the
+/// round on the screen.
 pub fn submit_current(topic: &mut shoryo_core::Topic) -> Result<(), shoryo_core::OperationRefusal> {
-    let round = topic.current_round().map_or(0, |round| round.number);
+    let Some(current) = topic.current_round() else {
+        return topic.apply(shoryo_core::Operation::Submit { round: 0 });
+    };
+    let round = current.number;
+    let unstamped: Vec<_> = current
+        .questions
+        .iter()
+        .filter(|question| question.answer.stamp.is_none())
+        .map(|question| question.id.clone())
+        .collect();
+    for question in unstamped {
+        topic.apply(shoryo_core::Operation::Stamp {
+            question,
+            stamped: true,
+        })?;
+    }
     topic.apply(shoryo_core::Operation::Submit { round })
 }

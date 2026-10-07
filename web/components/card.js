@@ -1,7 +1,7 @@
 // A human question's card: folded at first, opened to the prerequisites, background and
 // option details (docs/spec/screen.md, "たたんだカード").
 import { Component, h } from "../dom.js";
-import { answerExtras, chainLine, consequence, details, optionList, pastAnswer, pastMarks } from "./question-parts.js";
+import { answerExtras, chainLine, consequence, details, optionList, pastAnswer, pastMarks, stampButton } from "./question-parts.js";
 import { thread } from "./thread.js";
 
 export class Card extends Component {
@@ -23,8 +23,6 @@ export class Card extends Component {
 
   toggle() {
     this.open = !this.open;
-    // Opening a human card is what clears the unopened mark; folding it again is not news.
-    if (this.open && !this.past) this.emit({ type: "op", op: { op: "open", question: this.data.id } });
     this.redraw();
   }
 
@@ -41,7 +39,6 @@ export class Card extends Component {
         "div",
         { class: "card-marks", "data-question-marks": true },
         h("span", { class: "mark human", "data-mark": "human" }, "Human decides"),
-        question.unopened ? h("span", { class: "mark unopened", "data-mark": "unopened" }, "Not opened yet") : null,
         pastMarks(question),
       ),
       h("h3", { class: "question-text" }, question.text),
@@ -51,6 +48,7 @@ export class Card extends Component {
       optionList(question, this.emit, this.open),
       consequence(question),
       answerExtras(question, this.emit),
+      this.past ? null : stampButton(question, this.emit),
       pastAnswer(question, this.emit),
       this.threadFor(question),
       h(

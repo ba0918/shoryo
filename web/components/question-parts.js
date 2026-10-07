@@ -137,13 +137,29 @@ function noteSaver(question, emit) {
   return { now, later };
 }
 
+/// 判子: pressed by the person, or pre-approved by the LLM; pressing a pressed stamp lifts it.
+export function stampButton(question, emit) {
+  const stamped = question.stamp !== null;
+  return h(
+    "button",
+    {
+      type: "button",
+      class: `stamp${stamped ? " stamped" : ""}`,
+      "data-action": "stamp",
+      "data-stamp": question.stamp ?? "none",
+      "aria-pressed": String(stamped),
+      disabled: question.locked,
+      onclick: () => emit({ type: "op", op: { op: "stamp", question: question.id, stamped: !stamped } }),
+    },
+    question.stamp === "pre_approved" ? "Pre-approved" : stamped ? "Approved" : "Approve",
+  );
+}
+
 /// The marks a sent question carries in a past round.
 export function pastMarks(question) {
   if (!question.past) return null;
   return [
-    question.past.sentUnseen
-      ? h("span", { class: "mark unopened", "data-mark": "sent-unseen" }, "Sent without opening")
-      : null,
+    question.past.preApproved ? h("span", { class: "mark pre-approved", "data-mark": "pre-approved" }, "Pre-approved") : null,
     question.deferred ? h("span", { class: "mark deferred", "data-mark": "deferred" }, "Ask me again next round") : null,
   ];
 }

@@ -1,7 +1,7 @@
 use serde_json::json;
 use shoryo_core::{
     AskId, AskState, Class, DecisionId, EventKind, Operation, OperationRefusal, QuestionId, Reply,
-    Topic,
+    Stamp, Topic,
 };
 
 use crate::common::{decision, question, round, submit_current};
@@ -23,9 +23,7 @@ fn topic_on_a_round() -> Topic {
             "questions": [question("q1", &[])],
         })))
         .expect("the first round is valid");
-    topic
-        .apply(Operation::Submit { round: 1 })
-        .expect("the first round can be sent");
+    submit_current(&mut topic).expect("the first round can be sent");
     let mut provisional = question("q3", &["d1"]);
     provisional["class"] = json!("provisional");
     topic
@@ -119,53 +117,6 @@ fn defer_switch_can_be_set_and_cleared() {
 }
 
 #[test]
-fn opening_a_card_removes_unopened_mark() {
-    let mut topic = topic_on_a_round();
-    assert!(topic.shows_unopened_mark(&q("q2")));
-
-    topic.apply(Operation::Open { question: q("q2") }).unwrap();
-
-    assert!(!topic.shows_unopened_mark(&q("q2")));
-}
-
-#[test]
-fn touching_a_card_removes_unopened_mark() {
-    let mut topic = topic_on_a_round();
-
-    topic
-        .apply(Operation::Note {
-            question: q("q2"),
-            text: "x".into(),
-        })
-        .unwrap();
-
-    assert!(!topic.shows_unopened_mark(&q("q2")));
-}
-
-#[test]
-fn resetting_to_the_recommendation_does_not_bring_back_unopened_mark() {
-    let mut topic = topic_on_a_round();
-
-    for option in [1, 0] {
-        topic
-            .apply(Operation::Choose {
-                question: q("q2"),
-                option,
-            })
-            .unwrap();
-    }
-
-    assert!(!topic.shows_unopened_mark(&q("q2")));
-}
-
-#[test]
-fn provisional_question_carries_no_unopened_mark() {
-    let topic = topic_on_a_round();
-
-    assert!(!topic.shows_unopened_mark(&q("q3")));
-}
-
-#[test]
 fn swapping_class_moves_question_and_records_event() {
     let mut topic = topic_on_a_round();
 
@@ -182,17 +133,6 @@ fn swapping_class_moves_question_and_records_event() {
             class: Class::Human
         }]
     );
-}
-
-#[test]
-fn swapped_untouched_question_keeps_unopened_mark() {
-    let mut topic = topic_on_a_round();
-
-    topic
-        .apply(Operation::SwapClass { question: q("q3") })
-        .unwrap();
-
-    assert!(topic.shows_unopened_mark(&q("q3")));
 }
 
 #[test]
@@ -219,7 +159,6 @@ fn asking_records_a_waiting_ask_and_an_event() {
             follows: None,
         }]
     );
-    assert!(!topic.shows_unopened_mark(&q("q2")));
 }
 
 #[test]
@@ -363,16 +302,6 @@ fn submit_sends_every_answer_at_once() {
 }
 
 #[test]
-fn submit_marks_untouched_human_question_as_sent_unseen() {
-    let mut topic = topic_on_a_round();
-
-    submit_current(&mut topic).unwrap();
-
-    assert!(current_answer(&topic, "q2").sent_unseen);
-    assert!(!current_answer(&topic, "q3").sent_unseen);
-}
-
-#[test]
 fn deferred_question_is_not_an_answer() {
     let mut topic = topic_on_a_round();
     topic
@@ -408,6 +337,10 @@ fn answers_are_refused_after_submit() {
         Operation::Defer {
             question: q("q2"),
             deferred: true,
+        },
+        Operation::Stamp {
+            question: q("q2"),
+            stamped: false,
         },
         Operation::Submit { round: 2 },
     ] {
@@ -617,15 +550,164 @@ fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
     assert!(topic.pending_events().is_empty());
 }
 
+fn stamp(topic: &mut Topic, id: &str, stamped: bool) {
+    topic
+        .apply(Operation::Stamp {
+            question: q(id),
+            stamped,
+        })
+        .expect("a question of the open round can be stamped");
+}
+
+fn stamp_of(topic: &Topic, id: &str) -> Option<Stamp> {
+    current_answer(topic, id).stamp
+}
+
 #[test]
-fn opening_a_card_after_end_changes_nothing_and_is_not_refused() {
+fn human_question_starts_unstamped_and_provisional_starts_pre_approved() {
+    let topic = topic_on_a_round();
+
+    assert_eq!(stamp_of(&topic, "q2"), None);
+    assert_eq!(stamp_of(&topic, "q3"), Some(Stamp::PreApproved));
+}
+
+#[test]
+fn changing_choice_removes_stamp_but_changing_note_does_not() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+
+    topic
+        .apply(Operation::Note {
+            question: q("q2"),
+            text: "Only for now.".into(),
+        })
+        .unwrap();
+    assert_eq!(stamp_of(&topic, "q2"), Some(Stamp::Person));
+    topic
+        .apply(Operation::Choose {
+            question: q("q2"),
+            option: 1,
+        })
+        .unwrap();
+
+    assert_eq!(stamp_of(&topic, "q2"), None);
+}
+
+#[test]
+fn changing_defer_switch_removes_stamp() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+
+    topic
+        .apply(Operation::Defer {
+            question: q("q2"),
+            deferred: true,
+        })
+        .unwrap();
+
+    assert_eq!(stamp_of(&topic, "q2"), None);
+}
+
+#[test]
+fn unstamping_pre_approved_row_is_a_send_back() {
+    let mut topic = topic_on_a_round();
+
+    stamp(&mut topic, "q3", false);
+    assert_eq!(stamp_of(&topic, "q3"), None);
+    stamp(&mut topic, "q3", true);
+
+    assert_eq!(stamp_of(&topic, "q3"), Some(Stamp::Person));
+}
+
+#[test]
+fn swap_resets_stamp_to_new_class_initial_state() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+
+    topic
+        .apply(Operation::SwapClass { question: q("q2") })
+        .unwrap();
+    assert_eq!(stamp_of(&topic, "q2"), Some(Stamp::PreApproved));
+    topic
+        .apply(Operation::SwapClass { question: q("q3") })
+        .unwrap();
+
+    assert_eq!(stamp_of(&topic, "q3"), None);
+}
+
+#[test]
+fn submit_is_refused_while_a_question_is_unstamped() {
+    let mut topic = topic_on_a_round();
+
+    let refused = topic.apply(Operation::Submit { round: 2 });
+
+    assert_eq!(
+        refused,
+        Err(OperationRefusal::Unstamped {
+            questions: vec![q("q2")]
+        })
+    );
+    assert!(!topic.current_round().unwrap().submitted);
+    assert!(topic.pending_events().is_empty());
+    stamp(&mut topic, "q2", true);
+    assert_eq!(topic.apply(Operation::Submit { round: 2 }), Ok(()));
+}
+
+#[test]
+fn deferred_question_needs_a_stamp() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+    topic
+        .apply(Operation::Defer {
+            question: q("q2"),
+            deferred: true,
+        })
+        .unwrap();
+
+    let refused = topic.apply(Operation::Submit { round: 2 });
+
+    assert_eq!(
+        refused,
+        Err(OperationRefusal::Unstamped {
+            questions: vec![q("q2")]
+        })
+    );
+}
+
+#[test]
+fn submitted_event_carries_stamp_kind() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+
+    topic.apply(Operation::Submit { round: 2 }).unwrap();
+
+    let EventKind::Submitted { answers, .. } = kinds(&topic)[0] else {
+        panic!("expected the submitted event");
+    };
+    let stamps: Vec<_> = answers.iter().map(|a| (&a.question, a.stamp)).collect();
+    assert_eq!(
+        stamps,
+        [(&q("q2"), Stamp::Person), (&q("q3"), Stamp::PreApproved)]
+    );
+}
+
+#[test]
+fn round_without_questions_is_submitted_with_no_answers() {
     let mut topic = topic_on_a_round();
     submit_current(&mut topic).unwrap();
-    topic.end().unwrap();
-    let before = topic.clone();
+    topic
+        .apply_round(round(json!({ "subject": "Result" })))
+        .unwrap();
+    let ids: Vec<_> = topic.pending_events().iter().map(|e| e.id).collect();
+    topic.acknowledge(&ids);
 
-    let opened = topic.apply(Operation::Open { question: q("q2") });
+    topic.apply(Operation::Submit { round: 3 }).unwrap();
 
-    assert_eq!(opened, Ok(()));
-    assert_eq!(topic, before);
+    assert_eq!(
+        kinds(&topic),
+        [&EventKind::Submitted {
+            round: 3,
+            answers: vec![]
+        }]
+    );
 }

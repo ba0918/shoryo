@@ -26,7 +26,7 @@ fn question(id: &str) -> Question {
             },
         ],
         reasks: None,
-        answer: Answer::recommended(0),
+        answer: Answer::initial(0, Class::Human),
     }
 }
 

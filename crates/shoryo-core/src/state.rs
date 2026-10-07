@@ -94,10 +94,29 @@ pub struct Answer {
     pub selected: usize,
     pub note: String,
     pub deferred: bool,
-    pub opened: bool,
-    pub touched: bool,
-    /// 見ずに送った: a human question sent without being opened or touched.
-    pub sent_unseen: bool,
+    /// 判子: whether the answer (deferring included) has been confirmed, and by whom.
+    pub stamp: Option<Stamp>,
+}
+
+/// Who put the 判子 on an answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Stamp {
+    /// The person pressed it.
+    Person,
+    /// 代決: the LLM pressed it for a provisional question, and the person left it.
+    PreApproved,
+}
+
+impl Stamp {
+    /// The stamp a question of `class` starts with: none for a human question, 代決 for a
+    /// provisional one.
+    pub fn initial(class: Class) -> Option<Self> {
+        match class {
+            Class::Human => None,
+            Class::Provisional => Some(Self::PreApproved),
+        }
+    }
 }
 
 // The agent writes it inside a round, where a misspelt field must be refused.
@@ -293,15 +312,14 @@ impl Topic {
 }
 
 impl Answer {
-    /// The initial answer: the recommended option selected, nothing touched.
-    pub fn recommended(selected: usize) -> Self {
+    /// The initial answer of a question of `class`: the recommended option selected, with
+    /// the stamp that class starts with.
+    pub fn initial(selected: usize, class: Class) -> Self {
         Self {
             selected,
             note: String::new(),
             deferred: false,
-            opened: false,
-            touched: false,
-            sent_unseen: false,
+            stamp: Stamp::initial(class),
         }
     }
 }
@@ -335,6 +353,11 @@ impl Decision {
             .rev()
             .find(|version| version.round <= round)
             .map(|version| &version.content)
+    }
+
+    /// Whether the content changed after it was first decided.
+    pub fn was_revised(&self) -> bool {
+        self.history.len() > 1
     }
 
     /// The round the decision was first decided in.

@@ -336,6 +336,7 @@ fn new_question(input: QuestionInput) -> Question {
         .position(|option| option.recommended)
         .expect("a round is applied only after each question is checked for one recommendation");
     Question {
+        answer: Answer::initial(recommended, input.class),
         id: input.id,
         text: input.text,
         class: input.class,
@@ -344,6 +345,5 @@ fn new_question(input: QuestionInput) -> Question {
         background: input.background,
         options: input.options,
         reasks: input.reasks,
-        answer: Answer::recommended(recommended),
     }
 }

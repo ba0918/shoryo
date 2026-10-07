@@ -16,7 +16,9 @@ use axum::routing::{get, post};
 use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use shoryo_core::{AskId, ChainLink, EventId, Map, Operation, QuestionId, Reply, RoundInput};
+use shoryo_core::{
+    AskId, ChainLink, DecisionId, EventId, Map, Operation, QuestionId, Reply, RoundInput,
+};
 use tokio::sync::watch;
 
 use crate::location::TopicLocation;
@@ -78,12 +80,12 @@ impl Shared {
             .flat_map(|round| &round.questions)
             .map(|question| (question.id.clone(), topic.chains(&question.id)))
             .collect();
-        let unopened = topic
-            .current_round()
-            .into_iter()
-            .flat_map(|round| &round.questions)
-            .filter(|question| topic.shows_unopened_mark(&question.id))
-            .map(|question| question.id.clone())
+        let pre_approved = topic
+            .records
+            .decisions
+            .iter()
+            .filter(|decision| topic.decided_pre_approved(&decision.id))
+            .map(|decision| decision.id.clone())
             .collect();
         let map = topic.map();
         let paths = map
@@ -96,7 +98,8 @@ impl Shared {
             map,
             paths,
             chains,
-            unopened,
+            unstamped: topic.unstamped(),
+            pre_approved,
             topic: state.clone(),
         }
     }
@@ -111,8 +114,10 @@ struct View {
     map: Map,
     /// 道筋 for each map node: the keys shown when that node is selected.
     paths: BTreeMap<String, Vec<String>>,
-    /// The current round's questions that carry the unopened mark.
-    unopened: Vec<QuestionId>,
+    /// The current round's questions that have no stamp yet.
+    unstamped: Vec<QuestionId>,
+    /// The decisions that carry the 代決 mark.
+    pre_approved: Vec<DecisionId>,
 }
 
 pub fn router(shared: Arc<Shared>, secret: &str) -> Router {

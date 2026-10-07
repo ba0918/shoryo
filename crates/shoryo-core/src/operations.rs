@@ -7,7 +7,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
-use crate::state::{Ask, AskState, Class, InReview, Question, Reply, Round, Topic};
+use crate::state::{Ask, AskState, Class, InReview, Question, Reply, Round, Stamp, Topic};
 
 /// One thing the person does on the screen.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -25,8 +25,10 @@ pub enum Operation {
         question: QuestionId,
         deferred: bool,
     },
-    Open {
+    /// 判子: `stamped` presses the person's stamp; clearing it is how a 代決 is sent back.
+    Stamp {
         question: QuestionId,
+        stamped: bool,
     },
     SwapClass {
         question: QuestionId,
@@ -91,7 +93,8 @@ pub struct SentAnswer {
     pub choice: Option<usize>,
     pub note: String,
     pub deferred: bool,
-    pub sent_unseen: bool,
+    /// Who stamped the answer; every sent answer has a stamp.
+    pub stamp: Stamp,
 }
 
 /// Why an operation was not carried out.
@@ -99,17 +102,39 @@ pub struct SentAnswer {
 pub enum OperationRefusal {
     NoRound,
     RoundSubmitted,
-    RoundUnsent { round: u32 },
+    RoundUnsent {
+        round: u32,
+    },
     TopicEnded,
-    UnknownQuestion { question: QuestionId },
-    UnknownOption { option: usize },
-    UnknownAsk { ask: AskId },
-    UnknownDecision { decision: DecisionId },
-    AlreadyReplied { ask: AskId },
-    NotInReview { decision: DecisionId },
+    UnknownQuestion {
+        question: QuestionId,
+    },
+    UnknownOption {
+        option: usize,
+    },
+    UnknownAsk {
+        ask: AskId,
+    },
+    UnknownDecision {
+        decision: DecisionId,
+    },
+    AlreadyReplied {
+        ask: AskId,
+    },
+    NotInReview {
+        decision: DecisionId,
+    },
     NextRoundArrived,
-    NotCurrentRound { round: u32 },
-    FollowsAnotherQuestion { ask: AskId },
+    NotCurrentRound {
+        round: u32,
+    },
+    FollowsAnotherQuestion {
+        ask: AskId,
+    },
+    /// The round cannot be sent while these questions have no stamp.
+    Unstamped {
+        questions: Vec<QuestionId>,
+    },
 }
 
 impl fmt::Display for OperationRefusal {
@@ -135,6 +160,14 @@ impl fmt::Display for OperationRefusal {
                 write!(
                     f,
                     "ask {ask} is about another question, so this cannot follow it"
+                )
+            }
+            Self::Unstamped { questions } => {
+                let list: Vec<String> = questions.iter().map(ToString::to_string).collect();
+                write!(
+                    f,
+                    "questions {} have no stamp yet; stamp every question before sending",
+                    list.join(", ")
                 )
             }
             Self::NotCurrentRound { round } => write!(
@@ -177,20 +210,20 @@ impl Topic {
             .any(|mark| &mark.decision == decision)
     }
 
-    /// まだ開いてない印: a human question in the unsent current round that was neither opened
-    /// nor touched.
-    pub fn shows_unopened_mark(&self, question: &QuestionId) -> bool {
+    /// The questions of the unsent current round that have no stamp, in their order.
+    pub fn unstamped(&self) -> Vec<QuestionId> {
         self.current_round()
             .filter(|round| !round.submitted)
-            .and_then(|round| round.questions.iter().find(|q| &q.id == question))
-            .is_some_and(is_unopened)
+            .into_iter()
+            .flat_map(|round| &round.questions)
+            .filter(|question| question.answer.stamp.is_none())
+            .map(|question| question.id.clone())
+            .collect()
     }
 
     /// Carries out one of the person's operations; nothing changes when it is refused.
-    /// Opening a card is reading, which stays possible after sending and after the end, so
-    /// it is never refused for those; it only has nothing left to record.
     pub fn apply(&mut self, operation: Operation) -> Result<(), OperationRefusal> {
-        if self.ended && !matches!(operation, Operation::Open { .. }) {
+        if self.ended {
             return Err(OperationRefusal::TopicEnded);
         }
         match operation {
@@ -199,24 +232,29 @@ impl Topic {
                 if option >= q.options.len() {
                     return Err(OperationRefusal::UnknownOption { option });
                 }
-                q.answer.selected = option;
-                q.answer.touched = true;
+                // A changed answer needs stamping again; the same answer keeps its stamp.
+                if q.answer.selected != option {
+                    q.answer.selected = option;
+                    q.answer.stamp = None;
+                }
             }
             Operation::Note { question, text } => {
-                let q = self.open_question(&question)?;
-                q.answer.note = text;
-                q.answer.touched = true;
+                self.open_question(&question)?.answer.note = text;
             }
             Operation::Defer { question, deferred } => {
                 let q = self.open_question(&question)?;
-                q.answer.deferred = deferred;
-                q.answer.touched = true;
-            }
-            Operation::Open { question } => {
-                if self.ended || self.current_round().is_some_and(|round| round.submitted) {
-                    return Ok(());
+                if q.answer.deferred != deferred {
+                    q.answer.deferred = deferred;
+                    q.answer.stamp = None;
                 }
-                self.open_question(&question)?.answer.opened = true;
+            }
+            Operation::Stamp { question, stamped } => {
+                let q = self.open_question(&question)?;
+                q.answer.stamp = match (stamped, q.answer.stamp) {
+                    (false, _) => None,
+                    (true, Some(kept)) => Some(kept),
+                    (true, None) => Some(Stamp::Person),
+                };
             }
             Operation::SwapClass { question } => {
                 let q = self.open_question(&question)?;
@@ -224,6 +262,7 @@ impl Topic {
                     Class::Human => Class::Provisional,
                     Class::Provisional => Class::Human,
                 };
+                q.answer.stamp = Stamp::initial(q.class);
                 let class = q.class;
                 self.push_event(EventKind::ClassSwapped { question, class });
             }
@@ -321,7 +360,7 @@ impl Topic {
             }
         }
         let number = round.number;
-        self.open_question(&question)?.answer.touched = true;
+        self.open_question(&question)?;
         let id = self.allocate_ask_id();
         self.open_round()?.asks.push(Ask {
             id,
@@ -383,22 +422,28 @@ impl Topic {
         {
             return Err(OperationRefusal::NotCurrentRound { round: made_on });
         }
+        self.open_round()?;
+        let unstamped = self.unstamped();
+        if !unstamped.is_empty() {
+            return Err(OperationRefusal::Unstamped {
+                questions: unstamped,
+            });
+        }
         let round = self.open_round()?;
         round.submitted = true;
-        for question in &mut round.questions {
-            question.answer.sent_unseen = is_unopened(question);
-        }
         let number = round.number;
         let answers = round
             .questions
             .iter()
-            .map(|question| SentAnswer {
-                question: question.id.clone(),
-                class: question.class,
-                choice: (!question.answer.deferred).then_some(question.answer.selected),
-                note: question.answer.note.clone(),
-                deferred: question.answer.deferred,
-                sent_unseen: question.answer.sent_unseen,
+            .filter_map(|question| {
+                Some(SentAnswer {
+                    question: question.id.clone(),
+                    class: question.class,
+                    choice: (!question.answer.deferred).then_some(question.answer.selected),
+                    note: question.answer.note.clone(),
+                    deferred: question.answer.deferred,
+                    stamp: question.answer.stamp?,
+                })
             })
             .collect();
         self.push_event(EventKind::Submitted {
@@ -412,8 +457,4 @@ impl Topic {
         let id = self.allocate_event_id();
         self.events.push(Event { id, kind });
     }
-}
-
-fn is_unopened(question: &Question) -> bool {
-    question.class == Class::Human && !question.answer.opened && !question.answer.touched
 }

@@ -4,7 +4,7 @@
 // that the screen's own text is English, not what it says.
 import { test, expect } from "./fixtures.js";
 import { roundOne, twoRounds } from "./rounds.js";
-import { action, card, mark, row } from "./screen.js";
+import { action, card, mark, row, sendAll } from "./screen.js";
 
 const printableAscii = /^[\x20-\x7E]+$/;
 
@@ -24,7 +24,7 @@ test("four_tabs_with_english_fixed_text", async ({ page }) => {
     action(card(page, "q2"), "swap"),
     mark(card(page, "q2"), "human"),
     mark(card(page, "q2"), "recommended"),
-    mark(card(page, "q2"), "unopened"),
+    action(card(page, "q2"), "stamp"),
   ];
   for (const element of fixed) {
     await expect(element).toBeVisible();
@@ -51,7 +51,7 @@ test("card_starts_folded_and_opens_to_premise_and_option_details", async ({ page
   await expect(q2.locator("[data-chain]")).toContainText("Person reads cards");
   await expect(mark(q2, "recommended")).toBeVisible();
   await expect(q2.getByText("With One JSON file, the topic goes this way.")).toBeVisible();
-  await expect(mark(q2, "unopened")).toBeVisible();
+  await expect(action(q2, "stamp")).toBeVisible();
   const details = [
     q2.locator("[data-premise-text]").getByText("Person reads cards, written out in full."),
     q2.getByText("Background for q2: the terms it uses."),
@@ -115,18 +115,8 @@ test("swap_moves_question_between_cards_and_list", async ({ page }) => {
   await expect(row(page, "q3")).toHaveCount(0);
 });
 
-test("unopened_mark_and_count_disappear_when_touched", async ({ page }) => {
-  const count = page.locator("[data-unopened-count]");
-  await expect(count).toContainText("2");
-
-  await card(page, "q2").getByRole("radio", { name: /A database/ }).check();
-
-  await expect(mark(card(page, "q2"), "unopened")).toHaveCount(0);
-  await expect(count).toContainText("1");
-});
-
 test("send_locks_the_round", async ({ page }) => {
-  await action(page, "send").click();
+  await sendAll(page);
 
   await expect(page.locator("[data-sent-notice]")).toBeVisible();
   await expect(card(page, "q2").getByRole("radio", { name: /A database/ })).toBeDisabled();

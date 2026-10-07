@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use crate::ids::{DecisionId, QuestionId};
-use crate::state::{Decision, NodeRef, Origin, Question, Topic};
+use crate::state::{Decision, NodeRef, Origin, Question, Stamp, Topic};
 
 /// How many names a chain shows at most.
 const CHAIN_LENGTH: usize = 3;
@@ -102,6 +102,17 @@ impl Topic {
                 .filter(|premise| !chain.iter().any(|link| &link.decision == premise));
         }
         chain
+    }
+
+    /// 代決の印: the decision came from an answer sent with the LLM's stamp, and has not been
+    /// revised since (a revision is answered again by the person).
+    pub fn decided_pre_approved(&self, id: &DecisionId) -> bool {
+        self.find_decision(id).is_some_and(|decision| {
+            !decision.was_revised()
+                && self
+                    .origin_question(decision)
+                    .is_some_and(|(question, _)| question.answer.stamp == Some(Stamp::PreApproved))
+        })
     }
 
     /// 地図: the decisions, the current round's questions and the rejected options, by round.

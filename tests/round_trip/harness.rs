@@ -136,14 +136,26 @@ impl Server {
             .as_u16()
     }
 
+    /// Stamps every unstamped question of the current round, as the person does.
+    pub fn stamp_all(&self) {
+        for question in self.view()["unstamped"].as_array().into_iter().flatten() {
+            self.operate(json!({ "op": "stamp", "question": question, "stamped": true }));
+        }
+    }
+
     /// Sends the current round through the page API, as "Send all" does; returns the status.
-    pub fn submit(&self) -> u16 {
-        let rounds = &self.view()["topic"]["rounds"];
-        let round = rounds
+    pub fn send(&self) -> u16 {
+        let round = self.view()["topic"]["rounds"]
             .as_array()
             .and_then(|rounds| rounds.last())
             .map_or(0, |round| round["number"].as_u64().unwrap_or_default());
         self.operate(json!({ "op": "submit", "round": round }))
+    }
+
+    /// Stamps every question and sends the round; returns the status of the send.
+    pub fn submit(&self) -> u16 {
+        self.stamp_all();
+        self.send()
     }
 
     /// Waits for the process to exit and returns everything it printed.

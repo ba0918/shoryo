@@ -67,18 +67,19 @@ fn refused_save_leaves_the_state_as_it_was() {
     let dir = state
         .parent()
         .expect("the state file is in the topic directory");
-    let before = std::fs::read_to_string(&state).expect("the state can be read");
     let set_mode = |mode| {
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
             .expect("the topic directory's mode can be set");
     };
 
+    server.stamp_all();
+    let before = std::fs::read_to_string(&state).expect("the state can be read");
     set_mode(0o500);
-    let refused = server.submit();
+    let refused = server.send();
     let submitted = server.view()["topic"]["rounds"][0]["submitted"].clone();
     let after = std::fs::read_to_string(&state).expect("the state can be read");
     set_mode(0o700);
-    let retried = server.submit();
+    let retried = server.send();
 
     assert_eq!(refused, 500);
     assert_eq!(submitted, false);
