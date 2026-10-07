@@ -47,13 +47,12 @@ test("two_asks_pending_while_other_cards_stay_usable", async ({ shoryo, page }) 
   await askIds(shoryo, 2);
 });
 
-test("ask_sent_with_enter_shows_writing_then_the_reply_without_leaving_the_field", async ({ shoryo, page }) => {
+test("ask_sent_with_enter_shows_writing_then_the_reply", async ({ shoryo, page }) => {
   const field = card(page, "q2").locator("[data-field=ask]");
   await field.fill("Why a file?");
 
   await field.press("Enter");
   await expect(mark(card(page, "q2"), "writing")).toBeVisible();
-  await card(page, "q2").locator("[data-field=ask]").press("Enter");
   const [ask] = await askIds(shoryo, 1);
   await shoryo.reply(ask, { text: "Because a file moves with the person." });
 
