@@ -5,3 +5,15 @@ version = 4
 [[package]]
 name = "shoryo"
 version = "0.1.0"
+
+[[package]]
+name = "shoryo-core"
+version = "0.1.0"
+
+[[package]]
+name = "shoryo-server"
+version = "0.1.0"
+
+[[package]]
+name = "shoryo-webview"
+version = "0.1.0"

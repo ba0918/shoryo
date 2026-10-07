@@ -1,0 +1,12 @@
+[package]
+name = "shoryo-server"
+description = "The HTTP server, page and agent APIs, and the data directory of shoryo."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
