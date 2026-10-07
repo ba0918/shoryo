@@ -19,7 +19,8 @@ The specification is in `docs/spec/`:
 - `web/`: the screen (HTML, CSS and plain JavaScript, no build step). `web/tests/`: its browser tests (Playwright; `package.json` at the root exists only for them).
 - The screen's files are embedded in the binary; the release is that one binary (`docs/spec/server.md`, "作り方と配り方").
 - `docs/spec/`: the specification. `CONTEXT.md`: the glossary.
-- Not built yet: the server, the screen, and the shoryo skill.
+- `skills/shoryo/`: the shoryo skill (`SKILL.md` and `references/` with the command, round, event, reply and diagram formats). `tests/round_trip/` feeds every input example in the references to the binary.
+- `tests/round_trip/`: integration tests that run the built binary through the agent's commands and the page API.
 
 ## Commands
 

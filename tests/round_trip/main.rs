@@ -342,3 +342,90 @@ fn data_is_written_outside_the_repository() {
         "{stored:?}"
     );
 }
+
+/// The fenced blocks of `info` (for example "json round") in the skill's reference files.
+fn skill_examples(info: &str) -> Vec<String> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/shoryo/references");
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .expect("the skill's references exist")
+        .map(|entry| entry.expect("the entry can be read").path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "md"))
+        .collect();
+    files.sort();
+    let fence = format!("```{info}\n");
+    let mut blocks = Vec::new();
+    for file in files {
+        let text = std::fs::read_to_string(&file).expect("the reference can be read");
+        let mut rest = text.as_str();
+        while let Some(start) = rest.find(&fence) {
+            let body = &rest[start + fence.len()..];
+            let end = body.find("```").expect("every fence is closed");
+            blocks.push(body[..end].to_string());
+            rest = &body[end..];
+        }
+    }
+    blocks
+}
+
+fn shapes(events: &[Value]) -> Vec<(String, Vec<String>)> {
+    let mut shapes: Vec<(String, Vec<String>)> = events
+        .iter()
+        .map(|event| {
+            let object = event.as_object().expect("an event is an object");
+            let mut keys: Vec<String> = object.keys().cloned().collect();
+            keys.sort();
+            (event["kind"].as_str().unwrap_or_default().to_string(), keys)
+        })
+        .collect();
+    shapes.sort();
+    shapes.dedup();
+    shapes
+}
+
+#[test]
+fn skill_examples_are_accepted() {
+    let rounds = skill_examples("json round");
+    let replies = skill_examples("json reply");
+    let outputs = skill_examples("json output");
+    assert!(rounds.len() >= 3 && !replies.is_empty() && !outputs.is_empty());
+    let env = Env::new();
+    let server = env.start("examples", &[]);
+
+    let mut seen = Vec::new();
+    for (index, round) in rounds.iter().enumerate() {
+        let output = env.run(&["round", "examples"], round);
+        assert!(
+            output.status.success(),
+            "round example {}: {}",
+            index + 1,
+            text(&output)
+        );
+        if index == 0 {
+            server.operate(json!({ "op": "ask", "question": "q1", "text": "Explain more" }));
+            server.operate(json!({ "op": "swap_class", "question": "q2" }));
+        }
+        if index == 1 {
+            server.operate(json!({ "op": "request_review", "decision": "d2" }));
+        }
+        server.operate(json!({ "op": "submit" }));
+        seen.extend(events(
+            &env.run(&["wait", "examples", "--timeout", "1"], ""),
+        ));
+    }
+    for reply in &replies {
+        let output = env.run(&["reply", "examples", "1"], reply);
+        assert!(output.status.success(), "reply example: {}", text(&output));
+    }
+
+    for output in &outputs {
+        let documented: Value = serde_json::from_str(output).expect("the output example is JSON");
+        let documented = shapes(documented["events"].as_array().expect("it lists events"));
+        let actual = shapes(&seen);
+        for shape in documented {
+            assert!(
+                actual.contains(&shape),
+                "documented event {shape:?} is not what wait prints"
+            );
+        }
+    }
+}
