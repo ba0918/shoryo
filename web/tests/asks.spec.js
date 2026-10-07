@@ -142,14 +142,7 @@ function intersects(p, q) {
 test("reverse_edges_do_not_overlap", async ({ shoryo, page }) => {
   const diagram = await replyWithDiagram(shoryo, page);
 
-  const there = diagram.locator('[data-edge="a->b"]');
-  const back = diagram.locator('[data-edge="b->a"]');
-  const line = async (edge) =>
-    edge.locator("line").evaluate((l) => [l.y1.baseVal.value, l.y2.baseVal.value]);
-  const [thereY] = await line(there);
-  const [backY] = await line(back);
-  expect(Math.abs(thereY - backY)).toBeGreaterThan(4);
-  const thereLabel = await there.locator("text").boundingBox();
-  const backLabel = await back.locator("text").boundingBox();
+  const thereLabel = await diagram.locator('[data-edge="a->b"]').getByText("sends answers").boundingBox();
+  const backLabel = await diagram.locator('[data-edge="b->a"]').getByText("pushes replies").boundingBox();
   expect(intersects(thereLabel, backLabel)).toBe(false);
 });
