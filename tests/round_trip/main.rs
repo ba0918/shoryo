@@ -56,6 +56,38 @@ fn restart_restores_rounds_and_pre_submit_state() {
 }
 
 #[test]
+fn refused_save_leaves_the_state_as_it_was() {
+    use std::os::unix::fs::PermissionsExt;
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    let state = files_under(&env.data)
+        .into_iter()
+        .find(|path| path.ends_with("store/state.json"))
+        .expect("the round is stored");
+    let dir = state
+        .parent()
+        .expect("the state file is in the topic directory");
+    let before = std::fs::read_to_string(&state).expect("the state can be read");
+    let set_mode = |mode| {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
+            .expect("the topic directory's mode can be set");
+    };
+
+    set_mode(0o500);
+    let refused = server.operate(json!({ "op": "submit" }));
+    let submitted = server.view()["topic"]["rounds"][0]["submitted"].clone();
+    let after = std::fs::read_to_string(&state).expect("the state can be read");
+    set_mode(0o700);
+    let retried = server.operate(json!({ "op": "submit" }));
+
+    assert_eq!(refused, 500);
+    assert_eq!(submitted, false);
+    assert_eq!(after, before);
+    assert_eq!(retried, 200);
+}
+
+#[test]
 fn round_output_contains_no_question_text() {
     let env = Env::new();
     let server = env.start("store", &[]);

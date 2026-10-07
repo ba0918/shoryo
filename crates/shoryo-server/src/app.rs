@@ -50,16 +50,20 @@ impl Shared {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// Runs a change on the state; when it succeeds, saves the state and tells the watchers.
+    /// Runs a change on a copy of the state; when it succeeds and the copy is saved, the copy
+    /// becomes the state and the watchers are told. Otherwise the state stays as it was, so it
+    /// never differs from the file.
     fn change<T, E: std::fmt::Display>(
         &self,
         change: impl FnOnce(&mut StoredTopic) -> Result<T, E>,
     ) -> Result<T, ApiError> {
         let mut state = self.lock();
+        let mut changed = state.clone();
         let value =
-            change(&mut state).map_err(|error| ApiError::new(StatusCode::CONFLICT, error))?;
-        store::save(&self.location, &state)
+            change(&mut changed).map_err(|error| ApiError::new(StatusCode::CONFLICT, error))?;
+        store::save(&self.location, &changed)
             .map_err(|error| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, error))?;
+        *state = changed;
         drop(state);
         self.version.send_modify(|version| *version += 1);
         Ok(value)
