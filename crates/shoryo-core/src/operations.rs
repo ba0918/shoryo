@@ -435,15 +435,16 @@ impl Topic {
         let answers = round
             .questions
             .iter()
-            .filter_map(|question| {
-                Some(SentAnswer {
-                    question: question.id.clone(),
-                    class: question.class,
-                    choice: (!question.answer.deferred).then_some(question.answer.selected),
-                    note: question.answer.note.clone(),
-                    deferred: question.answer.deferred,
-                    stamp: question.answer.stamp?,
-                })
+            .map(|question| SentAnswer {
+                question: question.id.clone(),
+                class: question.class,
+                choice: (!question.answer.deferred).then_some(question.answer.selected),
+                note: question.answer.note.clone(),
+                deferred: question.answer.deferred,
+                stamp: question
+                    .answer
+                    .stamp
+                    .expect("a round is sent only after every question was checked for a stamp"),
             })
             .collect();
         self.push_event(EventKind::Submitted {
