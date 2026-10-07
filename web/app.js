@@ -8,7 +8,7 @@ import { CurrentRound } from "./components/current-round.js";
 import { DialogLayer } from "./components/dialog.js";
 import { Header, Tabs } from "./components/header.js";
 import { DecisionsTab } from "./components/decisions.js";
-import { MapTab } from "./components/map.js";
+import { DEFAULT_VIEW, MapTab } from "./components/map.js";
 import { renderDiagram } from "./diagram.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { confirmSend } from "./components/confirm-send.js";
@@ -26,9 +26,11 @@ const ui = {
   pastRound: null,
   mapRange: "all",
   mapSelected: null,
+  /// The map's zoom and position; null is the default view.
+  mapView: null,
   /// The question a jump landed on, highlighted until the person moves on.
   landed: null,
-  /// Where each jump came from, so "Back" can return there.
+  /// Where each jump and each change of the map came from, so "Back" can return there.
   history: [],
   /// The language and theme, read from the config when the page opens.
   config: null,
@@ -94,7 +96,7 @@ function render() {
   back.textContent = t("screen.back");
   current.update(currentRoundData(shown, ui.landed), lang);
   past.update(pastRoundsData(shown, ui.pastRound, ui.landed));
-  map.update(mapData(shown, ui.mapRange, ui.mapSelected));
+  map.update({ ...mapData(shown, ui.mapRange, ui.mapSelected), view: ui.mapView ?? DEFAULT_VIEW, visible: ui.tab === "map" });
   decisions.update(decisionsTabData(shown));
   error.hidden = !ui.error;
   error.textContent = ui.error ? (ui.error.text ?? t(ui.error.key, ui.error.vars)) : "";
@@ -185,6 +187,18 @@ function accept(next) {
   if (!view || next.version >= view.version) view = next;
 }
 
+/// Keeps where the person is, for "Back": the tab, the past round, and the map's range,
+/// selection and view.
+function remember() {
+  ui.history.push({
+    tab: ui.tab,
+    pastRound: ui.pastRound,
+    mapRange: ui.mapRange,
+    mapSelected: ui.mapSelected,
+    mapView: ui.mapView,
+  });
+}
+
 function handle(event) {
   switch (event.type) {
     case "op":
@@ -195,13 +209,21 @@ function handle(event) {
       ui.landed = null;
       break;
     case "map-range":
+      if (event.range === ui.mapRange) return;
+      remember();
       ui.mapRange = event.range;
       break;
     case "select-node":
+      if (event.key === ui.mapSelected) return;
+      remember();
       ui.mapSelected = event.key;
       break;
+    case "map-view":
+      remember();
+      ui.mapView = event.view;
+      break;
     case "jump":
-      ui.history.push({ tab: ui.tab, pastRound: ui.pastRound, mapRange: ui.mapRange, mapSelected: ui.mapSelected });
+      remember();
       ui.tab = event.target.tab;
       if (event.target.round !== null) ui.pastRound = event.target.round;
       ui.landed = event.target.question;

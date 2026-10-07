@@ -1528,9 +1528,15 @@ svg.diagram .edge text {
   gap: 0.6rem;
 }
 
-.map-ranges {
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-self: start;
+  gap: 0.5rem 0.75rem;
+}
+
+.map-zoom .seg {
+  min-width: 2rem;
 }
 
 .map-hint {
@@ -1540,35 +1546,63 @@ svg.diagram .edge text {
 
 .map-wrap {
   position: relative;
-  overflow: auto;
+  overflow: hidden;
+  height: clamp(320px, calc(100vh - 13rem), 960px);
   background: var(--sheet);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
 }
 
-.map-hover {
-  position: absolute;
-  z-index: 2;
-  width: 18rem;
+.map-wrap:active {
+  cursor: grabbing;
+}
+
+.map-wrap svg {
+  display: block;
+}
+
+.map-hover,
+.map-details {
+  position: fixed;
+  z-index: 15;
+  width: min(20rem, calc(100vw - 16px));
   background: var(--sheet);
   color: var(--ink);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  box-shadow: var(--shadow);
-  pointer-events: none;
+  padding: 0.55rem 0.8rem;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
   font-size: 0.85rem;
   display: grid;
-  gap: 0.25rem;
+  gap: 0.3rem;
 }
 
-.map-selection {
-  min-height: 2.5rem;
+.map-hover {
+  pointer-events: none;
+}
+
+.map-details {
+  border-color: var(--accent);
+}
+
+.details-title {
+  font-weight: 700;
+}
+
+.details-close {
+  justify-self: end;
+  margin: -0.25rem -0.4rem 0 0;
+}
+
+.details-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
 }
 
 .label {
@@ -1583,6 +1617,15 @@ svg.map .column-head {
 
 svg.map .map-node {
   cursor: pointer;
+}
+
+svg.map .map-node:focus-visible {
+  outline: none;
+}
+
+svg.map .map-node:focus-visible rect {
+  stroke: var(--accent);
+  stroke-width: 2;
 }
 
 svg.map .map-node rect {
@@ -1642,6 +1685,21 @@ svg.map .map-edge path {
 
 svg.map .map-edge.dashed path {
   stroke-dasharray: 5 4;
+}
+
+svg.map .map-edge.lit path,
+svg.map .map-edge.hovered path {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+svg.map .edge-label-group.lit .edge-label,
+svg.map .edge-label-group.hovered .edge-label {
+  fill: var(--accent);
+}
+
+svg.map.far .edge-label-group:not(.lit, .hovered) {
+  display: none;
 }
 
 /* ---- Narrow screens ---- */
