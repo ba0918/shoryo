@@ -12,7 +12,7 @@ refused, so a misspelt field name fails loudly instead of being ignored.
 | `subject` | yes | The round's subject; it heads the round's column on the map. |
 | `review` | no (`false`) | `true` for a review round. |
 | `fixes` | no | Review rounds: what you fixed from the records without asking. Each is `{ "text", "decision"? }`; name `decision` when the fix changed that decision, and send its new content in `records.decisions`. |
-| `questions` | no | The questions of this round, in the order to show them. |
+| `questions` | no | The questions of this round, in the order to show them. A round with none is the result of a converged topic (see "The result round" below). |
 | `records` | no | The records, updated with the previous round's answers (below). |
 | `review_conclusions` | no | For each decision the person asked to review: `{ "decision", "outcome": "unchanged" \| "changed" }`. |
 | `confirmed` | no | Points you checked are still right after a decision they rest on changed: `{ "decision": id }` or `{ "question": id }`. |
@@ -44,6 +44,14 @@ refused, so a misspelt field name fails loudly instead of being ignored.
 
 Each list other than `decisions` replaces the stored list when present, and leaves it as it was
 when absent. Send the whole list whenever one entry changes.
+
+## The result round
+
+When the topic has converged, send a round with no `questions`: the last records and the
+finished picture. The screen shows it as the result — the finished picture, the decisions
+(those sent pre-approved marked 代決), not building, rejected options, undecided and delegated —
+with a "Proceed with this result" button, and 見直したい beside each decision. The person sends
+it as an ordinary `submitted` event with no answers.
 
 ## Refusals
 
@@ -194,6 +202,24 @@ changed a decision, the review changed `d2`, and a point resting on `d1` is conf
   },
   "review_conclusions": [ { "decision": "d2", "outcome": "changed" } ],
   "confirmed": [ { "decision": "d3" } ],
+  "finished_picture": "agent = Agent\nshoryo = shoryo\nstore = topic.json\nwho = Person deletes\n| agent | shoryo | store |\n| .     | .      | who   |\nagent -> shoryo : rounds\nshoryo -> agent : answers\nshoryo -> store : saves\nwho -> store : deletes"
+}
+```
+
+The result round, after the review round was sent and nothing is left to ask: no questions,
+the last records and the finished picture.
+
+```json round
+{
+  "subject": "Result",
+  "records": {
+    "decisions": [
+      { "id": "d4", "name": "Review complete", "text": "The review found nothing more to change.", "decided_by": { "question": "q4" } }
+    ],
+    "undecided": [
+      { "text": "Whether to compress old topics", "decider": "the person" }
+    ]
+  },
   "finished_picture": "agent = Agent\nshoryo = shoryo\nstore = topic.json\nwho = Person deletes\n| agent | shoryo | store |\n| .     | .      | who   |\nagent -> shoryo : rounds\nshoryo -> agent : answers\nshoryo -> store : saves\nwho -> store : deletes"
 }
 ```

@@ -12,7 +12,7 @@ between receiving and handling loses nothing.
 | `kind` | Fields | Meaning |
 |---|---|---|
 | `ask` | `ask`, `round`, `question`, `text`, `follows` | The person asked about a question. Reply with `shoryo reply <topic> <ask>`. `follows` is the ask whose reply this one continues, or `null`. |
-| `submitted` | `round`, `answers` | The person sent the whole round. Each answer: `question`, `class` (as sent), `choice` (index into the question's options, from 0; `null` when deferred), `note`, `deferred`, `sent_unseen`. |
+| `submitted` | `round`, `answers` | The person sent the whole round. Each answer: `question`, `class` (as sent), `choice` (index into the question's options, from 0; `null` when deferred), `note`, `deferred`, `stamp` (判子: `"person"` when the person stamped it, `"pre_approved"` when a provisional answer was sent with the stamp you put on it, 代決). `answers` is empty for a result round. |
 | `review_requested` | `decision` | The person wants this decision asked again (見直したい). |
 | `review_stopped` | `decision` | The person withdrew that request. |
 | `class_swapped` | `question`, `class` | The person moved a question between `human` and `provisional`. |
@@ -28,8 +28,8 @@ review request, and a send:
   {"id":4,"kind":"review_stopped","decision":"d1"},
   {"id":5,"kind":"review_requested","decision":"d2"},
   {"id":6,"kind":"submitted","round":1,"answers":[
-    {"question":"q1","class":"human","choice":0,"note":"","deferred":false,"sent_unseen":false},
-    {"question":"q2","class":"human","choice":0,"note":"","deferred":false,"sent_unseen":true}
+    {"question":"q1","class":"human","choice":0,"note":"","deferred":false,"stamp":"person"},
+    {"question":"q2","class":"human","choice":0,"note":"","deferred":false,"stamp":"person"}
   ]}
 ]}
 ```
@@ -55,7 +55,7 @@ workflow reads to write a specification:
 |---|---|
 | `title`, `original_request`, `ended` | The topic. |
 | `rounds[]` | Each round: `number`, `subject`, `review`, `fixes[]` (`text`, `change` with `decision`, `before`, `after`), `questions[]`, `asks[]`, `review_conclusions`, `confirmed`, `submitted`. |
-| `rounds[].questions[]` | As sent in the round, with `class` as it stands after any swap, and `answer`: `selected` (option index), `note`, `deferred`, `opened`, `touched`, `sent_unseen`. |
+| `rounds[].questions[]` | As sent in the round, with `class` as it stands after any swap, and `answer`: `selected` (option index), `note`, `deferred`, `stamp` (`null` while unstamped, `"person"` or `"pre_approved"`; every sent answer has one). |
 | `rounds[].asks[]` | `id`, `question`, `text`, `follows`, `state` (`status`: `waiting`, `replied` with `text` and `diagram`, or `no_reply`). |
 | `records.decisions[]` | `id`, `origin` (`{"question": id}` or `{"fix_round": n}`), `history[]` of `{round, content: {name, text}}`, oldest first; the last entry is the current content. |
 | `records.not_building`, `undecided`, `delegated`, `rejected` | As sent. |

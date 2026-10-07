@@ -50,6 +50,11 @@ Put each question in one of two classes. The test: would changing the answer lat
 - `provisional` (仮決め): names, small defaults and the like — any option keeps the decided
   behaviour the same, and it is cheap to change later.
 
+Do not put a question that shapes behaviour or design in `provisional`. A provisional question
+arrives on the screen already stamped for the person (代決, pre-approved); the person reviews the
+list and sends back only what looks wrong, so a misplaced question can be sent without being
+looked at. When unsure, make it `human`.
+
 When the person swaps a question's class (a `class_swapped` event), treat it in that class from
 then on, including when you ask it again; use the swap as a hint for classifying similar
 questions. A provisional question becomes an answer only when it is sent. Silence is not consent.
@@ -75,7 +80,8 @@ event:
 - `ask`: reply to it (below), in the order received, then wait again.
 - `review_requested`, `review_stopped`, `class_swapped`: remember it for the next round and wait
   again. Do not go back to the conversation.
-- `submitted`: update the records from the answers and send the next round.
+- `submitted`: update the records from the answers and send the next round. For a result round
+  see "When the topic converges".
 
 Always pass the ids you received on the next `wait`; unacknowledged events come back. The event
 formats are in `references/events-and-replies.md`.
@@ -90,9 +96,11 @@ reply. Asks may arrive after the round was sent; reply to them too.
 ## Handling sent answers
 
 Every answer in a `submitted` event is an answer — including ones left at the recommendation and
-ones sent without being opened (`sent_unseen`) — except a deferred one (`deferred`, `choice`
-null). Record the answers as decisions, not building, undecided, delegated or rejected options
-before sending the next round.
+provisional ones sent with your pre-approval (`"stamp": "pre_approved"`, 代決) — except a
+deferred one (`deferred`, `choice` null). Every question carries a stamp (判子) before the round
+can be sent; `stamp` says whether the person pressed it or left yours. Record the answers as
+decisions, not building, undecided, delegated or rejected options before sending the next
+round. The screen marks decisions made from pre-approved answers as 代決 until they are revised.
 
 ### Deferred questions
 
@@ -111,6 +119,19 @@ Ask each decision in review again in the next round. Then:
 Either way send a `review_conclusions` entry for it. After a change, check in the next round
 whether each question and decision resting directly on it is still right, and send those you
 confirm in `confirmed`.
+
+## When the topic converges
+
+When the question tree is exhausted and the only undecided items left are the person's to
+decide later, send a round with no questions, carrying the last records and finished picture.
+The screen shows it as the result; the format is in `references/round.md` ("The result round").
+
+- An empty `submitted` for that round, with no `review_requested` pending (none received since,
+  or each withdrawn by `review_stopped`), means "proceed with this result": return to the
+  workflow, which writes the specification from `shoryo result`.
+- With review requests pending, the person pressed "Send review requests": ask those decisions
+  again in the next round, as under "Review requests" above, and send a result round again once
+  they are settled.
 
 ## Review rounds
 
