@@ -26,7 +26,9 @@ export function decisionSource(topic, decision) {
   return `Fixed in round ${decision.origin.fix_round}`;
 }
 
-export function questionData(view, round, question, locked, landed = null) {
+/// A question as its card or row draws it. `asOf` is the round whose content the
+/// prerequisites are shown with; by default their current content.
+export function questionData(view, round, question, locked, landed = null, asOf = Infinity) {
   const topic = view.topic;
   return {
     id: question.id,
@@ -36,7 +38,7 @@ export function questionData(view, round, question, locked, landed = null) {
     chains: view.chains[question.id] ?? [],
     premises: question.premises.map((id) => {
       const decision = findDecision(topic, id);
-      const content = decision ? decisionContent(decision) : null;
+      const content = decision ? decisionContent(decision, asOf) : null;
       return { id, name: content?.name ?? id, text: content?.text ?? "" };
     }),
     options: question.options.map((option, index) => ({ index, ...option })),
@@ -144,34 +146,38 @@ export function fixesData(view, round) {
   }));
 }
 
-/// Every sent round, as it was answered.
+/// Every sent round, as it was answered: the same cards and provisional list as the current
+/// round, read only, with what was sent and what was decided there.
 export function pastRoundsData(view, selected, landed = null) {
   const topic = view.topic;
   const rounds = topic.rounds.filter((round) => round.submitted);
   const chosen = rounds.find((round) => round.number === selected) ?? rounds[rounds.length - 1];
+  const questions = chosen
+    ? chosen.questions.map((question) => ({
+        cls: question.class,
+        data: {
+          ...questionData(view, chosen, question, true, landed, chosen.number),
+          past: {
+            chosen: question.answer.deferred ? null : question.options[question.answer.selected].text,
+            recommended: question.options.find((option) => option.recommended)?.text ?? "",
+            sentUnseen: question.answer.sent_unseen,
+            decisions: decidedBy(topic, question.id).map((decision) =>
+              decisionItemData(view, decision, { asDecided: true }),
+            ),
+          },
+        },
+      }))
+    : [];
   return {
     choices: rounds.map((round) => ({ number: round.number, subject: round.subject })),
     selected: chosen?.number ?? null,
-    highlight: landed,
     round: chosen
       ? {
           number: chosen.number,
           subject: chosen.subject,
           fixes: fixesData(view, chosen),
-          questions: chosen.questions.map((question) => ({
-            id: question.id,
-            text: question.text,
-            human: question.class === "human",
-            chosen: question.answer.deferred ? null : question.options[question.answer.selected].text,
-            recommended: question.options.find((option) => option.recommended)?.text ?? "",
-            note: question.answer.note,
-            deferred: question.answer.deferred,
-            sentUnseen: question.answer.sent_unseen,
-            asks: chosen.asks.filter((ask) => ask.question === question.id).map(askData),
-            decisions: decidedBy(topic, question.id).map((decision) =>
-              decisionItemData(view, decision, { asDecided: true }),
-            ),
-          })),
+          human: questions.filter((q) => q.cls === "human").map((q) => q.data),
+          provisional: questions.filter((q) => q.cls === "provisional").map((q) => q.data),
         }
       : null,
   };

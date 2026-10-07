@@ -1,5 +1,6 @@
 // Pieces shared by the question card and the opened provisional row.
 import { h } from "../dom.js";
+import { decisionItem } from "./decision-item.js";
 
 /// 前提の行: each direct prerequisite's chain of short names, side by side.
 export function chainLine(chains, emit) {
@@ -134,4 +135,36 @@ function noteSaver(question, emit) {
     timer = setTimeout(() => now(text), NOTE_PAUSE_MS);
   };
   return { now, later };
+}
+
+/// The marks a sent question carries in a past round.
+export function pastMarks(question) {
+  if (!question.past) return null;
+  return [
+    question.past.sentUnseen
+      ? h("span", { class: "mark unopened", "data-mark": "sent-unseen" }, "Sent without opening")
+      : null,
+    question.deferred ? h("span", { class: "mark deferred", "data-mark": "deferred" }, "Ask me again next round") : null,
+  ];
+}
+
+/// What a past round adds under a question: the answer sent, the recommendation, and the
+/// decisions made from it, as they were then.
+export function pastAnswer(question, emit) {
+  const past = question.past;
+  if (!past) return null;
+  return h(
+    "div",
+    { class: "past-answer" },
+    h("p", { "data-chosen": true }, h("span", { class: "label" }, "Answer: "), past.chosen ?? "(deferred)"),
+    h("p", { "data-recommended": true }, h("span", { class: "label" }, "Recommended: "), past.recommended),
+    past.decisions.length > 0
+      ? h(
+          "div",
+          { class: "decided-here" },
+          h("h4", {}, "Decided here"),
+          past.decisions.map((item) => decisionItem(item, emit)),
+        )
+      : null,
+  );
 }

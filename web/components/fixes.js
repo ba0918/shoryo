@@ -1,6 +1,6 @@
 // 直したこと: what the LLM fixed from the records in a review round, for reading only
 // (docs/spec/screen.md, "直したこと").
-import { h } from "../dom.js";
+import { Component, h } from "../dom.js";
 import { reviewControls } from "./decision-item.js";
 
 export function fixList(fixes, emit) {
@@ -26,4 +26,11 @@ export function fixList(fixes, emit) {
       ),
     ),
   );
+}
+
+/// The fix list as a region of its own, hidden when there is nothing to list.
+export class Fixes extends Component {
+  draw(fixes) {
+    return fixList(fixes, this.emit) ?? h("div", { hidden: true });
+  }
 }

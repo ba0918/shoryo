@@ -3,7 +3,7 @@
 // docs/spec/server.md, "終える").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, card, mark } from "./screen.js";
+import { action, card, mark, row } from "./screen.js";
 
 const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
 const pastRound = (page, number) => page.locator(`[data-past-round="${number}"]`);
@@ -51,9 +51,29 @@ test("past_round_shows_replies_and_diagrams_as_answered", async ({ shoryo, page 
   const q2 = pastRound(page, 2).locator('[data-past-question="q2"]');
   await expect(q2.locator("[data-chosen]")).toContainText("A database");
   await expect(q2.locator("[data-recommended]")).toContainText("One JSON file");
-  await expect(q2.getByText("Only while testing.")).toBeVisible();
+  await expect(q2.locator("[data-field=note] textarea")).toHaveValue("Only while testing.");
   await expect(q2.getByText("A file is easy to move.")).toBeVisible();
   await expect(q2.locator('[data-diagram] [data-node="a"]')).toContainText("File");
+});
+
+test("past_round_shows_cards_as_answered_and_provisional_questions_as_a_list", async ({ shoryo, page }) => {
+  await action(page, "send").click();
+  await shoryo.round(roundThree);
+
+  await tab(page, "past").click();
+  await action(page.locator('[data-round-choice="2"]'), "choose-round").click();
+
+  const round = pastRound(page, 2);
+  const q2 = card(round, "q2");
+  await expect(q2.getByText("Later questions rest on q2.")).toBeVisible();
+  await expect(q2.locator("[data-chain]")).toContainText("Person reads cards");
+  await expect(q2.locator("[data-consequence]")).toHaveText("With One JSON file, the topic goes this way.");
+  await expect(q2.getByText("Background for q2: the terms it uses.")).toBeHidden();
+  await action(q2, "open").click();
+  await expect(q2.getByText("Background for q2: the terms it uses.")).toBeVisible();
+  await expect(q2.getByText("A database: what it means in practice.")).toBeVisible();
+  await expect(row(round, "q3")).toBeVisible();
+  await expect(card(round, "q3")).toHaveCount(0);
 });
 
 test("past_round_shows_decision_as_of_that_round", async ({ shoryo, page }) => {

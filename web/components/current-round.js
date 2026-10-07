@@ -3,7 +3,7 @@
 import { Component, KeyedList, h } from "../dom.js";
 import { Card } from "./card.js";
 import { ProvisionalRow } from "./provisional.js";
-import { fixList } from "./fixes.js";
+import { Fixes } from "./fixes.js";
 
 class SendBar extends Component {
   draw(bar) {
@@ -26,12 +26,6 @@ class SendBar extends Component {
         : null,
       bar.sent ? h("p", { class: "sent-notice", "data-sent-notice": true }, "Sent. Waiting for the next round.") : null,
     );
-  }
-}
-
-class Fixes extends Component {
-  draw(fixes) {
-    return fixList(fixes, this.emit) ?? h("div", { hidden: true });
   }
 }
 

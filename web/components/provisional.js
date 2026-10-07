@@ -1,14 +1,16 @@
 // The provisional list: one row per provisional question, changed in place, opened into a
 // card (docs/spec/screen.md, "仮決めの一覧").
 import { Component, h } from "../dom.js";
-import { answerExtras, chainLine, consequence, details, optionList } from "./question-parts.js";
+import { answerExtras, chainLine, consequence, details, optionList, pastAnswer, pastMarks } from "./question-parts.js";
 import { thread } from "./thread.js";
 
 export class ProvisionalRow extends Component {
-  constructor(emit) {
+  /// `past` draws a question of a past round: read only, with every exchange shown.
+  constructor(emit, { past = false } = {}) {
     super(emit);
+    this.past = past;
     this.open = false;
-    this.thread = { mode: "latest", follows: null };
+    this.thread = { mode: past ? "all" : "latest", follows: null };
   }
 
   threadFor(question) {
@@ -27,11 +29,17 @@ export class ProvisionalRow extends Component {
       });
     return h(
       "div",
-      { class: `provisional-row${this.open ? " open" : ""}`, "data-provisional-row": question.id },
+      {
+        class: `provisional-row${this.open ? " open" : ""}${question.landed ? " landed" : ""}`,
+        "data-provisional-row": question.id,
+        "data-past-question": this.past ? question.id : undefined,
+        "data-landed": question.landed,
+      },
       h(
         "div",
         { class: "row-line" },
         h("span", { class: "question-text" }, question.text),
+        this.past ? h("span", { class: "card-marks", "data-question-marks": true }, pastMarks(question)) : null,
         this.open
           ? null
           : h(
@@ -58,17 +66,20 @@ export class ProvisionalRow extends Component {
           },
           this.open ? "Fold" : "Open",
         ),
-        h(
-          "button",
-          {
-            type: "button",
-            "data-action": "swap",
-            disabled: question.locked,
-            onclick: () => this.emit({ type: "op", op: { op: "swap_class", question: question.id } }),
-          },
-          "Decide myself",
-        ),
+        this.past
+          ? null
+          : h(
+              "button",
+              {
+                type: "button",
+                "data-action": "swap",
+                disabled: question.locked,
+                onclick: () => this.emit({ type: "op", op: { op: "swap_class", question: question.id } }),
+              },
+              "Decide myself",
+            ),
       ),
+      pastAnswer(question, this.emit),
       this.open
         ? h(
             "div",

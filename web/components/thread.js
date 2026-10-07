@@ -44,11 +44,6 @@ function modeSwitch(local, onLocal) {
   );
 }
 
-/// Every exchange as a tree of follow-ups, read only (for past rounds).
-export function allExchanges(asks) {
-  return exchanges(asks, { mode: "all", canAsk: false }, () => {});
-}
-
 function exchanges(asks, local, onLocal) {
   if (local.mode === "hidden" || asks.length === 0) return null;
   if (local.mode === "latest") {

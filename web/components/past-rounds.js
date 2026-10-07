@@ -1,81 +1,70 @@
-// 過去のラウンド: a sent round as it was answered, read only
-// (docs/spec/screen.md, "過去のラウンド").
-import { Component, h } from "../dom.js";
-import { decisionItem } from "./decision-item.js";
-import { fixList } from "./fixes.js";
-import { allExchanges } from "./thread.js";
+// 過去のラウンド: a sent round as it was answered, drawn with the same cards and provisional
+// list as the current round, read only (docs/spec/screen.md, "過去のラウンド").
+import { Component, KeyedList, h } from "../dom.js";
+import { Card } from "./card.js";
+import { Fixes } from "./fixes.js";
+import { ProvisionalRow } from "./provisional.js";
 
-export class PastRounds extends Component {
+class RoundChoices extends Component {
   draw(data) {
-    if (data.choices.length === 0) {
-      return h("div", { class: "past-rounds" }, h("p", { class: "empty" }, "No round has been sent yet."));
-    }
     return h(
-      "div",
-      { class: "past-rounds" },
-      h(
-        "ul",
-        { class: "round-choices" },
-        data.choices.map((choice) =>
+      "ul",
+      { class: "round-choices" },
+      data.choices.map((choice) =>
+        h(
+          "li",
+          { "data-round-choice": choice.number },
           h(
-            "li",
-            { "data-round-choice": choice.number },
-            h(
-              "button",
-              {
-                type: "button",
-                "data-action": "choose-round",
-                "aria-pressed": String(choice.number === data.selected),
-                onclick: () => this.emit({ type: "choose-round", round: choice.number }),
-              },
-              `Round ${choice.number}: `,
-              h("span", {}, choice.subject),
-            ),
+            "button",
+            {
+              type: "button",
+              "data-action": "choose-round",
+              "aria-pressed": String(choice.number === data.selected),
+              onclick: () => this.emit({ type: "choose-round", round: choice.number }),
+            },
+            `Round ${choice.number}: `,
+            h("span", {}, choice.subject),
           ),
         ),
       ),
-      data.round ? this.round(data.round, data.highlight) : null,
     );
   }
+}
 
-  round(round, highlight) {
-    return h(
+export class PastRounds {
+  constructor(emit) {
+    this.empty = h("p", { class: "empty" }, "No round has been sent yet.");
+    this.choices = new RoundChoices(emit);
+    this.title = h("h2");
+    this.fixes = new Fixes(emit);
+    this.cardBox = h("div", { class: "cards" });
+    this.rowBox = h("div", { class: "provisional-rows" });
+    this.list = h(
       "section",
-      { class: "past-round", "data-past-round": round.number },
-      h("h2", {}, `Round ${round.number}: `, h("span", {}, round.subject)),
-      fixList(round.fixes, this.emit),
-      round.questions.map((question) => this.question(question, highlight)),
+      { class: "provisional-list", "data-provisional-list": true },
+      h("h3", {}, "Provisional answers"),
+      this.rowBox,
     );
+    this.cards = new KeyedList(this.cardBox, () => new Card(emit, { past: true }));
+    this.rows = new KeyedList(this.rowBox, () => new ProvisionalRow(emit, { past: true }));
+    this.section = h("section", { class: "past-round" }, this.title, this.fixes.el, this.cardBox, this.list);
+    this.el = h("div", { class: "past-rounds" }, this.empty, this.choices.el, this.section);
   }
 
-  question(question, highlight) {
-    return h(
-      "article",
-      {
-        class: `card past${question.id === highlight ? " landed" : ""}`,
-        "data-past-question": question.id,
-        "data-landed": question.id === highlight,
-      },
-      h(
-        "div",
-        { class: "card-marks", "data-question-marks": true },
-        h("span", { class: "mark human" }, question.human ? "Human decides" : "Provisional"),
-        question.sentUnseen ? h("span", { class: "mark unopened", "data-mark": "sent-unseen" }, "Sent without opening") : null,
-        question.deferred ? h("span", { class: "mark deferred", "data-mark": "deferred" }, "Ask me again next round") : null,
-      ),
-      h("h3", { class: "question-text" }, question.text),
-      h("p", { "data-chosen": true }, h("span", { class: "label" }, "Answer: "), question.chosen ?? "(deferred)"),
-      h("p", { "data-recommended": true }, h("span", { class: "label" }, "Recommended: "), question.recommended),
-      question.note ? h("p", {}, h("span", { class: "label" }, "Note: "), question.note) : null,
-      question.asks.length > 0 ? h("div", { class: "thread" }, allExchanges(question.asks)) : null,
-      question.decisions.length > 0
-        ? h(
-            "div",
-            { class: "decided-here" },
-            h("h4", {}, "Decided here"),
-            question.decisions.map((item) => decisionItem(item, this.emit)),
-          )
-        : null,
-    );
+  update(data) {
+    const round = data.round;
+    this.empty.hidden = data.choices.length > 0;
+    this.choices.update({ choices: data.choices, selected: data.selected });
+    this.section.hidden = round === null;
+    if (round) {
+      this.section.dataset.pastRound = String(round.number);
+      this.title.replaceChildren(`Round ${round.number}: `, h("span", {}, round.subject));
+    } else {
+      delete this.section.dataset.pastRound;
+    }
+    this.list.hidden = round === null || round.provisional.length === 0;
+    this.fixes.update(round?.fixes ?? []);
+    this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
+    this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
   }
 }

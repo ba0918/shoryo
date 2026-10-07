@@ -35,6 +35,7 @@ test("four_tabs_with_english_fixed_text", async ({ page }) => {
 
 test("cards_come_before_the_provisional_list_and_send", async ({ page }) => {
   const order = await page
+    .locator("[data-panel=current]")
     .locator("[data-card], [data-provisional-list], [data-action=send]")
     .evaluateAll((elements) =>
       elements.map((e) => e.dataset.card ?? (e.dataset.action === "send" ? "send" : "list")),
