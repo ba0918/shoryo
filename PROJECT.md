@@ -7,6 +7,7 @@ shoryo runs grill-me style brainstorm rounds (an LLM interviewing a person until
 The specification is in `docs/spec/`:
 
 - `screen.md`: what the screen shows and lets the person do
+- `interaction.md`: how diagrams are moved, how arrivals from the LLM are announced, and which operations the screen promises (keyboard, focus, reduced motion)
 - `server.md`: start-up, the commands the agent uses, and the stored data
 - `skill.md`: what the shoryo skill tells the agent to do
 
