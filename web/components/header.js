@@ -35,7 +35,31 @@ function icon(theme) {
   return svg;
 }
 
+/// What the LLM is doing. It changes on its own, with every `wait`, so it redraws apart from
+/// the rest of the header: an opened original request stays open and the focus stays put.
+class AgentStatus extends Component {
+  draw({ agent, lang }) {
+    if (!agent) return document.createComment("agent-status");
+    const t = translator(lang);
+    return h(
+      "p",
+      { class: `agent-status ${agent}`, role: "status", "data-agent-status": agent, title: t(`agent.${agent}-title`) },
+      t(`agent.${agent}`),
+    );
+  }
+}
+
 export class Header extends Component {
+  constructor(emit) {
+    super(emit);
+    this.status = new AgentStatus(emit);
+  }
+
+  update({ agent, ...rest }) {
+    this.status.update({ agent, lang: rest.lang });
+    return super.update(rest);
+  }
+
   draw(data) {
     const t = translator(data.lang);
     const next = THEMES[(THEMES.indexOf(data.theme) + 1) % THEMES.length];
@@ -72,13 +96,7 @@ export class Header extends Component {
           data.unreadable
             ? h("p", { class: "config-notice", role: "status", "data-config-unreadable": true }, t("header.config-unreadable"))
             : null,
-          data.agent
-            ? h(
-                "p",
-                { class: `agent-status ${data.agent}`, role: "status", "data-agent-status": data.agent, title: t(`agent.${data.agent}-title`) },
-                t(`agent.${data.agent}`),
-              )
-            : null,
+          this.status.el,
           h(
             "button",
             {

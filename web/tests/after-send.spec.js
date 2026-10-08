@@ -70,3 +70,24 @@ test("header_shows_not_responding_after_ten_minutes_without_a_wait_or_reply", as
   await expect(agentStatus(page)).toHaveAttribute("data-agent-status", "not-responding");
   await expect(agentStatus(page)).toHaveText("LLM not responding");
 });
+
+test("a_change_of_the_llm_status_leaves_the_opened_request_open_and_the_focus_in_place", async ({ shoryo, page }) => {
+  await twoRounds(shoryo);
+  await page.goto(shoryo.url);
+  await expect(agentStatus(page)).toHaveAttribute("data-agent-status", "working");
+  const earlier = await shoryo.wait();
+  const request = banner(page).locator("details");
+  await request.locator("summary").click();
+  const picture = action(banner(page), "finished-picture");
+  await picture.focus();
+
+  const waiting = shoryo.waitAfter(
+    earlier.map((event) => event.id),
+    1,
+  );
+  await expect(agentStatus(page)).toHaveAttribute("data-agent-status", "waiting");
+
+  await expect(request).toHaveJSProperty("open", true);
+  await expect(picture).toBeFocused();
+  await waiting;
+});
