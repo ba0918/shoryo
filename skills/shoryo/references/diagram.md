@@ -20,7 +20,9 @@ One item per line. Blank lines are ignored.
 - A node named in a row but never declared is drawn with its id as the label.
 - Two edges between the same two nodes in opposite directions are drawn side by side, not on
   top of each other. Their labels go on opposite sides.
-- Keep labels short: a node shows about 18 characters per line and 3 lines at most.
+- Keep labels short: a node shows about 11 Japanese or about 18 Latin characters per line, 3
+  lines at most. A longer label is cut with "…" and shown whole when the person hovers over or
+  taps the node.
 
 ## Example
 
