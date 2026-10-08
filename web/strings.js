@@ -67,7 +67,7 @@ const en = {
   "stamp.pre_approved": "Pre-approved",
 
   "provisional.title": "Provisional answers",
-  "provisional.hint": "Pre-approved by the LLM. Change or send back only what looks wrong.",
+  "provisional.hint": "Provisional questions are small ones that are cheap to change later. The LLM has pre-approved each with its recommendation; change or send back only what looks wrong.",
   "provisional.open": "Open as a card",
   "provisional.fold": "Fold back into a row",
   "provisional.decide-myself": "Decide myself",
@@ -230,7 +230,7 @@ const ja = {
   "stamp.pre_approved": "代決",
 
   "provisional.title": "仮決め",
-  "provisional.hint": "LLM が代決しています。気になる行だけ選び直すか、差し戻してください。",
+  "provisional.hint": "仮決めは、あとで変えても困らない小さな問いです。LLM が推奨で先に判子を押しています（代決）。気になる行だけ選び直すか、差し戻してください。",
   "provisional.open": "カードで見る",
   "provisional.fold": "行に戻す",
   "provisional.decide-myself": "人が決める問いにする",
