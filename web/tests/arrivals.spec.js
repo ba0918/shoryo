@@ -1,0 +1,223 @@
+import { test, expect } from "./fixtures.js";
+import { twoRounds, question } from "./rounds.js";
+import { action, card } from "./screen.js";
+
+const toast = page => page.locator("[data-toast]");
+const badge = page => page.locator("[data-arrival-count]");
+const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
+
+test.beforeEach(async ({ shoryo, page }) => {
+  page.on("pageerror", error => console.error(error.message));
+  await twoRounds(shoryo);
+  await page.goto(shoryo.url);
+  await expect(card(page, "q2")).toBeVisible();
+  await page.clock.install();
+});
+
+async function ask(shoryo, page, text = "Explain", question = "q2") {
+  await shoryo.op({ op: "ask", question, text });
+  const events = await shoryo.wait();
+  const id = events.filter(e => e.kind === "ask").at(-1).ask;
+  await expect(page.locator(`[data-panel=current] [data-ask="${id}"]`)).toBeAttached();
+  return id;
+}
+
+async function unseenReply(shoryo, page, text = "New reply") {
+  const id = await ask(shoryo, page);
+  await tab(page, "decisions").click();
+  await shoryo.reply(id, { text });
+  await expect(toast(page).last()).toContainText("View");
+  return id;
+}
+
+test("reply_to_an_unseen_card_shows_a_toast_whose_view_lands_on_the_reply_and_back_returns", async ({ shoryo, page }) => {
+  const id = await unseenReply(shoryo, page);
+  await expect(badge(page)).toHaveText("1");
+  await action(toast(page), "view-arrival").click();
+  await expect(card(page, "q2").locator(`[data-ask="${id}"] [data-reply]`)).toBeInViewport();
+  await expect(badge(page)).toHaveCount(0);
+  await action(page, "back").click();
+  await expect(tab(page, "decisions")).toHaveAttribute("aria-selected", "true");
+});
+
+test("reply_visible_on_arrival_shows_no_toast_and_is_not_counted", async ({ shoryo, page }) => {
+  const id = await ask(shoryo, page);
+  await card(page, "q2").locator(`[data-ask="${id}"]`).scrollIntoViewIfNeeded();
+  await shoryo.reply(id, { text: "Visible reply" });
+  await expect(card(page, "q2").getByText("Visible reply")).toBeVisible();
+  await page.clock.runFor(100);
+  await expect(toast(page)).toHaveCount(0);
+  await expect(badge(page)).toHaveCount(0);
+});
+
+test("reply_in_another_tab_shows_a_toast", async ({ shoryo, page }) => {
+  await unseenReply(shoryo, page);
+  await expect(toast(page)).toHaveCount(1);
+});
+
+test("view_on_a_reply_inside_an_elided_middle_expands_and_shows_it", async ({ shoryo, page }) => {
+  const ids = [];
+  for (let i = 0; i < 6; i++) {
+    await shoryo.op({ op: "ask", question: "q2", text: `Ask ${i}` });
+    ids.push((await shoryo.wait()).filter(e => e.kind === "ask").at(-1).ask);
+  }
+  await tab(page, "decisions").click();
+  await shoryo.reply(ids[2], { text: "Middle reply" });
+  await expect(toast(page)).toHaveCount(1);
+  await action(toast(page), "view-arrival").click();
+  await expect(card(page, "q2").locator(`[data-ask="${ids[2]}"] [data-reply]`)).toBeInViewport();
+});
+
+test("next_round_and_result_show_their_toasts", async ({ shoryo, page }) => {
+  await page.locator('[data-language="ja"]').click();
+  await tab(page, "map").click();
+  await shoryo.submit();
+  await shoryo.round({ subject: "Next", questions: [question("q5", "Next question")] });
+  await expect(toast(page)).toContainText("第 3 ラウンドが届きました");
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [] });
+  await expect(toast(page).last()).toContainText("結果が届きました");
+  await expect(action(toast(page).last(), "view-arrival")).toHaveText("見る");
+});
+
+test("toast_vanishes_after_six_seconds_but_not_while_hovered_or_focused", async ({ shoryo, page }) => {
+  await unseenReply(shoryo, page);
+  await toast(page).hover();
+  await page.clock.runFor(6100);
+  await expect(toast(page)).toHaveCount(1);
+  await action(toast(page), "view-arrival").focus();
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(6100);
+  await expect(toast(page)).toHaveCount(1);
+  await tab(page, "decisions").focus();
+  await expect(toast(page)).toHaveCount(0);
+  await unseenReply(shoryo, page, "Expires");
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(6100);
+  await expect(toast(page)).toHaveCount(0);
+});
+
+test("fourth_toast_removes_the_oldest_unheld_one", async ({ shoryo, page }) => {
+  const ids = [];
+  for (let i = 0; i < 4; i++) ids.push(await ask(shoryo, page, `Ask ${i}`));
+  await tab(page, "decisions").click();
+  for (let i = 0; i < 4; i++) {
+    await shoryo.reply(ids[i], { text: `Reply ${i}` });
+    await expect(badge(page)).toHaveText(String(i + 1));
+  }
+  await expect(toast(page)).toHaveCount(3);
+  await expect(toast(page).first()).toHaveAttribute("data-toast", `reply:${ids[1]}`);
+});
+
+test("notification_badge_counts_unseen_arrivals_and_clears_when_the_list_opens", async ({ shoryo, page }) => {
+  await unseenReply(shoryo, page);
+  await expect(badge(page)).toHaveText("1");
+  await action(page, "arrivals").click();
+  await expect(badge(page)).toHaveCount(0);
+  await expect(page.locator("[data-arrival-entry]")).toHaveCount(1);
+});
+
+test("choosing_from_the_notification_list_moves_like_view", async ({ shoryo, page }) => {
+  const id = await unseenReply(shoryo, page);
+  await action(page, "arrivals").click();
+  await page.locator("[data-arrival-entry]").click();
+  await expect(card(page, "q2").locator(`[data-ask="${id}"] [data-reply]`)).toBeInViewport();
+  await expect(badge(page)).toHaveCount(0);
+  await action(page, "back").click();
+  await expect(tab(page, "decisions")).toHaveAttribute("aria-selected", "true");
+});
+
+test("reply_after_sending_lands_in_its_past_round", async ({ shoryo, page }) => {
+  const id = await ask(shoryo, page);
+  await shoryo.submit();
+  await tab(page, "decisions").click();
+  await shoryo.reply(id, { text: "Late reply" });
+  await expect(toast(page)).toHaveCount(1);
+  await action(toast(page), "view-arrival").click();
+  await expect(tab(page, "past")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(`[data-panel=past] [data-ask="${id}"] [data-reply]`)).toBeInViewport();
+});
+
+test("held_toasts_survive_overflow_until_the_oldest_is_released", async ({ shoryo, page }) => {
+  const ids = [];
+  for (let i = 0; i < 4; i++) ids.push(await ask(shoryo, page, `Ask ${i}`));
+  await tab(page, "decisions").click();
+  for (let i = 0; i < 3; i++) {
+    await shoryo.reply(ids[i], { text: `Reply ${i}` });
+    const item = page.locator(`[data-toast="reply:${ids[i]}"]`);
+    await expect(item).toBeVisible();
+    await item.dispatchEvent("pointerenter");
+  }
+  await shoryo.reply(ids[3], { text: "Fourth" });
+  await expect(toast(page)).toHaveCount(4);
+  await toast(page).first().dispatchEvent("pointerleave");
+  await expect(toast(page)).toHaveCount(3);
+  await expect(toast(page).first()).toHaveAttribute("data-toast", `reply:${ids[1]}`);
+});
+
+test("toast_has_an_opaque_background_in_both_themes", async ({ shoryo, page }) => {
+  await unseenReply(shoryo, page);
+  for (let i = 0; i < 2; i++) {
+    await action(page, "theme").click();
+    expect(await toast(page).evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+  }
+});
+
+test("arrival_comparison_keeps_coalesced_replies_and_ignores_the_initial_view", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { arrivalsBetween } = await import("./view-data.js");
+    const previous = { topic: { rounds: [{ number: 1, questions: [{ id: "q", text: "Question" }], asks: [
+      { id: 1, question: "q", state: { status: "waiting" } },
+      { id: 2, question: "q", state: { status: "waiting" } },
+    ] }] } };
+    const next = structuredClone(previous);
+    next.topic.rounds[0].asks.forEach(ask => { ask.state = { status: "replied", text: "Reply" }; });
+    return [arrivalsBetween(null, next), arrivalsBetween(previous, next), arrivalsBetween(next, next)];
+  });
+  expect(result[0]).toEqual([]);
+  expect(result[1].map(entry => entry.ask)).toEqual([1, 2]);
+  expect(result[2]).toEqual([]);
+});
+
+test("reply_below_the_viewport_shows_a_toast_and_back_restores_the_scroll_anchor", async ({ shoryo, page }) => {
+  await page.setViewportSize({ width: 900, height: 500 });
+  const id = await ask(shoryo, page, "Explain", "q4");
+  await page.evaluate(() => scrollTo(0, 0));
+  const before = await card(page, "q2").boundingBox();
+  await shoryo.reply(id, { text: "Below the fold" });
+  await expect(toast(page)).toHaveCount(1);
+  await action(toast(page), "view-arrival").click();
+  await expect(card(page, "q4").locator("[data-reply]")).toBeInViewport();
+  await action(page, "back").click();
+  expect((await card(page, "q2").boundingBox()).y).toBeCloseTo(before.y);
+});
+
+test("view_opens_a_provisional_row_and_its_closed_thread", async ({ shoryo, page }) => {
+  await shoryo.op({ op: "ask", question: "q3", text: "Explain" });
+  const id = (await shoryo.wait()).filter(e => e.kind === "ask").at(-1).ask;
+  await tab(page, "decisions").click();
+  await shoryo.reply(id, { text: "Provisional reply" });
+  await expect(toast(page)).toHaveCount(1);
+  await action(toast(page), "view-arrival").click();
+  await expect(page.locator(`[data-panel=current] [data-provisional-row=q3] [data-ask="${id}"] [data-reply]`)).toBeInViewport();
+});
+
+test("notification_list_keeps_the_last_ten_arrivals_only_until_reload", async ({ shoryo, page }) => {
+  const ids = [];
+  for (let i = 0; i < 11; i++) {
+    await shoryo.op({ op: "ask", question: "q2", text: `Ask ${i}` });
+    ids.push((await shoryo.wait()).filter(e => e.kind === "ask").at(-1).ask);
+  }
+  await tab(page, "decisions").click();
+  for (let i = 0; i < 11; i++) {
+    await shoryo.reply(ids[i], { text: `Reply ${i}` });
+    await expect(badge(page)).toHaveText(String(i + 1));
+  }
+  await action(page, "arrivals").click();
+  await expect(page.locator("[data-arrival-entry]")).toHaveCount(10);
+  await expect(page.locator(`[data-arrival-entry="reply:${ids[0]}"]`)).toHaveCount(0);
+  await page.reload();
+  await action(page, "arrivals").click();
+  await expect(page.locator("[data-arrival-entry]")).toHaveCount(0);
+  await expect(badge(page)).toHaveCount(0);
+});

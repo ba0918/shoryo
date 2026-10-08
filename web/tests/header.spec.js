@@ -186,6 +186,7 @@ test.describe("with a broken config", () => {
     const parts = [
       action(banner(page), "back"),
       page.getByRole("heading", { level: 1 }),
+      action(banner(page), "arrivals"),
       banner(page).locator("[data-agent-status]"),
       banner(page).locator("[data-config-unreadable]"),
       action(banner(page), "theme"),

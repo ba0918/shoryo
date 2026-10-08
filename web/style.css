@@ -1551,12 +1551,47 @@ button.send-status {
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 12px;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: var(--sheet);
+  color: var(--ink);
+  border: 1px solid var(--line);
   border-radius: 6px;
   pointer-events: none;
 }
+
+.toasts {
+  position: fixed;
+  right: 20px;
+  top: 90px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 40px));
+}
+
+.toast, .arrival-list {
+  background: var(--sheet);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px #0002;
+}
+
+.toast { animation: toast-arrive 150ms ease-out; }
+@keyframes toast-arrive { from { opacity: 0; transform: translateY(-8px); } }
+.arrivals { position: relative; }
+.arrival-list {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: min(320px, 80vw);
+  max-height: 60vh;
+  overflow: auto;
+  z-index: 40;
+}
+.arrival-list button { display: block; width: 100%; padding: 8px; text-align: left; }
+.arrival-count { font-size: 0.7rem; }
 
 .diagram-view svg.diagram {
   display: block;

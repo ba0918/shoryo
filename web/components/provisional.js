@@ -45,6 +45,12 @@ export class ProvisionalRow extends Component {
     return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit);
   }
 
+  revealReply() {
+    this.open = true;
+    this.thread = { ...this.thread, open: true, expanded: true };
+    this.redraw();
+  }
+
   draw(question) {
     const t = translator(question.lang);
     return h(

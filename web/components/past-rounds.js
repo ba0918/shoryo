@@ -36,6 +36,10 @@ class RoundChoices extends Component {
 }
 
 export class PastRounds {
+  revealReply(question) {
+    (this.cards.items.get(question) ?? this.rows.items.get(question))?.revealReply();
+  }
+
   constructor(emit) {
     this.empty = h("p", { class: "empty" });
     this.choices = new RoundChoices(emit);

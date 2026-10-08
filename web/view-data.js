@@ -499,3 +499,29 @@ export function placeReachable(view, place) {
   if (anchor.kind === "result") return round.questions.length === 0;
   return round.questions.some((question) => question.id === anchor.key);
 }
+
+export function arrivalsBetween(previous, next) {
+  if (!previous) return [];
+  const arrivals = [];
+  const last = next.topic.rounds.at(-1);
+  if (last && last.number > (previous.topic.rounds.at(-1)?.number ?? 0)) {
+    arrivals.push({ id: `round:${last.number}`, kind: last.questions.length ? "round" : "result", round: last.number });
+  }
+  const replied = new Set(previous.topic.rounds.flatMap(round => round.asks.filter(ask => ask.state.status === "replied").map(ask => ask.id)));
+  for (const round of next.topic.rounds) {
+    for (const ask of round.asks) {
+      if (ask.state.status !== "replied" || replied.has(ask.id)) continue;
+      const question = round.questions.find(question => question.id === ask.question);
+      arrivals.push({ id: `reply:${ask.id}`, kind: "reply", round: round.number, question: ask.question, ask: ask.id, text: question?.text ?? "" });
+    }
+  }
+  return arrivals;
+}
+
+export function arrivalText(arrival, lang) {
+  const characters = Array.from(arrival.text ?? "");
+  return translator(lang)(`arrival.${arrival.kind}`, {
+    n: arrival.round,
+    question: characters.slice(0, 20).join("") + (characters.length > 20 ? "…" : ""),
+  });
+}

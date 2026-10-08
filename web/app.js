@@ -11,9 +11,12 @@ import { DecisionsTab } from "./components/decisions.js";
 import { DEFAULT_VIEW, MapTab } from "./components/map.js";
 import { diagramView } from "./components/diagram-view.js";
 import { PastRounds } from "./components/past-rounds.js";
+import { Toasts } from "./components/toasts.js";
 import { confirmSend } from "./components/confirm-send.js";
 import {
   agentStatus,
+  arrivalsBetween,
+  arrivalText,
   confirmData,
   currentRoundData,
   decisionDetail,
@@ -47,7 +50,14 @@ const ui = {
   history: [],
   /// The language and theme, read from the config when the page opens.
   config: null,
+  arrivals: [],
+  toasts: [],
+  arrivalsOpen: false,
+  backgroundCount: 0,
 };
+let pendingArrivals = [];
+let arrivalFrame = null;
+let toastTimer = null;
 let view = null;
 /// When the newest view arrived, so the time since the agent was last heard keeps counting.
 let viewReceivedAt = 0;
@@ -59,6 +69,7 @@ let dialogOpener = null;
 const emit = (event) => handle(event);
 
 const header = new Header(emit);
+const toasts = new Toasts(emit);
 const tabs = new Tabs(emit);
 const current = new CurrentRound(emit);
 const past = new PastRounds(emit);
@@ -89,7 +100,7 @@ panels.decisions.appendChild(decisions.el);
 panels.map.appendChild(map.el);
 
 const page = h("main", { class: "page" }, ended, h("div", { class: "nav-row" }, tabs.el), error, ...Object.values(panels));
-document.body.append(header.el, page, dialogs.el);
+document.body.append(header.el, page, toasts.el, dialogs.el);
 
 function render() {
   if (!view || !ui.config) return;
@@ -99,7 +110,8 @@ function render() {
   const agent = agentStatus(view.agent, viewReceivedAt, view.topic, Date.now());
   clearTimeout(agentTimer);
   if (agent?.changesIn != null) agentTimer = setTimeout(render, agent.changesIn);
-  document.title = view.topic.title || t("header.untitled");
+  const title = view.topic.title || t("header.untitled");
+  document.title = document.hidden && ui.backgroundCount ? `(${ui.backgroundCount}) ${title}` : title;
   header.update({
     title: view.topic.title,
     original_request: view.topic.original_request,
@@ -108,6 +120,11 @@ function render() {
     unreadable: ui.config.unreadable,
     canGoBack: ui.history.length > 0,
     agent: agent?.state ?? null,
+    arrivals: {
+      count: ui.arrivals.filter(arrival => !arrival.seen).length,
+      open: ui.arrivalsOpen,
+      entries: ui.arrivals.slice(-10).reverse().map(arrival => ({ id: arrival.id, text: arrivalText(arrival, lang) })),
+    },
   });
   tabs.update({ tabs: TABS, current: ui.tab, lang });
   for (const [id, panel] of Object.entries(panels)) panel.hidden = id !== ui.tab;
@@ -122,7 +139,97 @@ function render() {
   const dialog = dialogData(shown);
   dialogs.update(dialog);
   holdFocusInDialog(dialog !== null);
+  toasts.update(ui.toasts.map(id => {
+    const arrival = ui.arrivals.find(arrival => arrival.id === id);
+    return { id, text: arrivalText(arrival, lang), lang };
+  }));
+  if (pendingArrivals.length && arrivalFrame === null) {
+    arrivalFrame = requestAnimationFrame(() => {
+      arrivalFrame = null;
+      const pending = pendingArrivals;
+      pendingArrivals = [];
+      for (const arrival of pending) announce(arrival);
+      expireToasts();
+      render();
+    });
+  }
 }
+
+function arrivalElement(arrival) {
+  const panel = panels[ui.tab];
+  if (arrival.kind === "reply") {
+    return panel.querySelector(`[data-ask="${CSS.escape(String(arrival.ask))}"] [data-reply]`);
+  }
+  if (ui.tab !== "current" || view.topic.rounds.at(-1)?.number !== arrival.round) return null;
+  return arrival.kind === "result" ? panel.querySelector("[data-result]") :
+    [...panel.querySelectorAll("[data-fixes], [data-card], [data-provisional-row], [data-result]")].find(element => element.getBoundingClientRect().height > 0);
+}
+
+function arrivalVisible(arrival) {
+  const element = arrivalElement(arrival);
+  if (!element) return false;
+  const box = element.getBoundingClientRect();
+  return box.height > 0 && box.width > 0 && box.bottom > header.el.getBoundingClientRect().bottom && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
+}
+
+function announce(arrival) {
+  const seen = !document.hidden && arrivalVisible(arrival);
+  const entry = { ...arrival, seen, deferred: document.hidden, pointer: false, focus: false, expires: Date.now() + 6000 };
+  ui.arrivals = [...ui.arrivals, entry];
+  if (document.hidden) ui.backgroundCount++;
+  else if (!seen) ui.toasts.push(entry.id);
+}
+
+function expireToasts() {
+  clearTimeout(toastTimer);
+  const held = entry => entry.pointer || entry.focus;
+  ui.toasts = ui.toasts.filter(id => {
+    const entry = ui.arrivals.find(entry => entry.id === id);
+    return held(entry) || entry.expires > Date.now();
+  });
+  while (ui.toasts.length > 3) {
+    const index = ui.toasts.slice(0, -1).findIndex(id => !held(ui.arrivals.find(entry => entry.id === id)));
+    if (index < 0) break;
+    ui.toasts.splice(index, 1);
+  }
+  const deadlines = ui.toasts.map(id => ui.arrivals.find(entry => entry.id === id)).filter(entry => !held(entry)).map(entry => entry.expires);
+  if (deadlines.length) toastTimer = setTimeout(() => { expireToasts(); render(); }, Math.max(0, Math.min(...deadlines) - Date.now()));
+}
+
+function viewArrival(id) {
+  const arrival = ui.arrivals.find(entry => entry.id === id);
+  if (!arrival) return;
+  remember();
+  arrival.seen = true;
+  ui.toasts = ui.toasts.filter(entry => entry !== id);
+  ui.arrivalsOpen = false;
+  ui.dialog = null;
+  const round = view.topic.rounds.find(round => round.number === arrival.round);
+  ui.tab = round?.submitted ? "past" : "current";
+  if (ui.tab === "past") ui.pastRound = arrival.round;
+  ui.landed = arrival.question ?? null;
+  render();
+  if (arrival.kind === "reply") (ui.tab === "past" ? past : current).revealReply(arrival.question);
+  const element = arrivalElement(arrival) ?? panels[ui.tab].querySelector("[data-result], [data-past-round]");
+  element?.scrollIntoView({ block: "center" });
+  expireToasts();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    ui.backgroundCount = 0;
+    for (const entry of ui.arrivals.filter(entry => entry.deferred)) {
+      entry.deferred = false;
+      entry.seen = arrivalVisible(entry);
+      if (!entry.seen) {
+        entry.expires = Date.now() + 6000;
+        ui.toasts.push(entry.id);
+      }
+    }
+    expireToasts();
+  }
+  render();
+});
 
 /// While a dialog is open, the rest of the page cannot be reached and the focus starts on the
 /// dialog's first control; closing it returns the focus to what opened it.
@@ -244,6 +351,7 @@ function refusalError(body) {
 /// Keeps the newest view: the answer to an action and the live stream may arrive in either order.
 function accept(next) {
   if (!view || next.version >= view.version) {
+    pendingArrivals.push(...arrivalsBetween(view, next));
     view = next;
     viewReceivedAt = Date.now();
     // A place whose card went with its round can no longer be returned to.
@@ -313,6 +421,21 @@ function goBack() {
 
 function handle(event) {
   switch (event.type) {
+    case "toggle-arrivals":
+      ui.arrivalsOpen = !ui.arrivalsOpen;
+      if (ui.arrivalsOpen) ui.arrivals.forEach(entry => { entry.seen = true; });
+      break;
+    case "view-arrival":
+      viewArrival(event.id);
+      return;
+    case "hold-toast": {
+      const entry = ui.arrivals.find(entry => entry.id === event.id);
+      if (!entry) return;
+      entry[event.kind] = event.held;
+      // Removing a focused toast emits blur during removal; finish that DOM change first.
+      if (!event.held) queueMicrotask(() => { expireToasts(); render(); });
+      return;
+    }
     case "op":
       enqueue(event.op);
       return;

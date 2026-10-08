@@ -51,6 +51,12 @@ export class Card extends Component {
     this.redraw();
   }
 
+  revealReply() {
+    this.open = true;
+    this.thread = { ...this.thread, open: true, expanded: true };
+    this.redraw();
+  }
+
   draw(question) {
     const t = translator(question.lang);
     return h(

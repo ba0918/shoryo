@@ -5,6 +5,7 @@
 // finished picture sit in the row below.
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
+import { Arrivals } from "./toasts.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -63,10 +64,12 @@ export class Header extends Component {
   constructor(emit) {
     super(emit);
     this.status = new AgentStatus(emit);
+    this.arrivals = new Arrivals(emit);
   }
 
-  update({ agent, ...rest }) {
+  update({ agent, arrivals, ...rest }) {
     this.status.update({ agent, lang: rest.lang });
+    this.arrivals.update({ ...arrivals, lang: rest.lang });
     return super.update(rest);
   }
 
@@ -103,6 +106,7 @@ export class Header extends Component {
         h(
           "div",
           { class: "topbar-tools" },
+          this.arrivals.el,
           this.status.el,
           data.unreadable
             ? h("p", { class: "config-notice", role: "status", "data-config-unreadable": true }, t("header.config-unreadable"))

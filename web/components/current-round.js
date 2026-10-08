@@ -43,6 +43,10 @@ class SendBar extends Component {
 }
 
 export class CurrentRound {
+  revealReply(question) {
+    (this.cards.items.get(question) ?? this.rows.items.get(question))?.revealReply();
+  }
+
   constructor(emit) {
     this.empty = h("p", { class: "empty" });
     this.cardBox = h("div", { class: "cards" });
