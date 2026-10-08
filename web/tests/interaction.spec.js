@@ -148,3 +148,15 @@ test("retained_map_details_controls_keep_focus_when_an_answer_changes", async ({
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(stop).toBeFocused();
 });
+
+test("provisional_row_keeps_keyboard_focus_on_its_toggle_when_opened_and_folded", async ({ page }) => {
+  const selector = '[data-panel=current] [data-provisional-row=q3] [data-action=open]';
+  const toggle = page.locator(selector);
+  await keyboardTo(page, selector);
+  await page.keyboard.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+});

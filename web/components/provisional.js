@@ -102,6 +102,7 @@ export class ProvisionalRow extends Component {
             type: "button",
             class: "link",
             "data-action": "open",
+            "data-focus": `provisional-toggle-${question.id}`,
             "aria-expanded": String(this.open),
             onclick: () => {
               this.open = !this.open;
