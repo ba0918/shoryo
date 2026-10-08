@@ -74,7 +74,7 @@ const dialogs = new DialogLayer(emit, {
       attrs: { "data-finished-picture": true },
       body: [
         h("h2", { class: "dialog-title" }, t("header.finished-picture")),
-        picture ? diagramView(picture, lang) : h("p", { class: "empty" }, t("dialog.no-picture")),
+        picture ? diagramView(picture, lang, "canvas") : h("p", { class: "empty" }, t("dialog.no-picture")),
       ],
     };
   },

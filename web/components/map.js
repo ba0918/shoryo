@@ -3,7 +3,7 @@
 // in a layer of their own above the page, so they are never clipped and never move the map.
 import { Component, h } from "../dom.js";
 import { fitLines } from "../measure.js";
-import { PanZoom, clamp } from "../pan-zoom.js";
+import { PanZoom, clamp, wheelHintKey } from "../pan-zoom.js";
 import { translator } from "../strings.js";
 import { reviewControls } from "./decision-item.js";
 
@@ -67,7 +67,7 @@ export class MapTab extends Component {
     this.size = size;
     const wrap = h("div", { class: "map-wrap", "data-map": true }, svg);
     this.wrap = wrap;
-    this.zoom = new PanZoom(wrap, view, (next, commit) => this.apply(next, commit));
+    this.zoom = new PanZoom(wrap, view, (next, commit) => this.apply(next, commit), { hint: t(wheelHintKey()) });
     requestAnimationFrame(() => this.fillDetails(map, t));
     return h(
       "div",

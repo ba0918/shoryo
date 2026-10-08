@@ -1541,6 +1541,23 @@ button.send-status {
   border-radius: var(--radius-small);
 }
 
+.diagram-view.page {
+  touch-action: pan-y;
+}
+
+.wheel-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 .diagram-view svg.diagram {
   display: block;
 }

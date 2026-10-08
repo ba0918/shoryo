@@ -73,7 +73,9 @@ test.describe("with a mouse", () => {
     const centre = await area.boundingBox();
 
     await page.mouse.move(centre.x + centre.width / 2, centre.y + centre.height / 2);
+    await page.keyboard.down("Control");
     await page.mouse.wheel(0, -400);
+    await page.keyboard.up("Control");
     await expect.poll(() => nodeWidth(page, "d:d1")).toBeGreaterThan(before.width);
     expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
     const zoomed = await node(page, "d:d1").locator("rect").boundingBox();
@@ -97,6 +99,30 @@ test.describe("with a mouse", () => {
     expect(await page.locator("[data-map]").boundingBox()).toEqual(before);
     await tab(page, "map").focus();
     await expect(page.locator("[data-map-hover]")).toBeHidden();
+  });
+
+  test("plain_wheel_over_the_map_scrolls_the_page_and_shows_the_hint", async ({ page }) => {
+    await page.locator('[data-language="ja"]').click();
+    await page.setViewportSize({ width: 900, height: 400 });
+    const before = await nodeWidth(page, "d:d1");
+    const box = await page.locator("[data-map]").boundingBox();
+    await page.mouse.move(box.x + 20, box.y + 30);
+    await page.mouse.wheel(0, 100);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    expect(await nodeWidth(page, "d:d1")).toBeCloseTo(before);
+    await expect(page.locator("[data-wheel-hint]")).toHaveText("Ctrl＋ホイールで拡大");
+  });
+
+  test("ctrl_or_meta_wheel_zooms_the_map_and_prevents_the_default", async ({ page }) => {
+    for (const modifier of ["ctrlKey", "metaKey"]) {
+      const before = await nodeWidth(page, "d:d1");
+      expect(await page.locator("[data-map]").evaluate((el, modifier) => {
+        const event = new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true, [modifier]: true });
+        el.dispatchEvent(event);
+        return event.defaultPrevented;
+      }, modifier)).toBe(true);
+      await expect.poll(() => nodeWidth(page, "d:d1")).toBeGreaterThan(before);
+    }
   });
 
   test("focusing_a_point_outside_the_view_pans_it_into_view", async ({ page }) => {

@@ -118,3 +118,48 @@ test("finished_picture_fits_the_view_and_can_be_zoomed", async ({ page }) => {
   const after = await view.locator('[data-node="a"] rect').boundingBox();
   expect(after.width).toBeGreaterThan(before.width * 1.1);
 });
+
+test("wheel_and_ctrl_wheel_over_a_reply_diagram_leave_it_unchanged_and_not_prevented", async ({ shoryo, page }) => {
+  const svg = await replyWith(shoryo, page, "a = File\nb = Disk\n| a | b |");
+  const before = await svg.innerHTML();
+  for (const ctrlKey of [false, true]) {
+    expect(await svg.evaluate((el, ctrlKey) => {
+      const event = new WheelEvent("wheel", { deltaY: -100, ctrlKey, bubbles: true, cancelable: true });
+      el.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, ctrlKey)).toBe(false);
+    expect(await svg.innerHTML()).toBe(before);
+  }
+});
+
+test("plain_wheel_over_the_result_picture_leaves_its_zoom_unchanged", async ({ shoryo, page }) => {
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [], finished_picture: widePicture });
+  const picture = page.locator("[data-panel=current] [data-diagram-view]");
+  await expect(picture).toBeVisible();
+  const before = await picture.locator('[data-node="a"] rect').boundingBox();
+  expect(await picture.evaluate(el => {
+    const event = new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true });
+    el.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(false);
+  expect((await picture.locator('[data-node="a"] rect').boundingBox()).width).toBe(before.width);
+  await expect(picture.locator("[data-wheel-hint]")).toBeVisible();
+  expect(await picture.evaluate(el => getComputedStyle(el).touchAction)).toContain("pan-y");
+});
+
+test("ctrl_or_meta_wheel_zooms_the_result_picture_and_prevents_the_default", async ({ shoryo, page }) => {
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [], finished_picture: widePicture });
+  const picture = page.locator("[data-panel=current] [data-diagram-view]");
+  await expect(picture).toBeVisible();
+  for (const modifier of ["ctrlKey", "metaKey"]) {
+    const before = (await picture.locator('[data-node="a"] rect').boundingBox()).width;
+    expect(await picture.evaluate((el, modifier) => {
+      const event = new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true, [modifier]: true });
+      el.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, modifier)).toBe(true);
+    expect((await picture.locator('[data-node="a"] rect').boundingBox()).width).toBeGreaterThan(before);
+  }
+});

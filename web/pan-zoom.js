@@ -12,14 +12,18 @@ const DRAG_PX = 4;
 
 export const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
+export const wheelHintKey = () => /Mac/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "map.wheel-mac" : "map.wheel-ctrl";
+
 /// The view shown in `wrap`: `{ x, y, k }`, a move and a zoom. `onView(view, commit)` draws a
 /// view; `commit` is "now" when a gesture or a button has ended on it, "idle" while the wheel
 /// turns, and undefined during a drag or a pinch.
 export class PanZoom {
-  constructor(wrap, view, onView) {
+  constructor(wrap, view, onView, { mode = "canvas", hint = "" } = {}) {
     this.wrap = wrap;
     this.view = { ...view };
     this.onView = onView;
+    this.mode = mode;
+    this.hint = hint;
     /// A drag or pinch is going on.
     this.panning = false;
     /// The press that is ending moved the drawing, so its click is not a selection.
@@ -69,6 +73,20 @@ export class PanZoom {
     wrap.addEventListener(
       "wheel",
       (event) => {
+        if (!event.ctrlKey && !event.metaKey) {
+          let hint = wrap.querySelector("[data-wheel-hint]");
+          if (!hint) {
+            hint = document.createElement("span");
+            hint.className = "wheel-hint";
+            hint.dataset.wheelHint = "";
+            hint.textContent = this.hint;
+            wrap.append(hint);
+          }
+          hint.hidden = false;
+          clearTimeout(this.hintTimer);
+          this.hintTimer = setTimeout(() => { hint.hidden = true; }, 1500);
+          return;
+        }
         event.preventDefault();
         const p = local(event);
         this.zoomAt(Math.exp(-event.deltaY * 0.0015), p.x, p.y, "idle");
@@ -86,6 +104,7 @@ export class PanZoom {
       pointers.set(event.pointerId, local(event));
       const now = [...pointers.values()];
       if (now.length === 1 && gesture.start.length === 1) {
+        if (this.mode === "page" && event.pointerType === "touch") return;
         const dx = now[0].x - gesture.start[0].x;
         const dy = now[0].y - gesture.start[0].y;
         if (!this.panning && Math.hypot(dx, dy) < DRAG_PX) return;
