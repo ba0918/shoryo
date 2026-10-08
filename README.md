@@ -56,7 +56,8 @@ choice is kept for every topic in your per-user config file (`~/.config/shoryo/c
 Linux).
 
 The header also shows what the LLM is doing: waiting for what you do on the screen, working on
-what you sent, or not responding when it has neither waited nor replied for 10 minutes.
+what you sent, or not responding when it has sent shoryo no command for 10 minutes. After you
+proceed with the result, it stays "working" while the LLM writes the specification.
 
 A topic's data stays in your per-user data directory (`~/.local/share/shoryo/` on Linux), never
 in the repository. shoryo never deletes it; remove a topic's directory yourself when you no
