@@ -70,13 +70,16 @@ test("tapping_a_cut_label_shows_it_whole_inside_the_reply_diagram", async ({ sho
   const veryLong = `${longLabel}。${longLabel}`;
   const svg = await replyWith(shoryo, page, `a = ${veryLong}\nb = 短い\n| a | b |`);
   const node = svg.locator('[data-node="a"]');
+  const before = await node.locator("rect").boundingBox();
 
   await node.click();
 
   const frame = await svg.boundingBox();
   const grown = await node.locator("rect").boundingBox();
-  const whole = await node.locator("text.whole").boundingBox();
-  expect(whole.height).toBeGreaterThan(3 * 15 * 1.5);
+  const shown = node.locator("text").filter({ visible: true });
+  await expect(shown).not.toContainText("…");
+  const whole = await shown.boundingBox();
+  expect(grown.height).toBeGreaterThan(before.height);
   expect(inside(grown, frame)).toBe(true);
   expect(inside(whole, frame)).toBe(true);
   expect(inside(whole, grown)).toBe(true);
