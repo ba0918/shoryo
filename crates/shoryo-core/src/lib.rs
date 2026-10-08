@@ -1,12 +1,14 @@
 //! The domain of shoryo: a topic's state and the rules that change it. No I/O lives here.
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
+mod explanation;
 mod ids;
 mod operations;
 mod round;
 mod state;
 mod views;
 
+pub use explanation::{Part, Role};
 pub use ids::{AskId, DecisionId, EventId, QuestionId};
 pub use operations::{Event, EventKind, Operation, OperationRefusal, SentAnswer};
 pub use round::{

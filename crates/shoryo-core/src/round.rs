@@ -52,7 +52,7 @@ pub struct QuestionInput {
     #[serde(default)]
     pub premises: Vec<DecisionId>,
     #[serde(default)]
-    pub background: String,
+    pub background: Vec<crate::Part>,
     pub options: Vec<Choice>,
     pub reasks: Option<QuestionId>,
 }

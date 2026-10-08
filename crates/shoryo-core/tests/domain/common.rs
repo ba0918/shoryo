@@ -6,7 +6,7 @@ use shoryo_core::{RoundInput, Timestamp};
 pub fn option(text: &str, recommended: bool) -> Value {
     json!({
         "text": text,
-        "description": format!("About {text}."),
+        "description": [{"type":"text","body":format!("About {text}.")}],
         "recommended": recommended,
         "consequence": format!("With {text}, this follows."),
     })
@@ -19,7 +19,7 @@ pub fn question(id: &str, premises: &[&str]) -> Value {
         "class": "human",
         "why_now": "Later questions rest on it.",
         "premises": premises,
-        "background": "Terms used here.",
+        "background": [{"type":"text","body":"Terms used here."}],
         "options": [option("A", true), option("B", false)],
     })
 }

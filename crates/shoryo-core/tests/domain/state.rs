@@ -10,17 +10,23 @@ fn question(id: &str) -> Question {
         class: Class::Human,
         why_now: "Everything else reads it.".into(),
         premises: vec![DecisionId::new("d0")],
-        background: "A store is where the state lives.".into(),
+        background: vec![shoryo_core::Part::Text {
+            body: "A store is where the state lives.".into(),
+        }],
         options: vec![
             Choice {
                 text: "One JSON file".into(),
-                description: "Plain and portable.".into(),
+                description: vec![shoryo_core::Part::Text {
+                    body: "Plain and portable.".into(),
+                }],
                 recommended: true,
                 consequence: "The state is one file.".into(),
             },
             Choice {
                 text: "A database".into(),
-                description: "Needs a server.".into(),
+                description: vec![shoryo_core::Part::Text {
+                    body: "Needs a server.".into(),
+                }],
                 recommended: false,
                 consequence: "The state needs a service.".into(),
             },

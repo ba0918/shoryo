@@ -3,7 +3,7 @@
 export function option(text, recommended, extra = {}) {
   return {
     text,
-    description: `${text}: what it means in practice.`,
+    description: [{ type: "text", body: `${text}: what it means in practice.` }],
     recommended,
     consequence: `With ${text}, the topic goes this way.`,
     ...extra,
@@ -17,7 +17,7 @@ export function question(id, text, { cls = "human", premises = [], options } = {
     class: cls,
     why_now: `Later questions rest on ${id}.`,
     premises,
-    background: `Background for ${id}: the terms it uses.`,
+    background: [{ type: "text", body: `Background for ${id}: the terms it uses.` }],
     options: options ?? [option(`${id} yes`, true), option(`${id} no`, false)],
   };
 }

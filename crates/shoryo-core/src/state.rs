@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::explanation::Part;
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
 use crate::operations::Event;
 
@@ -97,7 +98,8 @@ pub struct Question {
     pub why_now: String,
     pub premises: Vec<DecisionId>,
     /// 前提知識: terms and background needed to read the question.
-    pub background: String,
+    #[serde(default)]
+    pub background: Vec<Part>,
     pub options: Vec<Choice>,
     /// The deferred question this one asks again.
     pub reasks: Option<QuestionId>,
@@ -109,7 +111,7 @@ pub struct Question {
 #[serde(deny_unknown_fields)]
 pub struct Choice {
     pub text: String,
-    pub description: String,
+    pub description: Vec<Part>,
     pub recommended: bool,
     /// この答えだと: what follows from choosing this option.
     pub consequence: String,
