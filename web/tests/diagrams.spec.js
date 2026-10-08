@@ -189,6 +189,80 @@ test("finished_picture_fits_the_view_and_can_be_zoomed", async ({ page }) => {
   expect(after.width).toBeGreaterThan(before.width * 1.1);
 });
 
+test("single_row_finished_pictures_have_two_rows_of_space_without_enlarging_the_drawing", async ({ shoryo, page }) => {
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  const reference = await replyWith(shoryo, page, "a = File\nb = Disk\n| a |\n| b |");
+  const top = await reference.locator('[data-node=a] rect').boundingBox();
+  const bottom = await reference.locator('[data-node=b] rect').boundingBox();
+  const twoRows = 2 * (bottom.y - top.y);
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [], finished_picture: "a = File\n| a |" });
+  const result = page.locator('[data-panel=current] [data-result]');
+  const checkPicture = async scope => {
+    const area = await scope.locator('[data-diagram-view]').boundingBox();
+    const node = await scope.locator('[data-node=a] rect').boundingBox();
+    expect(area.height).toBeGreaterThanOrEqual(twoRows - 1);
+    expect(node.width).toBeLessThanOrEqual(top.width + 1);
+    expect(inside(node, area)).toBe(true);
+    await expect.poll(async () => scope.locator('[data-diagram-view]').evaluate(element => {
+      const frame = element.getBoundingClientRect();
+      const box = element.querySelector('[data-node=a] rect').getBoundingClientRect();
+      return Math.max(
+        Math.abs(box.x + box.width / 2 - (frame.x + frame.width / 2)),
+        Math.abs(box.y + box.height / 2 - (frame.y + frame.height / 2)),
+      );
+    })).toBeLessThan(2);
+  };
+  await expect(result).toBeVisible();
+  await checkPicture(result);
+  const parent = await result.boundingBox();
+  const viewer = await result.locator('.diagram-viewer').boundingBox();
+  expect(viewer.width).toBeLessThanOrEqual(parent.width);
+  expect(viewer.width).toBeLessThan(page.viewportSize().width * 0.95);
+  expect(Math.abs(viewer.x + viewer.width / 2 - (parent.x + parent.width / 2))).toBeLessThan(2);
+
+  await action(page, "finished-picture").click();
+  const dialog = page.locator('[data-finished-picture]');
+  await checkPicture(dialog);
+  const box = await dialog.boundingBox();
+  expect(box.width).toBeLessThan(page.viewportSize().width * 0.95);
+  expect(Math.abs(box.x + box.width / 2 - page.viewportSize().width / 2)).toBeLessThan(2);
+  await action(dialog, "close").click();
+
+  await shoryo.op({ op: "request_review", decision: "d1" });
+  await shoryo.submit();
+  await shoryo.round({ subject: "Review", questions: [], finished_picture: "a = File\n| a |" });
+  await page.locator('[data-tab=past]').click();
+  await action(page.locator('[data-panel=past] [data-round-choice]').last(), "choose-round").click();
+  const past = page.locator('[data-panel=past] [data-result]');
+  await expect(past).toBeVisible();
+  await checkPicture(past);
+});
+
+test("finished_picture_dialog_shrinks_in_short_and_narrow_windows_without_hiding_controls", async ({ shoryo, page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [], finished_picture: "a = File\n| a |" });
+  await action(page, "finished-picture").click();
+  const dialog = page.locator('[data-finished-picture]');
+  const picture = dialog.locator('[data-diagram-view]');
+  const desktop = await picture.boundingBox();
+  for (const viewport of [{ width: 1280, height: 300 }, { width: 390, height: 300 }]) {
+    await page.setViewportSize(viewport);
+    await expect.poll(async () => (await picture.boundingBox()).height).toBeLessThan(desktop.height);
+    const window = { x: 0, y: 0, ...viewport };
+    expect(inside(await dialog.boundingBox(), window)).toBe(true);
+    expect(inside(await picture.boundingBox(), window)).toBe(true);
+    for (const name of ["diagram-zoom-out", "diagram-fit", "diagram-zoom-in", "close"]) {
+      expect(inside(await action(dialog, name).boundingBox(), window)).toBe(true);
+    }
+    await action(dialog, "diagram-zoom-in").click();
+    await action(dialog, "diagram-fit").click();
+  }
+  await action(dialog, "close").click();
+  await expect(dialog).toHaveCount(0);
+});
+
 test("wheel_and_ctrl_wheel_over_a_reply_diagram_leave_it_unchanged_and_not_prevented", async ({ shoryo, page }) => {
   const svg = await replyWith(shoryo, page, "a = File\nb = Disk\n| a | b |");
   const before = await svg.boundingBox();

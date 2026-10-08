@@ -1525,6 +1525,8 @@ button.send-status {
 .diagram-viewer {
   display: grid;
   gap: 0.4rem;
+  width: min(100%, 72rem);
+  margin-inline: auto;
 }
 
 .diagram-zoom .seg {
@@ -1542,6 +1544,9 @@ button.send-status {
 }
 
 .diagram-view.page {
+  /* Outer page gutters would offset the drawing from the area measured by "fit". */
+  margin: 0;
+  padding: 0;
   touch-action: pan-y;
 }
 
@@ -1877,7 +1882,7 @@ svg.diagram .edge text {
 /* The picture's view takes only the height left under the title and the zoom buttons, so the
    dialog itself never scrolls and the bottom of the view is never cut off. */
 .dialog[data-finished-picture] {
-  width: min(100%, 96vw);
+  width: min(100%, 90vw, 72rem);
   max-height: 92vh;
   display: flex;
   flex-direction: column;

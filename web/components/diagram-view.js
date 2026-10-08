@@ -10,6 +10,7 @@ const SVG = "http://www.w3.org/2000/svg";
 const FIT_MAX_ZOOM = 1;
 /// The view is never taller than this share of the window.
 const MAX_HEIGHT = "80vh";
+const PREFERRED_MIN_HEIGHT = 260;
 
 export function diagramView(text, lang, mode = "page") {
   const t = translator(lang);
@@ -21,7 +22,7 @@ export function diagramView(text, lang, mode = "page") {
     svg.setAttribute(name, value);
   }
   svg.append(defs, moved);
-  const wrap = h("div", { class: `diagram-view ${mode}`, "data-diagram-view": true, style: `height: min(${MAX_HEIGHT}, ${size.height}px)` }, svg);
+  const wrap = h("div", { class: `diagram-view ${mode}`, "data-diagram-view": true, style: `height: min(${MAX_HEIGHT}, ${Math.max(PREFERRED_MIN_HEIGHT, size.height)}px)` }, svg);
   // Until the person zooms or moves it, the picture keeps fitting the view as it is resized.
   let touched = false;
   let fitting = false;
