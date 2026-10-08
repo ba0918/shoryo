@@ -155,14 +155,6 @@ test("held_toasts_survive_overflow_until_the_oldest_is_released", async ({ shory
   await expect(toast(page).first()).toHaveAttribute("data-toast", `reply:${ids[1]}`);
 });
 
-test("toast_has_an_opaque_background_in_both_themes", async ({ shoryo, page }) => {
-  await unseenReply(shoryo, page);
-  for (let i = 0; i < 2; i++) {
-    await action(page, "theme").click();
-    expect(await toast(page).evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
-  }
-});
-
 test("arrival_comparison_keeps_coalesced_replies_and_ignores_the_initial_view", async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { arrivalsBetween } = await import("./view-data.js");

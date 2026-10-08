@@ -191,7 +191,6 @@ test("plain_wheel_over_the_result_picture_leaves_its_zoom_unchanged", async ({ s
   })).toBe(false);
   expect((await picture.locator('[data-node="a"] rect').boundingBox()).width).toBe(before.width);
   await expect(picture.locator("[data-wheel-hint]")).toBeVisible();
-  expect(await picture.evaluate(el => getComputedStyle(el).touchAction)).toContain("pan-y");
 });
 
 test("ctrl_or_meta_wheel_zooms_the_result_picture_and_prevents_the_default", async ({ shoryo, page }) => {

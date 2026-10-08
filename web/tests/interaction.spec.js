@@ -116,7 +116,7 @@ test("follow_up_keeps_keyboard_focus_when_opened_and_when_another_reply_arrives"
   for (const text of ["First ask", "Second ask"]) await shoryo.op({ op: "ask", question: "q2", text });
   const asks = (await shoryo.wait()).filter(event => event.kind === "ask");
   await shoryo.reply(asks[0].ask, { text: "First reply" });
-  const follow = card(page, "q2").getByRole("button", { name: "Follow up on this reply" });
+  const follow = action(card(page, "q2"), "follow-up");
   await follow.focus();
   await page.keyboard.press("Enter");
   await expect(card(page, "q2").locator(".following")).toBeVisible();
@@ -131,8 +131,8 @@ test("retained_map_details_controls_keep_focus_when_an_answer_changes", async ({
   await page.locator('[data-map-node="d:d1"]').click();
   const details = page.locator("[data-map-selection]");
   let option = 0;
-  for (const name of ["Close", "Show the path to this", "Go to its question", "Review this"]) {
-    const control = details.getByRole("button", { name, exact: true });
+  for (const controlAction of ["close-details", "show-path", "jump", "review"]) {
+    const control = action(details, controlAction);
     await control.focus();
     option = 1 - option;
     await shoryo.op({ op: "choose", question: "q2", option });
@@ -141,7 +141,7 @@ test("retained_map_details_controls_keep_focus_when_an_answer_changes", async ({
     await expect(control).toBeFocused();
   }
   await shoryo.op({ op: "request_review", decision: "d1" });
-  const stop = details.getByRole("button", { name: "Stop review", exact: true });
+  const stop = action(details, "stop-review");
   await stop.focus();
   await shoryo.op({ op: "choose", question: "q2", option: 1 });
   await expect(card(page, "q2").getByRole("radio", { name: "A database", exact: true, includeHidden: true })).toBeChecked();
