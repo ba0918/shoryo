@@ -91,3 +91,18 @@ test("a_change_of_the_llm_status_leaves_the_opened_request_open_and_the_focus_in
   await expect(picture).toBeFocused();
   await waiting;
 });
+
+test("after_proceeding_with_a_result_the_header_keeps_working_past_ten_minutes", async ({ shoryo, page }) => {
+  await page.clock.install();
+  await twoRounds(shoryo);
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [], finished_picture: "a = Screen\n| a |" });
+  await page.goto(shoryo.url);
+  await action(page, "send").click();
+  await page.locator("[data-confirm-send] [data-action=confirm-send]").click();
+  await expect(notice(page)).toBeVisible();
+
+  await page.clock.fastForward("10:30");
+
+  await expect(agentStatus(page)).toHaveAttribute("data-agent-status", "working");
+});

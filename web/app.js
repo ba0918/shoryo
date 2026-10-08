@@ -93,7 +93,7 @@ function render() {
   const lang = ui.config.language;
   const t = translator(lang);
   const shown = { ...view, lang };
-  const agent = agentStatus(view.agent, viewReceivedAt, view.topic.ended, Date.now());
+  const agent = agentStatus(view.agent, viewReceivedAt, view.topic, Date.now());
   clearTimeout(agentTimer);
   if (agent?.changesIn != null) agentTimer = setTimeout(render, agent.changesIn);
   header.update({

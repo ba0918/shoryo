@@ -80,14 +80,18 @@ export function currentRoundData(view, landed = null) {
       lang: view.lang,
     },
     fixes: round.review ? fixesData(view, round) : [],
-    notice: round.submitted && !topic.ended ? sentNotice(result, reviewing) : null,
+    notice: round.submitted && !topic.ended ? (proceeded(topic) ? "sent.proceeded" : "sent.next-round") : null,
   };
 }
 
-/// What the screen says once the round is sent. A result sent without review requests ends
-/// the brainstorm, so no next round is coming; with them, the LLM asks again.
-function sentNotice(result, reviewing) {
-  return result && !reviewing ? "sent.proceeded" : "sent.next-round";
+/// Whether the person proceeded with the result: it was sent without review requests, so the
+/// brainstorm is over on this screen and no next round is coming; with review requests, the
+/// LLM asks again.
+function proceeded(topic) {
+  const round = topic.rounds[topic.rounds.length - 1];
+  return (
+    !topic.ended && round !== undefined && round.submitted && round.questions.length === 0 && topic.records.in_review.length === 0
+  );
 }
 
 /// How long the agent may be silent, neither waiting nor sending a command, before the
@@ -96,10 +100,12 @@ export const NOT_RESPONDING_MS = 10 * 60 * 1000;
 
 /// What the header says the LLM is doing at `now`: waiting for the screen, working on what
 /// it received, or not responding; nothing once the topic has ended. `agent` is the server's
-/// report, received at `receivedAt`.
-export function agentStatus(agent, receivedAt, ended, now) {
-  if (ended || !agent) return null;
+/// report, received at `receivedAt`. Once the person proceeded with the result, the LLM writes
+/// the specification without calling the screen, so its silence is not taken as not responding.
+export function agentStatus(agent, receivedAt, topic, now) {
+  if (topic.ended || !agent) return null;
   if (agent.waiting) return { state: "waiting", changesIn: null };
+  if (proceeded(topic)) return { state: "working", changesIn: null };
   const quiet = agent.quiet_ms + (now - receivedAt);
   if (quiet >= NOT_RESPONDING_MS) return { state: "not-responding", changesIn: null };
   return { state: "working", changesIn: NOT_RESPONDING_MS - quiet };
