@@ -6,6 +6,8 @@ shoryo puts an LLM's requirements interview in a local browser instead of a chat
 The agent asks questions in rounds. You check and send your answers, then the calling workflow
 writes the specification once you agree on the result.
 
+![The current round of a fictional weekend trip planner, with answer choices and approval stamps](docs/assets/current-round-en.png)
+
 Questions about policy and behavior appear as cards. You can ask the LLM about a question
 before answering, stamp an answer after checking it, and send the whole round at once.
 Questions whose answers are cheap to change later appear in a separate provisional list.
