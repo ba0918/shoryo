@@ -543,8 +543,8 @@ textarea:disabled {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
-  overflow-x: auto;
   flex: 1 1 auto;
 }
 
@@ -1924,6 +1924,15 @@ svg.map.far .edge-label-group:not(.lit, .hovered) {
 
   .card {
     padding: 0.9rem 0.9rem 0.75rem;
+  }
+
+  .tabs {
+    gap: 0;
+  }
+
+  .tabs [role="tab"] {
+    padding: 0.5rem 0.4rem;
+    font-size: 0.85rem;
   }
 
   .card-head {
