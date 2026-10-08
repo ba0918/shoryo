@@ -950,7 +950,7 @@ textarea:disabled {
   transition: transform 0.12s, border-color 0.12s;
 }
 
-.stamp:hover:not(:disabled) {
+.stamp:hover:not(.fixed) {
   border-color: var(--seal);
   color: var(--seal);
 }
@@ -1005,8 +1005,53 @@ textarea:disabled {
   border-style: dashed;
 }
 
-.stamp:disabled {
+.stamp.fixed {
   opacity: 0.7;
+  cursor: default;
+}
+
+.stamp-date {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin-top: 0.1rem;
+}
+
+/* The year and time of a dated stamp: on hover where there is a pointer that hovers, on
+   keyboard focus, and on a tap for a stamp that can no longer be pressed. A tap on a stamp
+   that can still be pressed presses it, so it never shows the time. */
+.stamp-holder {
+  position: relative;
+  display: inline-block;
+}
+
+.stamp-time {
+  display: none;
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--sheet);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+@media (hover: hover) {
+  .stamp-holder:hover .stamp-time {
+    display: block;
+  }
+}
+
+.stamp:focus-visible + .stamp-time,
+.stamp-holder.time-shown .stamp-time {
+  display: block;
 }
 
 /* ---- 仮決めの一覧 ---- */

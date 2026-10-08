@@ -24,6 +24,18 @@ export class Card extends Component {
     this.past = past;
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
+    this.timeShown = false;
+  }
+
+  /// Whether a stamp that can no longer be pressed shows its time, and the tap that toggles it.
+  stampTime() {
+    return {
+      timeShown: this.timeShown,
+      toggleTime: () => {
+        this.timeShown = !this.timeShown;
+        this.redraw();
+      },
+    };
   }
 
   threadFor(question) {
@@ -79,7 +91,7 @@ export class Card extends Component {
           consequence(question),
           noteField(question, this.emit),
         ),
-        this.past ? null : h("div", { class: "card-stamp" }, stampButton(question, this.emit)),
+        h("div", { class: "card-stamp" }, stampButton(question, this.emit, this.stampTime())),
       ),
       pastAnswer(question, this.emit),
       h(

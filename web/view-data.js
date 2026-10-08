@@ -28,6 +28,19 @@ export function decisionSource(view, decision) {
   return translator(view.lang)("decision.fixed-in", { round: decision.origin.fix_round });
 }
 
+/// When a stamp was put on: the person's when they pressed it; the LLM's 代決 when the round
+/// carrying it was sent, and no time before that.
+function stampedAt(round, answer) {
+  switch (answer.stamp) {
+    case "person":
+      return answer.stamped_at;
+    case "pre_approved":
+      return round.sent_at;
+    default:
+      return null;
+  }
+}
+
 /// A question as its card or row draws it. `asOf` is the round whose content the
 /// prerequisites are shown with; by default their current content.
 export function questionData(view, round, question, locked, landed = null, asOf = Infinity) {
@@ -49,6 +62,7 @@ export function questionData(view, round, question, locked, landed = null, asOf 
     note: question.answer.note,
     deferred: question.answer.deferred,
     stamp: question.answer.stamp,
+    stampedAt: stampedAt(round, question.answer),
     asks: questionAsks(round, question.id),
     locked,
     landed: question.id === landed,
@@ -266,7 +280,6 @@ export function pastRoundsData(view, selected, landed = null) {
           past: {
             chosen: question.answer.deferred ? null : question.options[question.answer.selected].text,
             recommended: question.options.find((option) => option.recommended)?.text ?? "",
-            preApproved: question.answer.stamp === "pre_approved",
             decisions: decidedBy(topic, question.id).map((decision) =>
               decisionItemData(view, decision, { asDecided: true }),
             ),

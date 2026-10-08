@@ -196,23 +196,56 @@ function noteSaver(question, emit) {
 }
 
 /// 判子: pressed by the person, or pre-approved by the LLM; pressing a pressed stamp lifts it.
-export function stampButton(question, emit) {
+/// A dated stamp shows its month and day, and the year and time on hover and focus. A stamp
+/// that can no longer be pressed shows them on a tap instead: `timeShown` and `toggleTime`
+/// belong to the card or row that holds it.
+export function stampButton(question, emit, { timeShown = false, toggleTime = () => {} } = {}) {
   const stamped = question.stamp !== null;
   const t = translator(question.lang);
+  const at = question.stampedAt ? new Date(question.stampedAt) : null;
+  const where = question.past ? "past-" : "";
+  const tip = `${where}stamp-time-${question.id}`;
   return h(
-    "button",
-    {
-      type: "button",
-      class: `stamp ${question.stamp ?? "none"}`,
-      "data-action": "stamp",
-      "data-focus": `stamp-${question.id}`,
-      "data-stamp": question.stamp ?? "none",
-      "aria-pressed": String(stamped),
-      disabled: question.locked,
-      onclick: () => emit({ type: "op", op: { op: "stamp", question: question.id, stamped: !stamped } }),
-    },
-    h("span", { class: "stamp-face" }, t(`stamp.${question.stamp ?? "none"}`)),
+    "span",
+    { class: `stamp-holder${timeShown && at ? " time-shown" : ""}` },
+    h(
+      "button",
+      {
+        type: "button",
+        class: `stamp ${question.stamp ?? "none"}${question.locked ? " fixed" : ""}`,
+        "data-action": "stamp",
+        "data-focus": `${where}stamp-${question.id}`,
+        "data-stamp": question.stamp ?? "none",
+        "aria-pressed": String(stamped),
+        // Neither `disabled` nor `aria-disabled`: a stamp that can no longer be pressed still
+        // takes focus and taps, which show when it was pressed.
+        "aria-describedby": at ? tip : undefined,
+        onclick: () =>
+          question.locked
+            ? toggleTime()
+            : emit({ type: "op", op: { op: "stamp", question: question.id, stamped: !stamped } }),
+      },
+      h(
+        "span",
+        { class: "stamp-face" },
+        t(`stamp.${question.stamp ?? "none"}`),
+        at ? h("span", { class: "stamp-date", "data-stamp-date": true }, `${at.getMonth() + 1}/${at.getDate()}`) : null,
+      ),
+    ),
+    at ? h("span", { class: "stamp-time", role: "tooltip", id: tip, "data-stamp-time": true }, stampTime(at, question.lang)) : null,
   );
+}
+
+/// The year, date and time of a stamp, in the browser's time zone.
+function stampTime(at, lang) {
+  return at.toLocaleString(lang === "ja" ? "ja-JP" : "en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 /// The marks a sent question carries in a past round.
@@ -220,7 +253,6 @@ export function pastMarks(question) {
   if (!question.past) return null;
   const t = translator(question.lang);
   return [
-    question.past.preApproved ? h("span", { class: "badge pre-approved", "data-mark": "pre-approved" }, t("card.pre-approved")) : null,
     question.deferred ? h("span", { class: "badge deferred", "data-mark": "deferred" }, t("card.defer")) : null,
   ];
 }

@@ -3,7 +3,7 @@
 // docs/spec/server.md, "終える").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, card, mark, row, sendAll } from "./screen.js";
+import { action, card, mark, row, sendAll, shownIn, stampDate, storedTopic, stampTime } from "./screen.js";
 
 const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
 const pastRound = (page, number) => page.locator(`[data-past-round="${number}"]`);
@@ -95,23 +95,59 @@ test("past_round_shows_decision_as_of_that_round", async ({ shoryo, page }) => {
   await expect(mark(item, "revised")).toBeVisible();
 });
 
-test("pre_approved_answers_are_marked_in_past_rounds_and_decisions", async ({ shoryo, page }) => {
+test("pre_approved_decisions_are_marked_in_the_decisions_tab", async ({ shoryo, page }) => {
   await sendAll(page);
   await shoryo.round({
     ...roundThree,
     records: { decisions: [...roundThree.records.decisions, decision("d4", "File named state.json", "q3")] },
   });
 
-  await tab(page, "past").click();
-  await action(page.locator('[data-round-choice="2"]'), "choose-round").click();
-  const marks = (id) => pastRound(page, 2).locator(`[data-past-question="${id}"] [data-question-marks]`);
-  await expect(mark(marks("q3"), "pre-approved")).toBeVisible();
-  await expect(mark(marks("q2"), "pre-approved")).toHaveCount(0);
-
   await tab(page, "decisions").click();
   const decisions = page.locator("[data-panel=decisions]");
   await expect(mark(decisionItem(decisions, "d4"), "pre-approved")).toBeVisible();
   await expect(mark(decisionItem(decisions, "d2"), "pre-approved")).toHaveCount(0);
+});
+
+test.describe("with dated stamps", () => {
+  // UTC+14: the local date differs from the UTC date for 14 hours a day.
+  const zone = "Pacific/Kiritimati";
+  test.use({ timezoneId: zone });
+
+  const pastStamp = (page, id) => action(pastRound(page, 2).locator(`[data-past-question="${id}"]`), "stamp");
+
+  async function lookBackAtRoundTwo(shoryo, page) {
+    await action(card(page, "q2"), "stamp").click();
+    await expect(action(card(page, "q2"), "stamp")).toHaveAttribute("data-stamp", "person");
+    await sendAll(page);
+    await shoryo.round(roundThree);
+    await tab(page, "past").click();
+    await action(page.locator('[data-round-choice="2"]'), "choose-round").click();
+    const round = (await storedTopic(shoryo)).rounds[1];
+    return { round, pressed: round.questions.find((q) => q.id === "q2").answer.stamped_at };
+  }
+
+  test("past_round_shows_each_stamp_with_its_date", async ({ shoryo, page }) => {
+    const { round, pressed } = await lookBackAtRoundTwo(shoryo, page);
+
+    await expect(pastStamp(page, "q2")).toHaveAttribute("data-stamp", "person");
+    await expect(stampDate(pastStamp(page, "q2"))).toHaveText(shownIn(pressed, zone).date);
+    await expect(pastStamp(page, "q3")).toHaveAttribute("data-stamp", "pre_approved");
+    await expect(stampDate(pastStamp(page, "q3"))).toHaveText(shownIn(round.sent_at, zone).date);
+    await expect(pastRound(page, 2).locator("[data-question-marks] [data-mark=pre-approved]")).toHaveCount(0);
+  });
+
+  test("clicking_a_past_round_stamp_shows_its_year_and_time", async ({ shoryo, page }) => {
+    const { round } = await lookBackAtRoundTwo(shoryo, page);
+    const q3 = pastStamp(page, "q3");
+
+    await q3.click();
+    await page.mouse.move(0, 0);
+    await q3.evaluate((element) => element.blur());
+
+    await expect(stampTime(q3)).toBeVisible();
+    await expect(stampTime(q3)).toHaveText(shownIn(round.sent_at, zone).time);
+    await expect(q3).toHaveAttribute("data-stamp", "pre_approved");
+  });
 });
 
 test("decisions_tab_lists_the_seven_kinds", async ({ shoryo, page }) => {

@@ -2,7 +2,7 @@
 // (docs/spec/screen.md, "判子", "仮決めの一覧", "まとめて送る", "結果").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, card, mark, row } from "./screen.js";
+import { action, card, mark, row, sendAll, shownIn, stampDate, stampTime, storedTopic } from "./screen.js";
 
 const stamp = (scope) => action(scope, "stamp");
 const confirmation = (page) => page.locator("[data-confirm-send]");
@@ -75,6 +75,84 @@ test.describe("on a round with questions", () => {
 
     await expect(page.locator("[data-sent-notice]")).toBeVisible();
     expect(await submittedEvents(shoryo, 2)).toHaveLength(1);
+  });
+});
+
+test.describe("with dated stamps", () => {
+  // UTC+14: the local date differs from the UTC date for 14 hours a day.
+  const zone = "Pacific/Kiritimati";
+  test.use({ timezoneId: zone });
+
+  test.beforeEach(async ({ shoryo, page }) => {
+    await twoRounds(shoryo);
+    await page.goto(shoryo.url);
+  });
+
+  const current = (page) => page.locator("[data-panel=current]");
+
+  const answerOf = (topic, round, id) => topic.rounds[round - 1].questions.find((q) => q.id === id).answer;
+
+  test("pressed_stamp_shows_its_month_and_day_and_the_year_and_time_on_hover_and_focus", async ({ shoryo, page }) => {
+    const q2 = stamp(card(current(page), "q2"));
+    await q2.click();
+    await expect(q2).toHaveAttribute("data-stamp", "person");
+    const shown = shownIn(answerOf(await storedTopic(shoryo), 2, "q2").stamped_at, zone);
+
+    await expect(stampDate(q2)).toHaveText(shown.date);
+    await page.mouse.move(0, 0);
+    await q2.evaluate((element) => element.blur());
+    await expect(stampTime(q2)).toBeHidden();
+    await q2.hover();
+    await expect(stampTime(q2)).toBeVisible();
+    await expect(stampTime(q2)).toHaveText(shown.time);
+    await page.mouse.move(0, 0);
+    await expect(stampTime(q2)).toBeHidden();
+    await card(current(page), "q2").locator("[data-field=note] textarea").focus();
+    await page.keyboard.press("Tab");
+    await expect(q2).toBeFocused();
+    await expect(stampTime(q2)).toBeVisible();
+  });
+
+  test("pre_approved_stamp_has_no_date_until_sent_and_then_the_sent_date", async ({ shoryo, page }) => {
+    const q3 = stamp(row(current(page), "q3"));
+    await expect(q3).toHaveAttribute("data-stamp", "pre_approved");
+    await expect(stampDate(q3)).toHaveCount(0);
+
+    await sendAll(page);
+
+    const shown = shownIn((await storedTopic(shoryo)).rounds[1].sent_at, zone);
+    await expect(stampDate(q3)).toHaveText(shown.date);
+    await q3.hover();
+    await expect(stampTime(q3)).toHaveText(shown.time);
+  });
+
+  test("stamps_of_a_sent_current_round_keep_their_dates", async ({ shoryo, page }) => {
+    const q2 = stamp(card(current(page), "q2"));
+    await q2.click();
+    await expect(q2).toHaveAttribute("data-stamp", "person");
+    const pressed = answerOf(await storedTopic(shoryo), 2, "q2").stamped_at;
+
+    await sendAll(page);
+    await expect(page.locator("[data-sent-notice]")).toBeVisible();
+    await q2.click();
+    await page.mouse.move(0, 0);
+    await q2.evaluate((element) => element.blur());
+
+    await expect(q2).toHaveAttribute("data-stamp", "person");
+    await expect(stampDate(q2)).toHaveText(shownIn(pressed, zone).date);
+    await expect(stampTime(q2)).toBeVisible();
+    await expect(stampTime(q2)).toHaveText(shownIn(pressed, zone).time);
+  });
+
+  test("tapping_an_unsent_stamp_presses_it_and_shows_no_time", async ({ page }) => {
+    const q2 = stamp(card(current(page), "q2"));
+
+    await q2.click();
+    await page.mouse.move(0, 0);
+    await q2.evaluate((element) => element.blur());
+
+    await expect(q2).toHaveAttribute("data-stamp", "person");
+    await expect(stampTime(q2)).toBeHidden();
   });
 });
 
