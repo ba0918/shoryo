@@ -128,7 +128,8 @@ pub enum OperationRefusal {
     NotInReview {
         decision: DecisionId,
     },
-    NextRoundArrived,
+    /// A review request between sending a round and the next one: the agent would not read it.
+    ReviewWhileRoundSent,
     NotCurrentRound {
         round: u32,
     },
@@ -156,9 +157,9 @@ impl fmt::Display for OperationRefusal {
             Self::UnknownDecision { decision } => write!(f, "there is no decision {decision}"),
             Self::AlreadyReplied { ask } => write!(f, "ask {ask} already has a reply"),
             Self::NotInReview { decision } => write!(f, "decision {decision} is not in review"),
-            Self::NextRoundArrived => write!(
+            Self::ReviewWhileRoundSent => write!(
                 f,
-                "the next round has arrived, so the review request can no longer be stopped"
+                "the round has been sent; review requests can be sent once the next round arrives"
             ),
             Self::FollowsAnotherQuestion { ask } => {
                 write!(
@@ -386,6 +387,9 @@ impl Topic {
     }
 
     fn request_review(&mut self, decision: DecisionId) -> Result<(), OperationRefusal> {
+        if self.current_round().is_some_and(|round| round.submitted) {
+            return Err(OperationRefusal::ReviewWhileRoundSent);
+        }
         if !self.records.decisions.iter().any(|d| d.id == decision) {
             return Err(OperationRefusal::UnknownDecision { decision });
         }
@@ -402,17 +406,8 @@ impl Topic {
     }
 
     fn stop_review(&mut self, decision: DecisionId) -> Result<(), OperationRefusal> {
-        let current = self.current_round().map_or(0, |round| round.number);
-        let mark = self
-            .records
-            .in_review
-            .iter()
-            .find(|mark| mark.decision == decision)
-            .ok_or_else(|| OperationRefusal::NotInReview {
-                decision: decision.clone(),
-            })?;
-        if mark.since_round != current {
-            return Err(OperationRefusal::NextRoundArrived);
+        if !self.is_in_review(&decision) {
+            return Err(OperationRefusal::NotInReview { decision });
         }
         self.records
             .in_review

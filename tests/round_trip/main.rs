@@ -598,3 +598,36 @@ fn past_result_round_reads_back_the_picture_and_records_it_was_sent_with() {
     assert_eq!(sent["sent_as"], "proceeded");
     assert_eq!(result["finished_picture"], "store = Two files");
 }
+
+#[test]
+fn review_request_between_sending_and_the_next_round_is_refused_and_leaves_no_trace() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.submit();
+    let result_round = json!({
+        "subject": "Result",
+        "records": { "decisions": [{
+            "id": "d1",
+            "name": "One file",
+            "text": "The data lives in one JSON file.",
+            "decided_by": { "question": "q1" },
+        }] },
+    });
+    env.run(&["round", "store"], &result_round.to_string());
+    server.submit();
+
+    let status = server.operate(json!({ "op": "request_review", "decision": "d1" }));
+
+    let received = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
+    assert_eq!(status, 409);
+    assert!(
+        received
+            .iter()
+            .all(|event| event["kind"] != "review_requested"),
+        "{received:?}"
+    );
+    let output = env.run(&["result", "store"], "");
+    let result: Value = serde_json::from_slice(&output.stdout).expect("the result is JSON");
+    assert_eq!(result["records"]["in_review"], json!([]));
+}
