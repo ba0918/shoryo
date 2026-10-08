@@ -239,7 +239,7 @@ const ja = {
   "send.unstamped": "判子のない問い: {count} 問",
   "send.ready": "すべての問いに判子があります。",
   "sent.next-round": "送信しました。LLM が次のラウンドを用意しています。",
-  "sent.proceeded": "この結果で進めました。これから LLM が仕様を書きます。この画面での操作はもうありません。",
+  "sent.proceeded": "この結果で進めました。LLM が仕様をまとめています。",
   "current.waiting": "最初のラウンドを待っています。",
   "send.proceed": "この結果で進める",
   "send.review-requests": "見直しを頼む",
