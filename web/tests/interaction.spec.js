@@ -227,3 +227,47 @@ test("choosing_a_tab_keeps_focus_on_the_retained_tab_control", async ({ page }) 
     await expect(page.locator(selector)).toBeFocused();
   }
 });
+
+test("a_note_edit_back_to_earlier_text_is_saved_after_another_tab_changes_the_note", async ({ shoryo, page, context, request }) => {
+  await shoryo.op({ op: "ask", question: "q2", text: "Explain this answer" });
+  const ask = (await shoryo.wait()).find(event => event.kind === "ask").ask;
+  await expect(card(page, "q2").locator("[data-mark=writing]")).toBeVisible();
+  await page.clock.install({ time: new Date("2026-10-08T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-10-08T12:00:01Z"));
+  const storedNote = async () => {
+    const view = await (await request.get(`${shoryo.url}api/view`)).json();
+    return view.topic.rounds.at(-1).questions.find(question => question.id === "q2").answer.note;
+  };
+  const note = card(page, "q2").locator('[data-field=note] textarea');
+  await note.fill("A");
+  await page.clock.runFor(500);
+  await expect.poll(storedNote).toBe("A");
+  await expect(note).toBeFocused();
+
+  const other = await context.newPage();
+  try {
+    await other.goto(shoryo.url);
+    const otherNote = card(other, "q2").locator('[data-field=note] textarea');
+    await expect(otherNote).toHaveValue("A");
+    await otherNote.fill("B");
+    await other.getByRole("heading", { level: 1 }).click();
+    await expect.poll(storedNote).toBe("B");
+    await shoryo.reply(ask, { text: "Reply after the other tab's edit" });
+    await expect(card(page, "q2").getByText("Reply after the other tab's edit", { exact: true })).toBeVisible();
+    await expect(note).toBeFocused();
+    await expect(note).toHaveValue("A");
+
+    await note.fill("A with a later edit");
+    await page.clock.runFor(100);
+    await note.fill("A");
+    await page.getByRole("heading", { level: 1 }).click();
+    await page.clock.runFor(1000);
+    await expect.poll(storedNote).toBe("A");
+    await page.reload();
+    await expect(note).toHaveValue("A");
+    await other.reload();
+    await expect(otherNote).toHaveValue("A");
+  } finally {
+    await other.close();
+  }
+});

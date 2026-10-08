@@ -184,11 +184,9 @@ function noteSaver(field, question, emit) {
   const existing = noteSavers.get(field);
   if (existing) return existing;
   let timer = null;
-  let saved = question.note;
   const now = (text) => {
     clearTimeout(timer);
-    if (text === saved) return;
-    saved = text;
+    // Last-sent text is not authoritative: another tab may have stored a different note.
     emit({ type: "op", op: { op: "note", question: question.id, text } });
   };
   const later = (text) => {
