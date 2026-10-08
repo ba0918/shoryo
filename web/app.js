@@ -12,7 +12,15 @@ import { DEFAULT_VIEW, MapTab } from "./components/map.js";
 import { diagramView } from "./components/diagram-view.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { confirmSend } from "./components/confirm-send.js";
-import { confirmData, currentRoundData, decisionDetail, decisionsTabData, mapData, pastRoundsData } from "./view-data.js";
+import {
+  agentStatus,
+  confirmData,
+  currentRoundData,
+  decisionDetail,
+  decisionsTabData,
+  mapData,
+  pastRoundsData,
+} from "./view-data.js";
 
 const TABS = [{ id: "current" }, { id: "past" }, { id: "map" }, { id: "decisions" }];
 
@@ -38,6 +46,10 @@ const ui = {
   config: null,
 };
 let view = null;
+/// When the newest view arrived, so the time since the agent was last heard keeps counting.
+let viewReceivedAt = 0;
+/// Redraws the header when the agent's silence crosses into "not responding".
+let agentTimer = null;
 /// Where the focus was when the open dialog opened, so closing it can return there.
 let dialogOpener = null;
 
@@ -81,6 +93,9 @@ function render() {
   const lang = ui.config.language;
   const t = translator(lang);
   const shown = { ...view, lang };
+  const agent = agentStatus(view.agent, viewReceivedAt, view.topic.ended, Date.now());
+  clearTimeout(agentTimer);
+  if (agent?.changesIn != null) agentTimer = setTimeout(render, agent.changesIn);
   header.update({
     title: view.topic.title,
     original_request: view.topic.original_request,
@@ -88,6 +103,7 @@ function render() {
     theme: ui.config.theme,
     unreadable: ui.config.unreadable,
     canGoBack: ui.history.length > 0,
+    agent: agent?.state ?? null,
   });
   tabs.update({ tabs: TABS, current: ui.tab, lang });
   for (const [id, panel] of Object.entries(panels)) panel.hidden = id !== ui.tab;
@@ -220,7 +236,10 @@ function refusalError(body) {
 
 /// Keeps the newest view: the answer to an action and the live stream may arrive in either order.
 function accept(next) {
-  if (!view || next.version >= view.version) view = next;
+  if (!view || next.version >= view.version) {
+    view = next;
+    viewReceivedAt = Date.now();
+  }
 }
 
 /// Keeps where the person is, for "Back": the tab, the past round, and the map's range,

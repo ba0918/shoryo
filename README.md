@@ -55,6 +55,9 @@ The header switches the screen between English and Japanese and between light an
 choice is kept for every topic in your per-user config file (`~/.config/shoryo/config.toml` on
 Linux).
 
+The header also shows what the LLM is doing: waiting for what you do on the screen, working on
+what you sent, or not responding when it has neither waited nor replied for 10 minutes.
+
 A topic's data stays in your per-user data directory (`~/.local/share/shoryo/` on Linux), never
 in the repository. shoryo never deletes it; remove a topic's directory yourself when you no
 longer need it.

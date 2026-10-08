@@ -90,6 +90,21 @@ function sentNotice(result, reviewing) {
   return result && !reviewing ? "sent.proceeded" : "sent.next-round";
 }
 
+/// How long the agent may be silent, neither waiting nor sending a command, before the
+/// screen says it is not responding.
+export const NOT_RESPONDING_MS = 10 * 60 * 1000;
+
+/// What the header says the LLM is doing at `now`: waiting for the screen, working on what
+/// it received, or not responding; nothing once the topic has ended. `agent` is the server's
+/// report, received at `receivedAt`.
+export function agentStatus(agent, receivedAt, ended, now) {
+  if (ended || !agent) return null;
+  if (agent.waiting) return { state: "waiting", changesIn: null };
+  const quiet = agent.quiet_ms + (now - receivedAt);
+  if (quiet >= NOT_RESPONDING_MS) return { state: "not-responding", changesIn: null };
+  return { state: "working", changesIn: NOT_RESPONDING_MS - quiet };
+}
+
 /// 結果: what a round without questions shows — the finished picture and the records.
 function resultData(view) {
   const records = decisionsTabData(view);

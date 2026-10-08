@@ -1,6 +1,7 @@
 // The thin header fixed at the top: "Back" while there is somewhere to go back to, the
-// topic's title with the original request on demand, and on the right the finished picture,
-// the theme icon and the language switch (docs/spec/screen.md, "ヘッダーと切替", "移動と現在地").
+// topic's title with the original request on demand, and on the right what the LLM is doing,
+// the finished picture, the theme icon and the language switch
+// (docs/spec/screen.md, "ヘッダーと切替", "移動と現在地").
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 
@@ -70,6 +71,13 @@ export class Header extends Component {
           { class: "topbar-tools" },
           data.unreadable
             ? h("p", { class: "config-notice", role: "status", "data-config-unreadable": true }, t("header.config-unreadable"))
+            : null,
+          data.agent
+            ? h(
+                "p",
+                { class: `agent-status ${data.agent}`, role: "status", "data-agent-status": data.agent, title: t(`agent.${data.agent}-title`) },
+                t(`agent.${data.agent}`),
+              )
             : null,
           h(
             "button",

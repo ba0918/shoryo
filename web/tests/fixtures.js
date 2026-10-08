@@ -66,6 +66,12 @@ export const test = base.extend({
       reply: (ask, body) => run(dirs, ["reply", "topic", String(ask)], JSON.stringify(body)),
       end: () => run(dirs, ["end", "topic"]),
       wait: async () => JSON.parse(await run(dirs, ["wait", "topic", "--timeout", "5"])).events,
+      /// Waits as the agent does after acknowledging `ack`, for at most `timeout` seconds.
+      waitAfter: async (ack, timeout) => {
+        const args = ["wait", "topic", "--timeout", String(timeout)];
+        if (ack.length > 0) args.push("--ack", ack.join(","));
+        return JSON.parse(await run(dirs, args)).events;
+      },
       op: async (body) => {
         const response = await fetch(`${url}api/op`, { method: "POST", body: JSON.stringify(body) });
         if (!response.ok) throw new Error(`operation refused: ${await response.text()}`);
