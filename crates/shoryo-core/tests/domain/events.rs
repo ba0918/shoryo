@@ -481,8 +481,16 @@ fn reply_appears_with_its_ask() {
         .unwrap();
     let ask = topic.current_round().unwrap().asks[0].id;
     let reply = Reply {
-        text: "It means one file.".into(),
-        diagram: Some("a = File".into()),
+        parts: vec![
+            shoryo_core::Part::Text {
+                body: "It means one file.".into(),
+            },
+            shoryo_core::Part::Diagram {
+                source: "a = File".into(),
+                title: "File".into(),
+                role: shoryo_core::Role::Example,
+            },
+        ],
     };
 
     topic.reply(ask, reply.clone()).unwrap();
@@ -518,15 +526,16 @@ fn reply_to_ask_in_submitted_round_is_kept_with_that_round() {
         .reply(
             ask,
             Reply {
-                text: "Late reply.".into(),
-                diagram: None,
+                parts: vec![shoryo_core::Part::Text {
+                    body: "Late reply.".into(),
+                }],
             },
         )
         .unwrap();
 
     assert!(matches!(
         &topic.rounds[1].asks[0].state,
-        AskState::Replied(reply) if reply.text == "Late reply."
+        AskState::Replied(reply) if reply.parts == vec![shoryo_core::Part::Text {body:"Late reply.".into()}]
     ));
 }
 
@@ -568,8 +577,9 @@ fn reply_is_refused_after_end() {
     let refused = topic.reply(
         ask,
         Reply {
-            text: "Too late.".into(),
-            diagram: None,
+            parts: vec![shoryo_core::Part::Text {
+                body: "Too late.".into(),
+            }],
         },
     );
 

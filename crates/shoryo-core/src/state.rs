@@ -210,10 +210,9 @@ pub enum AskState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Reply {
-    pub text: String,
-    /// A diagram as diagram text.
-    pub diagram: Option<String>,
+    pub parts: Vec<Part>,
 }
 
 /// The six records and the decisions in review.
@@ -309,11 +308,18 @@ struct Version {
 
 /// The stored state could not be read.
 #[derive(Debug)]
-pub struct LoadError(serde_json::Error);
+pub enum LoadError {
+    Json(serde_json::Error),
+    Explanation(crate::ExplanationError),
+}
 
 impl std::fmt::Display for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "the topic's state is not valid: {}", self.0)
+        write!(f, "the topic's state is not valid: ")?;
+        match self {
+            Self::Json(error) => error.fmt(f),
+            Self::Explanation(error) => error.fmt(f),
+        }
     }
 }
 
@@ -340,7 +346,43 @@ impl Topic {
     }
 
     pub fn from_json(json: &str) -> Result<Self, LoadError> {
-        serde_json::from_str(json).map_err(LoadError)
+        let topic: Self = serde_json::from_str(json).map_err(LoadError::Json)?;
+        for round in &topic.rounds {
+            let mut budget = 0;
+            for question in &round.questions {
+                crate::explanation_validation::validate_parts(
+                    &question.background,
+                    &format!("round {} question {} background", round.number, question.id),
+                    0,
+                    &mut budget,
+                )
+                .map_err(LoadError::Explanation)?;
+                for (i, option) in question.options.iter().enumerate() {
+                    crate::explanation_validation::validate_parts(
+                        &option.description,
+                        &format!(
+                            "round {} question {} option {i} description",
+                            round.number, question.id
+                        ),
+                        0,
+                        &mut budget,
+                    )
+                    .map_err(LoadError::Explanation)?;
+                }
+            }
+            for ask in &round.asks {
+                if let AskState::Replied(reply) = &ask.state {
+                    crate::explanation_validation::validate_parts(
+                        &reply.parts,
+                        &format!("round {} ask {} reply", round.number, ask.id),
+                        1,
+                        &mut 0,
+                    )
+                    .map_err(LoadError::Explanation)?;
+                }
+            }
+        }
+        Ok(topic)
     }
 
     pub fn allocate_ask_id(&mut self) -> AskId {

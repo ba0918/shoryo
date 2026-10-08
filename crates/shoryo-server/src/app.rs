@@ -418,16 +418,14 @@ async fn wait(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
 #[serde(deny_unknown_fields)]
 struct ReplyRequest {
     ask: AskId,
-    text: String,
-    diagram: Option<String>,
+    parts: Vec<shoryo_core::Part>,
 }
 
 async fn reply(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
     shared.heard_from_agent();
     let request: ReplyRequest = parse(&body)?;
     let reply = Reply {
-        text: request.text,
-        diagram: request.diagram,
+        parts: request.parts,
     };
     shared.change(|state| state.topic.reply(request.ask, reply))?;
     ok(json!({}))
