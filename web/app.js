@@ -20,6 +20,7 @@ import {
   decisionsTabData,
   mapData,
   pastRoundsData,
+  placeReachable,
   reviewConfirmData,
 } from "./view-data.js";
 
@@ -41,7 +42,8 @@ const ui = {
   mapView: null,
   /// The question a jump landed on, highlighted until the person moves on.
   landed: null,
-  /// Where each jump and each change of the map came from, so "Back" can return there.
+  /// The places jumps left, newest last, so "Back" can return there (docs/spec/screen.md,
+  /// "移動と現在地").
   history: [],
   /// The language and theme, read from the config when the page opens.
   config: null,
@@ -97,6 +99,7 @@ function render() {
   const agent = agentStatus(view.agent, viewReceivedAt, view.topic, Date.now());
   clearTimeout(agentTimer);
   if (agent?.changesIn != null) agentTimer = setTimeout(render, agent.changesIn);
+  document.title = view.topic.title || t("header.untitled");
   header.update({
     title: view.topic.title,
     original_request: view.topic.original_request,
@@ -243,11 +246,48 @@ function accept(next) {
   if (!view || next.version >= view.version) {
     view = next;
     viewReceivedAt = Date.now();
+    // A place whose card went with its round can no longer be returned to.
+    ui.history = ui.history.filter((place) => placeReachable(view, place));
   }
 }
 
-/// Keeps where the person is, for "Back": the tab, the past round, and the map's range,
-/// selection and view.
+/// What a place is anchored on: the card, provisional row, decision or result nearest the
+/// top of the page below the header, and how far from the top it was.
+const ANCHORS = [
+  ["[data-card]", "question", "card"],
+  ["[data-provisional-row]", "question", "provisionalRow"],
+  ["[data-decision-item]", "decision", "decisionItem"],
+  ["[data-result]", "result", null],
+];
+
+function anchorNow() {
+  const top = header.el.getBoundingClientRect().bottom;
+  const panel = panels[ui.tab];
+  const candidates = panel.querySelectorAll(ANCHORS.map(([selector]) => selector).join(","));
+  for (const element of candidates) {
+    const box = element.getBoundingClientRect();
+    if (box.height === 0 || box.bottom <= top) continue;
+    const [, kind, field] = ANCHORS.find(([selector]) => element.matches(selector));
+    return { kind, key: field ? element.dataset[field] : null, offset: box.top };
+  }
+  return null;
+}
+
+function anchorElement(anchor) {
+  const panel = panels[ui.tab];
+  const key = anchor.key === null ? null : CSS.escape(anchor.key);
+  switch (anchor.kind) {
+    case "question":
+      return panel.querySelector(`[data-card="${key}"], [data-provisional-row="${key}"]`);
+    case "decision":
+      return panel.querySelector(`[data-decision-item="${key}"]`);
+    default:
+      return panel.querySelector("[data-result]");
+  }
+}
+
+/// Keeps where the person is, for "Back": the tab, the past round, the map's range,
+/// selection and view, the round the current tab showed, and what the page was scrolled to.
 function remember() {
   ui.history.push({
     tab: ui.tab,
@@ -256,7 +296,19 @@ function remember() {
     mapSelected: ui.mapSelected,
     mapRoot: ui.mapRoot,
     mapView: ui.mapView,
+    currentRound: view.topic.rounds[view.topic.rounds.length - 1]?.number ?? null,
+    anchor: anchorNow(),
   });
+}
+
+function goBack() {
+  const place = ui.history.pop();
+  if (!place) return;
+  const { anchor, currentRound: _round, ...shown } = place;
+  Object.assign(ui, shown, { landed: null });
+  render();
+  const element = anchor ? anchorElement(anchor) : null;
+  if (element) window.scrollBy(0, element.getBoundingClientRect().top - anchor.offset);
 }
 
 function handle(event) {
@@ -270,25 +322,21 @@ function handle(event) {
       break;
     case "map-range":
       if (event.range === ui.mapRange) return;
-      remember();
       ui.mapRange = event.range;
       // The 道筋 button leads to the selected point, or back to the last root.
       if (event.range === "path") ui.mapRoot = ui.mapSelected ?? ui.mapRoot;
       break;
     case "show-path":
       if (ui.mapRange === "path" && ui.mapRoot === event.key) return;
-      remember();
       ui.mapRange = "path";
       ui.mapRoot = event.key;
       ui.mapSelected = event.key;
       break;
     case "select-node":
       if (event.key === ui.mapSelected) return;
-      remember();
       ui.mapSelected = event.key;
       break;
     case "map-view":
-      remember();
       ui.mapView = event.view;
       break;
     case "jump":
@@ -300,11 +348,9 @@ function handle(event) {
       render();
       document.querySelector("[data-landed]")?.scrollIntoView({ block: "center" });
       return;
-    case "back": {
-      const place = ui.history.pop();
-      if (place) Object.assign(ui, place, { landed: null });
-      break;
-    }
+    case "back":
+      goBack();
+      return;
     case "choose-round":
       ui.pastRound = event.round;
       break;
@@ -325,6 +371,7 @@ function handle(event) {
       enqueue({ op: "submit", round: event.round });
       break;
     case "go-unstamped":
+      remember();
       ui.tab = "current";
       ui.landed = view.unstamped[0] ?? null;
       render();

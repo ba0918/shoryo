@@ -89,26 +89,6 @@ test.describe("with a mouse", () => {
     await expect(node(page, "d:d1")).toBeInViewport();
   });
 
-  test("map_back_restores_previous_range_selection_and_zoom", async ({ page }) => {
-    const original = await nodeWidth(page, "d:d1");
-    const target = await node(page, "d:d2").locator("rect").boundingBox();
-    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2);
-    await page.mouse.wheel(0, -400);
-    await expect.poll(() => nodeWidth(page, "d:d1")).toBeGreaterThan(original);
-    await node(page, "d:d2").click();
-    await action(details(page), "show-path").click();
-    await expect(page.locator("[data-map-range=path]")).toHaveAttribute("aria-pressed", "true");
-
-    await action(page, "back").click();
-    await expect(page.locator("[data-map-range=all]")).toHaveAttribute("aria-pressed", "true");
-    await expect(node(page, "d:d2")).toHaveAttribute("data-selected", "");
-    await action(page, "back").click();
-    await expect(node(page, "d:d2")).not.toHaveAttribute("data-selected", "");
-    await action(page, "back").click();
-
-    await expect.poll(() => nodeWidth(page, "d:d1")).toBe(original);
-  });
-
   test("path_range_nodes_and_edge_labels_do_not_overlap_at_default_zoom", async ({ page }) => {
     await node(page, "d:d2").click();
     await action(details(page), "show-path").click();

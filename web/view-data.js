@@ -280,12 +280,18 @@ export function fixesData(view, round) {
   }));
 }
 
+/// The sent round the past rounds tab shows: the one chosen, or the latest.
+export function shownPastRound(topic, selected) {
+  const rounds = topic.rounds.filter((round) => round.submitted);
+  return rounds.find((round) => round.number === selected) ?? rounds[rounds.length - 1] ?? null;
+}
+
 /// Every sent round, as it was answered: the same cards and provisional list as the current
 /// round, read only, with what was sent and what was decided there.
 export function pastRoundsData(view, selected, landed = null) {
   const topic = view.topic;
   const rounds = topic.rounds.filter((round) => round.submitted);
-  const chosen = rounds.find((round) => round.number === selected) ?? rounds[rounds.length - 1];
+  const chosen = shownPastRound(topic, selected);
   const questions = chosen
     ? chosen.questions.map((question) => ({
         cls: question.class,
@@ -472,4 +478,24 @@ export function reviewConfirmData(view, decision, resultWording) {
     name: found ? decisionContent(found).name : decision,
     resultWording,
   };
+}
+
+/// Whether a place "Back" would return to still shows what it was anchored on: the card, row
+/// or result of the round it showed, or a decision. A place on the current tab is gone once
+/// the next round has arrived, because its cards went with the round.
+export function placeReachable(view, place) {
+  const topic = view.topic;
+  const anchor = place.anchor;
+  if (!anchor) return true;
+  if (anchor.kind === "decision") return findDecision(topic, anchor.key) !== null;
+  const current = topic.rounds[topic.rounds.length - 1];
+  const round =
+    place.tab === "current"
+      ? current?.number === place.currentRound
+        ? current
+        : null
+      : shownPastRound(topic, place.pastRound);
+  if (!round) return false;
+  if (anchor.kind === "result") return round.questions.length === 0;
+  return round.questions.some((question) => question.id === anchor.key);
 }

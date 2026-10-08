@@ -598,11 +598,23 @@ textarea:disabled {
   border-bottom: 1px solid var(--line);
 }
 
+.tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
   flex: 1 1 auto;
+}
+
+.finished-picture-button {
+  margin-left: auto;
 }
 
 .tabs [role="tab"] {

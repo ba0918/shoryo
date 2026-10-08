@@ -97,7 +97,7 @@ test.describe("with a readable config", () => {
     expect(await background(page)).not.toBe(light);
   });
 
-  test("finished_picture_and_original_request_are_reachable_from_the_header_on_every_tab", async ({ page }) => {
+  test("original_request_is_reachable_from_the_header_on_every_tab", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 360 });
     for (const id of ["current", "past", "map", "decisions"]) {
       await tab(page, id).click();
@@ -106,13 +106,29 @@ test.describe("with a readable config", () => {
         return window.scrollY;
       });
       if (id === "current") expect(scrolled).toBeGreaterThan(0);
-      await expect(action(banner(page), "finished-picture")).toBeInViewport();
       const request = banner(page).locator("details");
       await expect(request).toBeInViewport();
       await request.locator("summary").click();
       await expect(request).toContainText(roundOne.original_request);
       await request.locator("summary").click();
     }
+  });
+
+  test("finished_picture_opens_from_the_tab_row_on_every_tab", async ({ page }) => {
+    const tabRow = page.locator("[data-tab-row]");
+    for (const id of ["current", "past", "map", "decisions"]) {
+      await tab(page, id).click();
+
+      await action(tabRow, "finished-picture").click();
+      await expect(page.locator("[data-finished-picture]")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.locator("[data-finished-picture]")).toHaveCount(0);
+    }
+    await expect(action(banner(page), "finished-picture")).toHaveCount(0);
+  });
+
+  test("page_title_is_the_topic_title", async ({ page }) => {
+    await expect(page).toHaveTitle(roundOne.title);
   });
 });
 
@@ -121,8 +137,8 @@ test("back_control_is_in_the_header_and_only_when_there_is_history", async ({ sh
   await page.goto(shoryo.url);
   await expect(action(page, "back")).toHaveCount(0);
 
-  await tab(page, "map").click();
-  await page.locator('[data-map] [data-map-node="d:d1"]').click();
+  await tab(page, "decisions").click();
+  await action(page.locator('[data-panel=decisions] [data-decision-item="d1"]'), "go-to-source").click();
   const back = action(banner(page), "back");
   await expect(back).toBeVisible();
   await page.mouse.wheel(0, 4000);
@@ -162,6 +178,26 @@ test.describe("with a broken config", () => {
 
   test("unreadable_config_is_shown_in_the_header", async ({ page }) => {
     await expect(banner(page).locator("[data-config-unreadable]")).toBeVisible();
+  });
+
+  test("header_lists_back_title_status_config_notice_theme_and_language_in_order", async ({ page }) => {
+    await tab(page, "decisions").click();
+    await action(page.locator('[data-panel=decisions] [data-decision-item="d1"]'), "go-to-source").click();
+    const parts = [
+      action(banner(page), "back"),
+      page.getByRole("heading", { level: 1 }),
+      banner(page).locator("[data-agent-status]"),
+      banner(page).locator("[data-config-unreadable]"),
+      action(banner(page), "theme"),
+      banner(page).locator('[data-language="en"]'),
+    ];
+    const lefts = [];
+    for (const part of parts) {
+      await expect(part).toBeVisible();
+      lefts.push((await part.boundingBox()).x);
+    }
+
+    expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
   });
 
   test("switches_still_work_for_the_page_when_config_is_unreadable", async ({ page }) => {

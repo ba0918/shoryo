@@ -150,3 +150,60 @@ test("selected_decision_can_be_put_in_review_and_stopped_from_the_map", async ({
   const kinds = (await shoryo.wait()).map((event) => event.kind).filter((kind) => kind.startsWith("review"));
   expect(kinds).toEqual(["review_requested", "review_stopped"]);
 });
+
+test("two_jumps_then_two_backs_return_in_reverse_order", async ({ page }) => {
+  await tab(page, "decisions").click();
+  await action(page.locator('[data-panel=decisions] [data-record=decisions] [data-decision-item="d2"]'), "go-to-source").click();
+  await expect(page.locator('[data-past-round="2"] [data-past-question="q2"]')).toHaveAttribute("data-landed", "");
+  await tab(page, "map").click();
+  await node(page, "d:d3").click();
+  await action(page, "jump").click();
+  await expect(page.locator('[data-past-round="2"] [data-past-question="q4"]')).toHaveAttribute("data-landed", "");
+
+  await action(page, "back").click();
+  await expect(page.locator("[data-panel=map]")).toBeVisible();
+  await expect(node(page, "d:d3")).toHaveAttribute("data-selected", "");
+  await action(page, "back").click();
+
+  await expect(page.locator("[data-panel=decisions]")).toBeVisible();
+  await expect(action(page, "back")).toHaveCount(0);
+});
+
+test("switching_tabs_or_changing_the_map_does_not_show_back", async ({ page }) => {
+  await node(page, "d:d2").click();
+  await page.locator("[data-map-range=path]").click();
+  await action(page, "map-zoom-in").click();
+  await page.locator("[data-map-range=all]").click();
+  for (const id of ["past", "decisions", "current", "map"]) await tab(page, id).click();
+
+  await expect(page.locator("[data-panel=map]")).toBeVisible();
+  await expect(action(page, "back")).toHaveCount(0);
+});
+
+test("unstamped_button_can_be_returned_from_with_back", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 420 });
+  await tab(page, "current").click();
+  const before = await page.evaluate(() => window.scrollY);
+
+  await page.locator("[data-unstamped-count]").click();
+  await expect(page.locator('[data-card="q5"]')).toHaveAttribute("data-landed", "");
+  await expect.poll(() => page.evaluate(() => window.scrollY)).not.toBe(before);
+  await action(page, "back").click();
+
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(before);
+  await expect(action(page, "back")).toHaveCount(0);
+});
+
+test("back_skips_a_place_whose_card_is_gone", async ({ shoryo, page }) => {
+  await tab(page, "current").click();
+  await page.locator('[data-panel=current] [data-card="q5"] [data-decision="d2"]').click();
+  await action(page.locator("[data-decision-detail]"), "go-to-source").click();
+  await expect(page.locator('[data-past-round="2"] [data-past-question="q2"]')).toHaveAttribute("data-landed", "");
+  await expect(action(page, "back")).toBeVisible();
+
+  await shoryo.submit();
+  await shoryo.round({ subject: "Next", questions: [question("q6", "Anything else?")] });
+
+  await expect(page.locator('[data-panel=current] [data-card="q6"]')).toBeAttached();
+  await expect(action(page, "back")).toHaveCount(0);
+});

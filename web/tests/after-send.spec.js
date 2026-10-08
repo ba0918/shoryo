@@ -76,8 +76,8 @@ test("a_change_of_the_llm_status_leaves_the_opened_request_open_and_the_focus_in
   const earlier = await shoryo.wait();
   const request = banner(page).locator("details");
   await request.locator("summary").click();
-  const picture = action(banner(page), "finished-picture");
-  await picture.focus();
+  const theme = action(banner(page), "theme");
+  await theme.focus();
 
   const waiting = shoryo.waitAfter(
     earlier.map((event) => event.id),
@@ -86,7 +86,7 @@ test("a_change_of_the_llm_status_leaves_the_opened_request_open_and_the_focus_in
   await expect(agentStatus(page)).toHaveAttribute("data-agent-status", "waiting");
 
   await expect(request).toHaveJSProperty("open", true);
-  await expect(picture).toBeFocused();
+  await expect(theme).toBeFocused();
   await waiting;
 });
 

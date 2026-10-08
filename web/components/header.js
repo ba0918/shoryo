@@ -1,7 +1,8 @@
 // The thin header fixed at the top: "Back" while there is somewhere to go back to, the
-// topic's title with the original request on demand, and on the right what the LLM is doing,
-// the finished picture, the theme icon and the language switch
-// (docs/spec/screen.md, "ヘッダーと切替", "移動と現在地").
+// topic's title with the original request on demand, and on the right, in this order, what the
+// LLM is doing, the notice that the settings file is unreadable, the theme icon and the
+// language switch (docs/spec/screen.md, "ヘッダーと切替", "移動と現在地"). The tabs and the
+// finished picture sit in the row below.
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 
@@ -102,20 +103,10 @@ export class Header extends Component {
         h(
           "div",
           { class: "topbar-tools" },
+          this.status.el,
           data.unreadable
             ? h("p", { class: "config-notice", role: "status", "data-config-unreadable": true }, t("header.config-unreadable"))
             : null,
-          this.status.el,
-          h(
-            "button",
-            {
-              type: "button",
-              class: "btn small",
-              "data-action": "finished-picture",
-              onclick: () => this.emit({ type: "show-finished-picture" }),
-            },
-            t("header.finished-picture"),
-          ),
           h(
             "button",
             {
@@ -155,24 +146,41 @@ export class Header extends Component {
   }
 }
 
+/// The tab row: the four tabs, and at its right end the finished picture, which every tab
+/// can open.
 export class Tabs extends Component {
   draw(state) {
     const t = translator(state.lang);
     return h(
-      "nav",
-      { class: "tabs", role: "tablist" },
-      state.tabs.map((tab) =>
-        h(
-          "button",
-          {
-            type: "button",
-            role: "tab",
-            "aria-selected": String(tab.id === state.current),
-            "data-tab": tab.id,
-            onclick: () => this.emit({ type: "tab", tab: tab.id }),
-          },
-          t(`tab.${tab.id}`),
+      "div",
+      { class: "tab-row", "data-tab-row": true },
+      h(
+        "nav",
+        { class: "tabs", role: "tablist" },
+        state.tabs.map((tab) =>
+          h(
+            "button",
+            {
+              type: "button",
+              role: "tab",
+              "aria-selected": String(tab.id === state.current),
+              "data-tab": tab.id,
+              onclick: () => this.emit({ type: "tab", tab: tab.id }),
+            },
+            t(`tab.${tab.id}`),
+          ),
         ),
+      ),
+      h(
+        "button",
+        {
+          type: "button",
+          class: "btn small finished-picture-button",
+          "data-action": "finished-picture",
+          "data-focus": "finished-picture",
+          onclick: () => this.emit({ type: "show-finished-picture" }),
+        },
+        t("header.finished-picture"),
       ),
     );
   }
