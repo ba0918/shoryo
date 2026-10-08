@@ -3,7 +3,7 @@
 All notable changes to shoryo are recorded here. The version follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] - 2026-10-08
 
 The first release.
 
@@ -37,10 +37,16 @@ The first release.
 - The screen's language (English or Japanese) and theme (light, dark or following the OS) are
   switched from its header and kept in the per-user config file (`~/.config/shoryo/config.toml`
   on Linux).
+- The header shows "Waiting for your action" while the agent's `wait` command is active,
+  without claiming the model is processing. After submission, a persistent footer waits for
+  the next round or the topic's end and suggests checking the agent after three minutes.
 - A topic's data is one JSON file per topic in the per-user data directory
   (`~/.local/share/shoryo/` on Linux), never in the repository, and is never deleted by shoryo.
   Stamp and send times use the server's UTC clock; each round keeps its picture and records.
 - The shoryo skill (`skills/shoryo/`) tells a coding agent how to run a brainstorm through these
-  commands; it is installed by copying or linking it into the agent's skill directory.
+  commands; install it with `gh skill install ba0918/shoryo shoryo` and select your agent
+  and installation scope.
 - Releases carry a static Linux x86_64 binary that mise's github backend can install
   (`mise use -g github:ba0918/shoryo`).
+
+[0.1.0]: https://github.com/ba0918/shoryo/releases/tag/v0.1.0
