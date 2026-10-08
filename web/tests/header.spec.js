@@ -96,6 +96,22 @@ test.describe("with a readable config", () => {
   });
 });
 
+test("back_control_is_in_the_header_and_only_when_there_is_history", async ({ shoryo, page }) => {
+  await twoRounds(shoryo);
+  await page.goto(shoryo.url);
+  await expect(action(page, "back")).toHaveCount(0);
+
+  await tab(page, "map").click();
+  await page.locator('[data-map] [data-map-node="d:d1"]').click();
+  const back = action(banner(page), "back");
+  await expect(back).toBeVisible();
+  await page.mouse.wheel(0, 4000);
+  await expect(back).toBeInViewport();
+
+  await back.click();
+  await expect(action(page, "back")).toHaveCount(0);
+});
+
 test("header_stays_fixed_while_scrolling", async ({ shoryo, page }) => {
   await shoryo.round({
     ...roundOne,

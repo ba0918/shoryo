@@ -64,10 +64,6 @@ const dialogs = new DialogLayer(emit, {
     };
   },
 });
-const back = h(
-  "button",
-  { type: "button", class: "btn quiet small back", "data-action": "back", hidden: true, onclick: () => emit({ type: "back" }) },
-);
 const error = h("p", { class: "error", role: "alert", hidden: true });
 const panels = Object.fromEntries(
   TABS.map((tab) => [tab.id, h("section", { class: "panel", role: "tabpanel", "data-panel": tab.id })]),
@@ -77,7 +73,7 @@ panels.past.appendChild(past.el);
 panels.decisions.appendChild(decisions.el);
 panels.map.appendChild(map.el);
 
-const page = h("main", { class: "page" }, ended, h("div", { class: "nav-row" }, tabs.el, back), error, ...Object.values(panels));
+const page = h("main", { class: "page" }, ended, h("div", { class: "nav-row" }, tabs.el), error, ...Object.values(panels));
 document.body.append(header.el, page, dialogs.el);
 
 function render() {
@@ -91,13 +87,12 @@ function render() {
     lang,
     theme: ui.config.theme,
     unreadable: ui.config.unreadable,
+    canGoBack: ui.history.length > 0,
   });
   tabs.update({ tabs: TABS, current: ui.tab, lang });
   for (const [id, panel] of Object.entries(panels)) panel.hidden = id !== ui.tab;
   ended.hidden = !view.topic.ended;
   ended.textContent = t("screen.ended");
-  back.hidden = ui.history.length === 0;
-  back.textContent = t("screen.back");
   current.update(currentRoundData(shown, ui.landed), lang);
   past.update(pastRoundsData(shown, ui.pastRound, ui.landed));
   map.update({ ...mapData(shown, ui.mapRange, ui.mapSelected, ui.mapRoot), view: ui.mapView ?? DEFAULT_VIEW, visible: ui.tab === "map" });

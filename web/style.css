@@ -527,6 +527,11 @@ textarea:disabled {
   line-height: 1.35;
 }
 
+.topbar .back {
+  flex: none;
+  margin-left: -0.6rem;
+}
+
 .page {
   max-width: var(--page-max);
   margin: 0 auto;

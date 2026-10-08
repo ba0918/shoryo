@@ -1,6 +1,6 @@
-// The thin header fixed at the top: the topic's title with the original request on demand,
-// and on the right the finished picture, the theme icon and the language switch
-// (docs/spec/screen.md, "ヘッダーと切替").
+// The thin header fixed at the top: "Back" while there is somewhere to go back to, the
+// topic's title with the original request on demand, and on the right the finished picture,
+// the theme icon and the language switch (docs/spec/screen.md, "ヘッダーと切替", "移動と現在地").
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 
@@ -44,6 +44,14 @@ export class Header extends Component {
       h(
         "div",
         { class: "topbar-inner" },
+        data.canGoBack
+          ? h(
+              "button",
+              { type: "button", class: "btn quiet small back", "data-action": "back", onclick: () => this.emit({ type: "back" }) },
+              h("span", { "aria-hidden": "true" }, "←"),
+              t("screen.back"),
+            )
+          : null,
         h(
           "div",
           { class: "topbar-title" },
