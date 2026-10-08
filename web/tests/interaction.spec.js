@@ -59,11 +59,39 @@ test("reply_arriving_while_typing_keeps_the_focus_in_the_field", async ({ shoryo
   await field.press("Enter");
   const ask = (await shoryo.wait()).find(event => event.kind === "ask").ask;
   await field.fill("An unfinished second ask");
+  await field.evaluate(input => input.setSelectionRange(3, 13, "backward"));
   await shoryo.reply(ask, { text: "Reply while typing" });
+  await expect(card(page, "q2").getByText("Reply while typing")).toBeVisible();
   await expect(field).toBeFocused();
   await expect(field).toHaveValue("An unfinished second ask");
+  expect(await field.evaluate(input => [input.selectionStart, input.selectionEnd, input.selectionDirection])).toEqual([3, 13, "backward"]);
   await page.getByRole("heading", { level: 1 }).click();
-  await expect(card(page, "q2").getByText("Reply while typing")).toBeVisible();
+  await expect(field).toHaveValue("An unfinished second ask");
+  await field.press("Enter");
+  expect((await shoryo.wait()).filter(event => event.kind === "ask").at(-1).text).toBe("An unfinished second ask");
+});
+
+test("reply_arriving_during_input_conversion_keeps_the_editor_and_does_not_send_the_conversion", async ({ shoryo, page }) => {
+  const field = card(page, "q2").locator("[data-field=ask]");
+  await field.fill("First ask");
+  await field.press("Enter");
+  const ask = (await shoryo.wait()).find(event => event.kind === "ask").ask;
+  await field.fill("変換中");
+  await field.evaluate(input => {
+    window.editorBlurred = false;
+    input.addEventListener("blur", () => { window.editorBlurred = true; }, { once: true });
+    input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "変換中" }));
+  });
+  await shoryo.reply(ask, { text: "Reply during conversion" });
+  await expect(card(page, "q2").getByText("Reply during conversion")).toBeVisible();
+  await expect(field).toBeFocused();
+  expect(await page.evaluate(() => window.editorBlurred)).toBe(false);
+  await field.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+  await expect(field).toHaveValue("変換中");
+  await field.dispatchEvent("compositionend", { data: "変換済み" });
+  await field.fill("変換済み");
+  await field.press("Enter");
+  expect((await shoryo.wait()).filter(event => event.kind === "ask").map(event => event.text)).toEqual(["First ask", "変換済み"]);
 });
 
 test("reduced_motion_stops_the_status_dot_the_typing_dots_and_the_toasts", async ({ shoryo, page }) => {

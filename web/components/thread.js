@@ -138,8 +138,8 @@ function sendIcon() {
 
 function askBox(question, local, onLocal, emit, t) {
   const following = question.asks.find((ask) => ask.id === local.follows);
-  // An emptied field holds nothing to lose, so the card can redraw at once.
-  const send = () => {
+  const send = (from) => {
+    const input = from.closest(".ask-box").querySelector("textarea");
     const text = input.value;
     if (!text.trim()) return;
     input.value = "";
@@ -160,7 +160,7 @@ function askBox(question, local, onLocal, emit, t) {
     onkeydown: (event) => {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
-      send();
+      send(event.currentTarget);
     },
   });
   return h(
@@ -182,8 +182,7 @@ function askBox(question, local, onLocal, emit, t) {
     h(
       "div",
       { class: "quick-asks" },
-      // A suggestion only fills the field: a mistaken press must not reach the LLM. The card is
-      // not redrawn, and the focus stays in the field so a redraw waits for what it holds.
+      // A suggestion only fills the field: a mistaken press must not reach the LLM.
       QUICK_ASKS.map((key) =>
         h(
           "button",
@@ -191,7 +190,8 @@ function askBox(question, local, onLocal, emit, t) {
             type: "button",
             class: "chip",
             "data-action": "quick-ask",
-            onclick: () => {
+            onclick: (event) => {
+              const input = event.currentTarget.closest(".ask-box").querySelector("textarea");
               input.value = t(key);
               input.focus();
               input.setSelectionRange(input.value.length, input.value.length);
@@ -213,10 +213,9 @@ function askBox(question, local, onLocal, emit, t) {
           "data-action": "ask",
           "aria-label": t("thread.send"),
           title: t("thread.send"),
-          // Pressing must not take the focus from the field: losing it lets a waiting redraw
-          // replace this button before the click lands.
+          // Keep the editor's selection intact when sending with the pointer.
           onmousedown: (event) => event.preventDefault(),
-          onclick: send,
+          onclick: (event) => send(event.currentTarget),
         },
         sendIcon(),
       ),

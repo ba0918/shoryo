@@ -2,12 +2,16 @@
 // puts strings in as text (so text the LLM wrote can never become markup), and
 // `Component`, which redraws itself only when its view data changes.
 
+const listeners = new WeakMap();
+
 export function h(tag, attrs = {}, ...children) {
   const element = document.createElement(tag);
+  const events = [];
   for (const [name, value] of Object.entries(attrs)) {
     if (value === undefined || value === null || value === false) continue;
     if (name.startsWith("on") && typeof value === "function") {
       element.addEventListener(name.slice(2), value);
+      events.push([name.slice(2), value]);
     } else if (name === "class") {
       element.className = value;
     } else if (["checked", "disabled", "selected", "value", "open", "hidden"].includes(name)) {
@@ -17,6 +21,7 @@ export function h(tag, attrs = {}, ...children) {
     }
   }
   append(element, children);
+  listeners.set(element, events);
   return element;
 }
 
@@ -29,11 +34,40 @@ function append(element, children) {
   }
 }
 
-/// A text field the person is writing in: redrawing it would take away what is typed.
-const typing = (element) =>
+const textField = (element) =>
   (element instanceof HTMLTextAreaElement ||
-    (element instanceof HTMLInputElement && element.type === "text")) &&
-  element.value !== "";
+    (element instanceof HTMLInputElement && element.type === "text"));
+
+function retainEditor(current, next, editor, replacement) {
+  for (const attr of [...current.attributes]) if (!next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+  for (const attr of next.attributes) current.setAttribute(attr.name, attr.value);
+  for (const [name, handler] of listeners.get(current) ?? []) current.removeEventListener(name, handler);
+  const events = listeners.get(next) ?? [];
+  for (const [name, handler] of events) current.addEventListener(name, handler);
+  listeners.set(current, events);
+  if (current === editor) return;
+
+  const branch = [...current.childNodes].find(child => child === editor || child.contains?.(editor));
+  let cursor = current.firstChild;
+  for (const child of [...next.childNodes]) {
+    if (child === replacement || child.contains?.(replacement)) {
+      while (cursor !== branch) {
+        const removed = cursor;
+        cursor = cursor.nextSibling;
+        removed.remove();
+      }
+      retainEditor(branch, child, editor, replacement);
+      cursor = branch.nextSibling;
+    } else {
+      current.insertBefore(child, cursor);
+    }
+  }
+  while (cursor) {
+    const removed = cursor;
+    cursor = cursor.nextSibling;
+    removed.remove();
+  }
+}
 
 /// A region of the screen. Subclasses implement `draw(data)`, returning one element, and may
 /// keep their own local state in fields. `emit` reports the person's actions upwards.
@@ -43,7 +77,6 @@ export class Component {
     this.el = document.createComment("component");
     this.key = undefined;
     this.data = undefined;
-    this.pending = false;
   }
 
   update(data) {
@@ -57,19 +90,19 @@ export class Component {
 
   redraw() {
     const active = document.activeElement;
-    if (this.el.contains?.(active) && typing(active)) {
-      // Redrawing would take the text field away while the person types; wait for blur.
-      if (!this.pending) {
-        this.pending = true;
-        active.addEventListener("blur", () => {
-          this.pending = false;
-          this.redraw();
-        }, { once: true });
-      }
+    const focused = this.el.contains?.(active) ? active.dataset.focus : undefined;
+    const drafts = [...this.el.querySelectorAll?.('textarea[data-field="ask"]') ?? []];
+    const next = this.draw(this.data);
+    for (const field of drafts) {
+      const replacement = next.querySelector(`[data-focus="${CSS.escape(field.dataset.focus)}"]`);
+      if (replacement) replacement.value = field.value;
+    }
+    const replacement = focused ? next.querySelector(`[data-focus="${CSS.escape(focused)}"]`) : null;
+    if (replacement && textField(active)) {
+      // Replacing and refocusing the editor interrupts the browser's input-method conversion.
+      retainEditor(this.el, next, active, replacement);
       return;
     }
-    const focused = this.el.contains?.(active) ? active.dataset.focus : undefined;
-    const next = this.draw(this.data);
     this.el.replaceWith(next);
     this.el = next;
     if (focused) next.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus();
