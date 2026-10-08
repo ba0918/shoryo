@@ -138,7 +138,6 @@ export function details(question) {
 /// The note sent with the answer, labelled as such, under the answer. A past question shows
 /// it only when it was sent with one.
 export function noteField(question, emit) {
-  const save = noteSaver(question, emit);
   if (question.past && question.note === "") return null;
   const t = translator(question.lang);
   return h(
@@ -150,8 +149,8 @@ export function noteField(question, emit) {
       value: question.note,
       disabled: question.locked,
       "data-focus": `note-${question.id}`,
-      oninput: (event) => save.later(event.target.value),
-      onchange: (event) => save.now(event.target.value),
+      oninput: (event) => noteSaver(event.target, question, emit).later(event.target.value),
+      onchange: (event) => noteSaver(event.target, question, emit).now(event.target.value),
     }),
   );
 }
@@ -178,8 +177,12 @@ export function deferSwitch(question, emit) {
 
 /// How long typing pauses before the note is saved, so a closed page keeps what was typed.
 const NOTE_PAUSE_MS = 400;
+// A redraw must not give a retained editor a second saver whose timer cannot cancel the first.
+const noteSavers = new WeakMap();
 
-function noteSaver(question, emit) {
+function noteSaver(field, question, emit) {
+  const existing = noteSavers.get(field);
+  if (existing) return existing;
   let timer = null;
   let saved = question.note;
   const now = (text) => {
@@ -192,7 +195,9 @@ function noteSaver(question, emit) {
     clearTimeout(timer);
     timer = setTimeout(() => now(text), NOTE_PAUSE_MS);
   };
-  return { now, later };
+  const saver = { now, later };
+  noteSavers.set(field, saver);
+  return saver;
 }
 
 /// 判子: pressed by the person, or pre-approved by the LLM; pressing a pressed stamp lifts it.

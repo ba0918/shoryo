@@ -160,3 +160,38 @@ test("provisional_row_keeps_keyboard_focus_on_its_toggle_when_opened_and_folded"
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(toggle).toBeFocused();
 });
+
+test("reply_during_note_editing_does_not_overwrite_the_completed_note_with_older_text", async ({ shoryo, page, request }) => {
+  await shoryo.op({ op: "ask", question: "q2", text: "Explain this answer" });
+  const ask = (await shoryo.wait()).find(event => event.kind === "ask").ask;
+  await expect(card(page, "q2").locator("[data-mark=writing]")).toBeVisible();
+  await page.clock.install({ time: new Date("2026-10-08T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-10-08T12:00:01Z"));
+  const pending = new Set();
+  page.on("request", incoming => {
+    if (incoming.url().endsWith("/api/op")) pending.add(incoming);
+  });
+  const finished = incoming => pending.delete(incoming);
+  page.on("requestfinished", finished);
+  page.on("requestfailed", finished);
+  const note = card(page, "q2").locator('[data-field=note] textarea');
+  await note.fill("A");
+  await page.clock.runFor(100);
+  await shoryo.reply(ask, { text: "Reply during note editing" });
+  await expect(card(page, "q2").getByText("Reply during note editing")).toBeVisible();
+  await expect(note).toBeFocused();
+  await expect(note).toHaveValue("A");
+  await note.fill("AB");
+  await page.clock.runFor(100);
+  await page.getByRole("heading", { level: 1 }).click();
+  const storedNote = async () => {
+    const view = await (await request.get(`${shoryo.url}api/view`)).json();
+    return view.topic.rounds.at(-1).questions.find(question => question.id === "q2").answer.note;
+  };
+  await expect.poll(storedNote).toBe("AB");
+  await page.clock.runFor(1000);
+  await expect.poll(() => pending.size).toBe(0);
+  await expect.poll(storedNote).toBe("AB");
+  await page.reload();
+  await expect(note).toHaveValue("AB");
+});
