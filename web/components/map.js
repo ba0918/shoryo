@@ -3,6 +3,7 @@
 // in a layer of their own above the page, so they are never clipped and never move the map.
 import { Component, h } from "../dom.js";
 import { fitLines } from "../measure.js";
+import { PanZoom, clamp } from "../pan-zoom.js";
 import { translator } from "../strings.js";
 import { reviewControls } from "./decision-item.js";
 
@@ -18,16 +19,10 @@ const TEXT_W = NODE_W - 2 * TEXT_X;
 /// An edge's name sits in the gap left of the point it leads to, inside that point's row.
 const LABEL_GAP = 8;
 const LABEL_W = COLUMN_W - NODE_W - 2 * LABEL_GAP;
-/// The least zoom the person can reach by hand; "fit" goes below it when the whole range
-/// needs that, and zooming in or out from there never jumps back up to it.
-const MIN_ZOOM = 0.2;
-const MAX_ZOOM = 3;
-/// A floor for "fit", so an area with no size never gives a zoom of zero.
-const FIT_MIN_ZOOM = 0.01;
+/// The most "fit" zooms in on a small range.
+const FIT_MAX_ZOOM = 1.5;
 /// Below this zoom the edges' names are left out unless their point is hovered or selected.
 const FAR_ZOOM = 0.65;
-/// How far a pointer moves before a press becomes a drag rather than a click.
-const DRAG_PX = 4;
 const WHEEL_IDLE_MS = 250;
 
 export const DEFAULT_VIEW = { x: 0, y: 0, k: 1 };
@@ -50,8 +45,6 @@ function lines(values, attrs, x, y, step) {
   });
 }
 
-const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
-
 export class MapTab extends Component {
   constructor(emit) {
     super(emit);
@@ -68,13 +61,13 @@ export class MapTab extends Component {
 
   draw(map) {
     const t = translator(map.lang);
-    this.view = { ...(map.view ?? DEFAULT_VIEW) };
+    const view = { ...(map.view ?? DEFAULT_VIEW) };
     this.hover.hidden = true;
-    const { svg, size } = this.svg(map, t);
+    const { svg, size } = this.svg(map, view, t);
     this.size = size;
     const wrap = h("div", { class: "map-wrap", "data-map": true }, svg);
     this.wrap = wrap;
-    this.listen(wrap);
+    this.zoom = new PanZoom(wrap, view, (next, commit) => this.apply(next, commit));
     requestAnimationFrame(() => this.fillDetails(map, t));
     return h(
       "div",
@@ -103,9 +96,9 @@ export class MapTab extends Component {
         h(
           "div",
           { class: "map-zoom seg-group", role: "group", "aria-label": t("map.zoom") },
-          h("button", { type: "button", class: "seg", "data-action": "map-zoom-out", "data-focus": "map-zoom-out", "aria-label": t("map.zoom-out"), onclick: () => this.zoomBy(1 / 1.25) }, "−"),
-          h("button", { type: "button", class: "seg", "data-action": "map-fit", "data-focus": "map-fit", onclick: () => this.fit() }, t("map.fit")),
-          h("button", { type: "button", class: "seg", "data-action": "map-zoom-in", "data-focus": "map-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => this.zoomBy(1.25) }, "+"),
+          h("button", { type: "button", class: "seg", "data-action": "map-zoom-out", "data-focus": "map-zoom-out", "aria-label": t("map.zoom-out"), onclick: () => this.zoom.zoomBy(1 / 1.25) }, "−"),
+          h("button", { type: "button", class: "seg", "data-action": "map-fit", "data-focus": "map-fit", onclick: () => this.zoom.fit(this.size, FIT_MAX_ZOOM) }, t("map.fit")),
+          h("button", { type: "button", class: "seg", "data-action": "map-zoom-in", "data-focus": "map-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => this.zoom.zoomBy(1.25) }, "+"),
         ),
         h("span", { class: "map-hint" }, map.range === "path" && !map.root ? t("map.pick-for-path") : t("map.how-to-move")),
       ),
@@ -113,12 +106,11 @@ export class MapTab extends Component {
     );
   }
 
-  svg(map, t) {
+  svg(map, view, t) {
     const height = TOP + Math.max(1, ...map.columns.map((c) => c.nodes.length)) * ROW_H + PAD;
     const width = PAD * 2 + Math.max(1, map.columns.length) * COLUMN_W;
-    const k = this.view.k;
-    const svg = el("svg", { class: `map${k < FAR_ZOOM ? " far" : ""}`, width: "100%", height: "100%" });
-    const content = el("g", { class: "map-content", transform: this.transform() });
+    const svg = el("svg", { class: `map${view.k < FAR_ZOOM ? " far" : ""}`, width: "100%", height: "100%" });
+    const content = el("g", { class: "map-content", transform: transform(view) });
     this.content = content;
     const at = new Map();
     map.columns.forEach((column, x) => {
@@ -195,7 +187,7 @@ export class MapTab extends Component {
         : null,
     );
     group.addEventListener("click", () => {
-      if (this.dragged) return;
+      if (this.zoom.dragged) return;
       this.emit({ type: "select-node", key: node.key });
     });
     group.addEventListener("keydown", (event) => {
@@ -205,7 +197,7 @@ export class MapTab extends Component {
       }
     });
     group.addEventListener("pointerenter", (event) => {
-      if (event.pointerType === "mouse" && !this.panning) this.showHover(node, group, t);
+      if (event.pointerType === "mouse" && !this.zoom.panning) this.showHover(node, group, t);
     });
     group.addEventListener("pointerleave", () => this.hideHover(node));
     return group;
@@ -288,110 +280,20 @@ export class MapTab extends Component {
     place(this.details, group.getBoundingClientRect());
   }
 
-  transform(view = this.view) {
-    return `translate(${view.x} ${view.y}) scale(${view.k})`;
-  }
-
   /// Shows a view while a gesture goes on; `commit` hands it up once the gesture ends, which
   /// is what "Back" returns to.
   apply(view, commit) {
-    this.view = view;
-    this.content.setAttribute("transform", this.transform());
+    this.content.setAttribute("transform", transform(view));
     this.content.ownerSVGElement.classList.toggle("far", view.k < FAR_ZOOM);
     this.hover.hidden = true;
     this.placeDetails();
     clearTimeout(this.idle);
-    if (commit === "now") this.emit({ type: "map-view", view: { ...this.view } });
-    if (commit === "idle") this.idle = setTimeout(() => this.emit({ type: "map-view", view: { ...this.view } }), WHEEL_IDLE_MS);
-  }
-
-  zoomAt(factor, cx, cy, commit) {
-    const v = this.view;
-    const k = clamp(v.k * factor, Math.min(MIN_ZOOM, v.k), MAX_ZOOM);
-    const ratio = k / v.k;
-    this.apply({ k, x: cx - (cx - v.x) * ratio, y: cy - (cy - v.y) * ratio }, commit);
-  }
-
-  zoomBy(factor) {
-    const box = this.wrap.getBoundingClientRect();
-    this.zoomAt(factor, box.width / 2, box.height / 2, "now");
-  }
-
-  /// Fits every point of the range into the area.
-  fit() {
-    const box = this.wrap.getBoundingClientRect();
-    const k = clamp(Math.min(box.width / this.size.width, box.height / this.size.height), FIT_MIN_ZOOM, 1.5);
-    this.apply({ k, x: (box.width - this.size.width * k) / 2, y: (box.height - this.size.height * k) / 2 }, "now");
-  }
-
-  /// Wheel and pinch zoom, and mouse or touch drag to move, all inside the map's area.
-  listen(wrap) {
-    const pointers = new Map();
-    let gesture = null;
-    const local = (event) => {
-      const box = wrap.getBoundingClientRect();
-      return { x: event.clientX - box.left, y: event.clientY - box.top };
-    };
-    wrap.addEventListener(
-      "wheel",
-      (event) => {
-        event.preventDefault();
-        const p = local(event);
-        this.zoomAt(Math.exp(-event.deltaY * 0.0015), p.x, p.y, "idle");
-      },
-      { passive: false },
-    );
-    wrap.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      pointers.set(event.pointerId, local(event));
-      this.dragged = false;
-      gesture = { view: { ...this.view }, start: [...pointers.values()].map((p) => ({ ...p })) };
-    });
-    wrap.addEventListener("pointermove", (event) => {
-      if (!pointers.has(event.pointerId) || !gesture) return;
-      pointers.set(event.pointerId, local(event));
-      const now = [...pointers.values()];
-      if (now.length === 1 && gesture.start.length === 1) {
-        const dx = now[0].x - gesture.start[0].x;
-        const dy = now[0].y - gesture.start[0].y;
-        if (!this.panning && Math.hypot(dx, dy) < DRAG_PX) return;
-        if (!this.panning) wrap.setPointerCapture(event.pointerId);
-        this.panning = true;
-        this.dragged = true;
-        this.apply({ ...gesture.view, x: gesture.view.x + dx, y: gesture.view.y + dy });
-      } else if (now.length === 2) {
-        if (gesture.start.length !== 2) gesture = { view: { ...this.view }, start: now.map((p) => ({ ...p })) };
-        const [a, b] = gesture.start;
-        const [c, d] = now;
-        const before = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-        const factor = Math.hypot(c.x - d.x, c.y - d.y) / before;
-        const k = clamp(gesture.view.k * factor, Math.min(MIN_ZOOM, gesture.view.k), MAX_ZOOM);
-        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        const to = { x: (c.x + d.x) / 2, y: (c.y + d.y) / 2 };
-        const ratio = k / gesture.view.k;
-        this.panning = true;
-        this.dragged = true;
-        this.apply({ k, x: to.x - (mid.x - gesture.view.x) * ratio, y: to.y - (mid.y - gesture.view.y) * ratio });
-      }
-    });
-    const end = (event) => {
-      if (!pointers.delete(event.pointerId)) return;
-      if (pointers.size > 0) {
-        gesture = { view: { ...this.view }, start: [...pointers.values()].map((p) => ({ ...p })) };
-        return;
-      }
-      gesture = null;
-      if (this.panning) {
-        this.panning = false;
-        this.apply(this.view, "now");
-        // The click that ends a drag is not a selection.
-        setTimeout(() => (this.dragged = false), 0);
-      }
-    };
-    wrap.addEventListener("pointerup", end);
-    wrap.addEventListener("pointercancel", end);
+    if (commit === "now") this.emit({ type: "map-view", view: { ...view } });
+    if (commit === "idle") this.idle = setTimeout(() => this.emit({ type: "map-view", view: { ...view } }), WHEEL_IDLE_MS);
   }
 }
+
+const transform = (view) => `translate(${view.x} ${view.y}) scale(${view.k})`;
 
 /// Puts a floating box beside `anchor` (a viewport rectangle): right of it when there is
 /// room, otherwise left, and always inside the viewport below the fixed header. A box taller
