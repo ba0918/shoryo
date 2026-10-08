@@ -2,6 +2,7 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod app;
+mod clock;
 pub mod config;
 pub mod location;
 pub mod store;

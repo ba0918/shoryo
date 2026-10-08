@@ -1,10 +1,10 @@
 use serde_json::json;
 use shoryo_core::{
     AskId, AskState, Class, DecisionId, EventKind, Operation, OperationRefusal, QuestionId, Reply,
-    Stamp, Topic,
+    Stamp, Timestamp, Topic,
 };
 
-use crate::common::{decision, question, round, submit_current};
+use crate::common::{any_time, decision, question, round, submit_current};
 
 fn q(id: &str) -> QuestionId {
     QuestionId::new(id)
@@ -58,10 +58,13 @@ fn choosing_an_option_selects_it() {
     let mut topic = topic_on_a_round();
 
     topic
-        .apply(Operation::Choose {
-            question: q("q2"),
-            option: 1,
-        })
+        .apply(
+            Operation::Choose {
+                question: q("q2"),
+                option: 1,
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(current_answer(&topic, "q2").selected, 1);
@@ -72,10 +75,13 @@ fn choosing_a_missing_option_is_refused() {
     let mut topic = topic_on_a_round();
 
     let refusal = topic
-        .apply(Operation::Choose {
-            question: q("q2"),
-            option: 5,
-        })
+        .apply(
+            Operation::Choose {
+                question: q("q2"),
+                option: 5,
+            },
+            any_time(),
+        )
         .unwrap_err();
 
     assert_eq!(refusal, OperationRefusal::UnknownOption { option: 5 });
@@ -86,10 +92,13 @@ fn writing_a_note_keeps_it() {
     let mut topic = topic_on_a_round();
 
     topic
-        .apply(Operation::Note {
-            question: q("q2"),
-            text: "Only for now.".into(),
-        })
+        .apply(
+            Operation::Note {
+                question: q("q2"),
+                text: "Only for now.".into(),
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(current_answer(&topic, "q2").note, "Only for now.");
@@ -100,17 +109,23 @@ fn defer_switch_can_be_set_and_cleared() {
     let mut topic = topic_on_a_round();
 
     topic
-        .apply(Operation::Defer {
-            question: q("q2"),
-            deferred: true,
-        })
+        .apply(
+            Operation::Defer {
+                question: q("q2"),
+                deferred: true,
+            },
+            any_time(),
+        )
         .unwrap();
     assert!(current_answer(&topic, "q2").deferred);
     topic
-        .apply(Operation::Defer {
-            question: q("q2"),
-            deferred: false,
-        })
+        .apply(
+            Operation::Defer {
+                question: q("q2"),
+                deferred: false,
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert!(!current_answer(&topic, "q2").deferred);
@@ -121,7 +136,7 @@ fn swapping_class_moves_question_and_records_event() {
     let mut topic = topic_on_a_round();
 
     topic
-        .apply(Operation::SwapClass { question: q("q3") })
+        .apply(Operation::SwapClass { question: q("q3") }, any_time())
         .unwrap();
 
     let swapped = topic.current_round().unwrap().questions[1].class;
@@ -140,11 +155,14 @@ fn asking_records_a_waiting_ask_and_an_event() {
     let mut topic = topic_on_a_round();
 
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
 
     let ask = &topic.current_round().unwrap().asks[0];
@@ -165,20 +183,26 @@ fn asking_records_a_waiting_ask_and_an_event() {
 fn follow_up_names_the_ask_it_continues() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
     let first = topic.current_round().unwrap().asks[0].id;
 
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "And then?".into(),
-            follows: Some(first),
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "And then?".into(),
+                follows: Some(first),
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(topic.current_round().unwrap().asks[1].follows, Some(first));
@@ -189,11 +213,14 @@ fn follow_up_to_an_unknown_ask_is_refused() {
     let mut topic = topic_on_a_round();
 
     let refusal = topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "And then?".into(),
-            follows: Some(AskId(99)),
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "And then?".into(),
+                follows: Some(AskId(99)),
+            },
+            any_time(),
+        )
         .unwrap_err();
 
     assert_eq!(refusal, OperationRefusal::UnknownAsk { ask: AskId(99) });
@@ -203,20 +230,26 @@ fn follow_up_to_an_unknown_ask_is_refused() {
 fn follow_up_to_an_ask_of_another_question_is_refused() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Ask {
-            question: q("q3"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q3"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
     let other = topic.current_round().unwrap().asks[0].id;
 
     let refusal = topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "And then?".into(),
-            follows: Some(other),
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "And then?".into(),
+                follows: Some(other),
+            },
+            any_time(),
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -231,7 +264,7 @@ fn review_request_marks_decision_in_review_and_records_event() {
     let mut topic = topic_on_a_round();
 
     topic
-        .apply(Operation::RequestReview { decision: d("d1") })
+        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
         .unwrap();
 
     assert!(topic.is_in_review(&d("d1")));
@@ -245,11 +278,11 @@ fn review_request_marks_decision_in_review_and_records_event() {
 fn stopping_review_request_removes_in_review() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::RequestReview { decision: d("d1") })
+        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
         .unwrap();
 
     topic
-        .apply(Operation::StopReview { decision: d("d1") })
+        .apply(Operation::StopReview { decision: d("d1") }, any_time())
         .unwrap();
 
     assert!(!topic.is_in_review(&d("d1")));
@@ -263,7 +296,7 @@ fn stopping_review_request_removes_in_review() {
 fn review_request_cannot_be_stopped_after_next_round() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::RequestReview { decision: d("d1") })
+        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
         .unwrap();
     submit_current(&mut topic).unwrap();
     topic
@@ -273,7 +306,7 @@ fn review_request_cannot_be_stopped_after_next_round() {
         .unwrap();
 
     let refusal = topic
-        .apply(Operation::StopReview { decision: d("d1") })
+        .apply(Operation::StopReview { decision: d("d1") }, any_time())
         .unwrap_err();
 
     assert_eq!(refusal, OperationRefusal::NextRoundArrived);
@@ -284,10 +317,13 @@ fn review_request_cannot_be_stopped_after_next_round() {
 fn submit_sends_every_answer_at_once() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Choose {
-            question: q("q3"),
-            option: 1,
-        })
+        .apply(
+            Operation::Choose {
+                question: q("q3"),
+                option: 1,
+            },
+            any_time(),
+        )
         .unwrap();
 
     submit_current(&mut topic).unwrap();
@@ -305,10 +341,13 @@ fn submit_sends_every_answer_at_once() {
 fn deferred_question_is_not_an_answer() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Defer {
-            question: q("q2"),
-            deferred: true,
-        })
+        .apply(
+            Operation::Defer {
+                question: q("q2"),
+                deferred: true,
+            },
+            any_time(),
+        )
         .unwrap();
 
     submit_current(&mut topic).unwrap();
@@ -345,7 +384,7 @@ fn answers_are_refused_after_submit() {
         Operation::Submit { round: 2 },
     ] {
         assert_eq!(
-            topic.apply(operation),
+            topic.apply(operation, any_time()),
             Err(OperationRefusal::RoundSubmitted)
         );
     }
@@ -356,12 +395,15 @@ fn asks_and_swaps_are_refused_after_submit() {
     let mut topic = topic_on_a_round();
     submit_current(&mut topic).unwrap();
 
-    let ask = topic.apply(Operation::Ask {
-        question: q("q2"),
-        text: "late".into(),
-        follows: None,
-    });
-    let swap = topic.apply(Operation::SwapClass { question: q("q2") });
+    let ask = topic.apply(
+        Operation::Ask {
+            question: q("q2"),
+            text: "late".into(),
+            follows: None,
+        },
+        any_time(),
+    );
+    let swap = topic.apply(Operation::SwapClass { question: q("q2") }, any_time());
 
     assert_eq!(ask, Err(OperationRefusal::RoundSubmitted));
     assert_eq!(swap, Err(OperationRefusal::RoundSubmitted));
@@ -371,7 +413,7 @@ fn asks_and_swaps_are_refused_after_submit() {
 fn unacknowledged_events_are_returned_again() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::RequestReview { decision: d("d1") })
+        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
         .unwrap();
     submit_current(&mut topic).unwrap();
 
@@ -386,7 +428,7 @@ fn unacknowledged_events_are_returned_again() {
 fn acknowledged_events_are_not_returned() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::RequestReview { decision: d("d1") })
+        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
         .unwrap();
     submit_current(&mut topic).unwrap();
     let first = topic.pending_events()[0].id;
@@ -402,11 +444,14 @@ fn acknowledged_events_are_not_returned() {
 fn reply_appears_with_its_ask() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
     let ask = topic.current_round().unwrap().asks[0].id;
     let reply = Reply {
@@ -426,11 +471,14 @@ fn reply_appears_with_its_ask() {
 fn reply_to_ask_in_submitted_round_is_kept_with_that_round() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
     let ask = topic.current_round().unwrap().asks[0].id;
     submit_current(&mut topic).unwrap();
@@ -478,11 +526,14 @@ fn wait_is_refused_after_end() {
 fn reply_is_refused_after_end() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
     let ask = topic.current_round().unwrap().asks[0].id;
     submit_current(&mut topic).unwrap();
@@ -503,11 +554,14 @@ fn reply_is_refused_after_end() {
 fn pending_ask_shows_no_reply_after_end() {
     let mut topic = topic_on_a_round();
     topic
-        .apply(Operation::Ask {
-            question: q("q2"),
-            text: "Explain more".into(),
-            follows: None,
-        })
+        .apply(
+            Operation::Ask {
+                question: q("q2"),
+                text: "Explain more".into(),
+                follows: None,
+            },
+            any_time(),
+        )
         .unwrap();
     submit_current(&mut topic).unwrap();
 
@@ -535,7 +589,10 @@ fn every_input_is_refused_after_end() {
             option: 1,
         },
     ] {
-        assert_eq!(topic.apply(operation), Err(OperationRefusal::TopicEnded));
+        assert_eq!(
+            topic.apply(operation, any_time()),
+            Err(OperationRefusal::TopicEnded)
+        );
     }
 }
 
@@ -543,7 +600,7 @@ fn every_input_is_refused_after_end() {
 fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
     let mut topic = topic_on_a_round();
 
-    let refused = topic.apply(Operation::Submit { round: 1 });
+    let refused = topic.apply(Operation::Submit { round: 1 }, any_time());
 
     assert_eq!(refused, Err(OperationRefusal::NotCurrentRound { round: 1 }));
     assert!(!topic.current_round().expect("round 2 is out").submitted);
@@ -552,15 +609,81 @@ fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
 
 fn stamp(topic: &mut Topic, id: &str, stamped: bool) {
     topic
-        .apply(Operation::Stamp {
-            question: q(id),
-            stamped,
-        })
+        .apply(
+            Operation::Stamp {
+                question: q(id),
+                stamped,
+            },
+            any_time(),
+        )
         .expect("a question of the open round can be stamped");
 }
 
 fn stamp_of(topic: &Topic, id: &str) -> Option<Stamp> {
     current_answer(topic, id).stamp
+}
+
+#[test]
+fn pressing_a_stamp_records_the_time_and_lifting_it_clears_it() {
+    let mut topic = topic_on_a_round();
+    let press = |topic: &mut Topic, stamped, at: &str| {
+        topic
+            .apply(
+                Operation::Stamp {
+                    question: q("q2"),
+                    stamped,
+                },
+                Timestamp::new(at),
+            )
+            .unwrap();
+    };
+
+    press(&mut topic, true, "2026-10-08T04:01:00.000Z");
+    let first = current_answer(&topic, "q2").stamped_at.clone();
+    press(&mut topic, true, "2026-10-08T04:02:00.000Z");
+    let pressed_twice = current_answer(&topic, "q2").stamped_at.clone();
+    press(&mut topic, false, "2026-10-08T04:03:00.000Z");
+    let lifted = current_answer(&topic, "q2").stamped_at.clone();
+    press(&mut topic, true, "2026-10-08T04:04:00.000Z");
+    let pressed_again = current_answer(&topic, "q2").stamped_at.clone();
+
+    assert_eq!(first, Some(Timestamp::new("2026-10-08T04:01:00.000Z")));
+    assert_eq!(pressed_twice, first);
+    assert_eq!(lifted, None);
+    assert_eq!(
+        pressed_again,
+        Some(Timestamp::new("2026-10-08T04:04:00.000Z"))
+    );
+}
+
+#[test]
+fn stamp_time_goes_with_the_stamp_when_the_answer_changes() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+    topic
+        .apply(
+            Operation::Choose {
+                question: q("q2"),
+                option: 1,
+            },
+            any_time(),
+        )
+        .unwrap();
+    let after_choose = current_answer(&topic, "q2").stamped_at.clone();
+    stamp(&mut topic, "q2", true);
+    topic
+        .apply(Operation::SwapClass { question: q("q2") }, any_time())
+        .unwrap();
+
+    assert_eq!(after_choose, None);
+    assert_eq!(current_answer(&topic, "q2").stamped_at, None);
+}
+
+#[test]
+fn pre_approved_stamp_has_no_time_of_its_own() {
+    let topic = topic_on_a_round();
+
+    assert_eq!(current_answer(&topic, "q3").stamped_at, None);
 }
 
 #[test]
@@ -577,17 +700,23 @@ fn changing_choice_removes_stamp_but_changing_note_does_not() {
     stamp(&mut topic, "q2", true);
 
     topic
-        .apply(Operation::Note {
-            question: q("q2"),
-            text: "Only for now.".into(),
-        })
+        .apply(
+            Operation::Note {
+                question: q("q2"),
+                text: "Only for now.".into(),
+            },
+            any_time(),
+        )
         .unwrap();
     assert_eq!(stamp_of(&topic, "q2"), Some(Stamp::Person));
     topic
-        .apply(Operation::Choose {
-            question: q("q2"),
-            option: 1,
-        })
+        .apply(
+            Operation::Choose {
+                question: q("q2"),
+                option: 1,
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(stamp_of(&topic, "q2"), None);
@@ -599,10 +728,13 @@ fn changing_defer_switch_removes_stamp() {
     stamp(&mut topic, "q2", true);
 
     topic
-        .apply(Operation::Defer {
-            question: q("q2"),
-            deferred: true,
-        })
+        .apply(
+            Operation::Defer {
+                question: q("q2"),
+                deferred: true,
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(stamp_of(&topic, "q2"), None);
@@ -625,11 +757,11 @@ fn swap_resets_stamp_to_new_class_initial_state() {
     stamp(&mut topic, "q2", true);
 
     topic
-        .apply(Operation::SwapClass { question: q("q2") })
+        .apply(Operation::SwapClass { question: q("q2") }, any_time())
         .unwrap();
     assert_eq!(stamp_of(&topic, "q2"), Some(Stamp::PreApproved));
     topic
-        .apply(Operation::SwapClass { question: q("q3") })
+        .apply(Operation::SwapClass { question: q("q3") }, any_time())
         .unwrap();
 
     assert_eq!(stamp_of(&topic, "q3"), None);
@@ -639,7 +771,7 @@ fn swap_resets_stamp_to_new_class_initial_state() {
 fn submit_is_refused_while_a_question_is_unstamped() {
     let mut topic = topic_on_a_round();
 
-    let refused = topic.apply(Operation::Submit { round: 2 });
+    let refused = topic.apply(Operation::Submit { round: 2 }, any_time());
 
     assert_eq!(
         refused,
@@ -650,7 +782,10 @@ fn submit_is_refused_while_a_question_is_unstamped() {
     assert!(!topic.current_round().unwrap().submitted);
     assert!(topic.pending_events().is_empty());
     stamp(&mut topic, "q2", true);
-    assert_eq!(topic.apply(Operation::Submit { round: 2 }), Ok(()));
+    assert_eq!(
+        topic.apply(Operation::Submit { round: 2 }, any_time()),
+        Ok(())
+    );
 }
 
 #[test]
@@ -658,13 +793,16 @@ fn deferred_question_needs_a_stamp() {
     let mut topic = topic_on_a_round();
     stamp(&mut topic, "q2", true);
     topic
-        .apply(Operation::Defer {
-            question: q("q2"),
-            deferred: true,
-        })
+        .apply(
+            Operation::Defer {
+                question: q("q2"),
+                deferred: true,
+            },
+            any_time(),
+        )
         .unwrap();
 
-    let refused = topic.apply(Operation::Submit { round: 2 });
+    let refused = topic.apply(Operation::Submit { round: 2 }, any_time());
 
     assert_eq!(
         refused,
@@ -679,7 +817,9 @@ fn submitted_event_carries_stamp_kind() {
     let mut topic = topic_on_a_round();
     stamp(&mut topic, "q2", true);
 
-    topic.apply(Operation::Submit { round: 2 }).unwrap();
+    topic
+        .apply(Operation::Submit { round: 2 }, any_time())
+        .unwrap();
 
     let EventKind::Submitted { answers, .. } = kinds(&topic)[0] else {
         panic!("expected the submitted event");
@@ -701,7 +841,9 @@ fn round_without_questions_is_submitted_with_no_answers() {
     let ids: Vec<_> = topic.pending_events().iter().map(|e| e.id).collect();
     topic.acknowledge(&ids);
 
-    topic.apply(Operation::Submit { round: 3 }).unwrap();
+    topic
+        .apply(Operation::Submit { round: 3 }, any_time())
+        .unwrap();
 
     assert_eq!(
         kinds(&topic),

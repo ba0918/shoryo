@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdout, Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
@@ -277,4 +277,47 @@ pub fn files_under(dir: &Path) -> Vec<PathBuf> {
     }
     found.sort();
     found
+}
+
+/// The test's own clock, in milliseconds since the epoch.
+pub fn clock_ms() -> i64 {
+    let since_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("the clock is after the epoch");
+    i64::try_from(since_epoch.as_millis()).expect("the time fits in i64")
+}
+
+/// A stored time read back: the instant in milliseconds since the epoch, and the offset from
+/// UTC it was written with, in minutes. Panics when `text` is not an RFC 3339 date-time.
+pub fn stored_time(text: &str) -> (i64, i64) {
+    let number = |range: std::ops::Range<usize>| -> i64 {
+        text.get(range)
+            .and_then(|digits| digits.parse().ok())
+            .unwrap_or_else(|| panic!("{text:?} is not an RFC 3339 date-time"))
+    };
+    let (year, month, day) = (number(0..4), number(5..7), number(8..10));
+    let (hour, minute, second) = (number(11..13), number(14..16), number(17..19));
+    let rest = &text[19..];
+    let zone_at = rest.find(['Z', 'z', '+', '-']).unwrap_or(rest.len());
+    let fraction = rest[..zone_at].trim_start_matches('.');
+    let millis: i64 = format!("{fraction:0<3}")[..3]
+        .parse()
+        .unwrap_or_else(|_| panic!("{text:?} has an unreadable fraction"));
+    let offset = match &rest[zone_at..] {
+        "Z" | "z" => 0,
+        zone => {
+            let sign = if zone.starts_with('-') { -1 } else { 1 };
+            let at = 19 + zone_at;
+            sign * (number(at + 1..at + 3) * 60 + number(at + 4..at + 6))
+        }
+    };
+    // Days from 1970-01-01 (Howard Hinnant's days_from_civil).
+    let shifted_year = if month <= 2 { year - 1 } else { year };
+    let era = shifted_year.div_euclid(400);
+    let year_of_era = shifted_year - era * 400;
+    let day_of_year = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    let days = era * 146_097 + day_of_era - 719_468;
+    let local_ms = ((days * 24 + hour) * 60 + minute) * 60_000 + second * 1000 + millis;
+    (local_ms - offset * 60_000, offset)
 }

@@ -7,7 +7,9 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
-use crate::state::{Ask, AskState, Class, InReview, Question, Reply, Round, Stamp, Topic};
+use crate::state::{
+    Ask, AskState, Class, InReview, Question, Reply, Round, Stamp, Timestamp, Topic,
+};
 
 /// One thing the person does on the screen.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -223,8 +225,9 @@ impl Topic {
             .collect()
     }
 
-    /// Carries out one of the person's operations; nothing changes when it is refused.
-    pub fn apply(&mut self, operation: Operation) -> Result<(), OperationRefusal> {
+    /// Carries out one of the person's operations, accepted at `now`; nothing changes when it
+    /// is refused.
+    pub fn apply(&mut self, operation: Operation, now: Timestamp) -> Result<(), OperationRefusal> {
         if self.ended {
             return Err(OperationRefusal::TopicEnded);
         }
@@ -237,7 +240,7 @@ impl Topic {
                 // A changed answer needs stamping again; the same answer keeps its stamp.
                 if q.answer.selected != option {
                     q.answer.selected = option;
-                    q.answer.stamp = None;
+                    q.answer.set_stamp(None, now);
                 }
             }
             Operation::Note { question, text } => {
@@ -247,16 +250,17 @@ impl Topic {
                 let q = self.open_question(&question)?;
                 if q.answer.deferred != deferred {
                     q.answer.deferred = deferred;
-                    q.answer.stamp = None;
+                    q.answer.set_stamp(None, now);
                 }
             }
             Operation::Stamp { question, stamped } => {
                 let q = self.open_question(&question)?;
-                q.answer.stamp = match (stamped, q.answer.stamp) {
-                    (false, _) => None,
-                    (true, Some(kept)) => Some(kept),
-                    (true, None) => Some(Stamp::Person),
-                };
+                match (stamped, q.answer.stamp) {
+                    (false, _) => q.answer.set_stamp(None, now),
+                    // Pressing a stamp already there keeps it and the time it was pressed.
+                    (true, Some(_)) => {}
+                    (true, None) => q.answer.set_stamp(Some(Stamp::Person), now),
+                }
             }
             Operation::SwapClass { question } => {
                 let q = self.open_question(&question)?;
@@ -264,7 +268,7 @@ impl Topic {
                     Class::Human => Class::Provisional,
                     Class::Provisional => Class::Human,
                 };
-                q.answer.stamp = Stamp::initial(q.class);
+                q.answer.set_stamp(Stamp::initial(q.class), now);
                 let class = q.class;
                 self.push_event(EventKind::ClassSwapped { question, class });
             }

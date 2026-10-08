@@ -22,6 +22,7 @@ use shoryo_core::{
 };
 use tokio::sync::watch;
 
+use crate::clock;
 use crate::config::{Config, ConfigChange, ConfigError, ConfigFile};
 use crate::location::TopicLocation;
 use crate::store::{self, StoredTopic};
@@ -307,7 +308,7 @@ async fn events(
 async fn operate(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
     let operation: Operation = parse(&body)?;
     shared.change_or(
-        |state| state.topic.apply(operation),
+        |state| state.topic.apply(operation, clock::now()),
         |refusal| ApiError::refused(&refusal),
     )?;
     Ok(axum::Json(shared.view()).into_response())

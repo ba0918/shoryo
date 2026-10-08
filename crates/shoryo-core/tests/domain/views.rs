@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 use shoryo_core::{DecisionId, NodeKind, Operation, QuestionId};
 
-use crate::common::{decision, question, topic_from};
+use crate::common::{any_time, decision, question, topic_from};
 
 fn names(chain: &[shoryo_core::ChainLink]) -> Vec<&str> {
     chain.iter().map(|link| link.name.as_str()).collect()
@@ -58,9 +58,12 @@ fn chain_lists_each_direct_prerequisite_separately() {
 fn chain_marks_decision_in_review() {
     let mut topic = topic_from(chained_rounds());
     topic
-        .apply(Operation::RequestReview {
-            decision: DecisionId::new("d2"),
-        })
+        .apply(
+            Operation::RequestReview {
+                decision: DecisionId::new("d2"),
+            },
+            any_time(),
+        )
         .unwrap();
 
     let chains = topic.chains(&QuestionId::new("q6"));

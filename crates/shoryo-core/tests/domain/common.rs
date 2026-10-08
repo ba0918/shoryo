@@ -1,7 +1,7 @@
 //! Builders for the rounds the tests send, written as the agent writes them.
 
 use serde_json::{Value, json};
-use shoryo_core::RoundInput;
+use shoryo_core::{RoundInput, Timestamp};
 
 pub fn option(text: &str, recommended: bool) -> Value {
     json!({
@@ -33,6 +33,12 @@ pub fn decision(id: &str, question: &str, name: &str) -> Value {
     })
 }
 
+/// A time the server could have read when it accepted an operation, for tests where the
+/// time itself does not matter.
+pub fn any_time() -> Timestamp {
+    Timestamp::new("2026-10-08T04:00:00.000Z")
+}
+
 pub fn round(body: Value) -> RoundInput {
     RoundInput::from_json(&body.to_string()).expect("the test writes a valid round")
 }
@@ -56,7 +62,7 @@ pub fn topic_from(rounds: Vec<Value>) -> shoryo_core::Topic {
 /// round on the screen.
 pub fn submit_current(topic: &mut shoryo_core::Topic) -> Result<(), shoryo_core::OperationRefusal> {
     let Some(current) = topic.current_round() else {
-        return topic.apply(shoryo_core::Operation::Submit { round: 0 });
+        return topic.apply(shoryo_core::Operation::Submit { round: 0 }, any_time());
     };
     let round = current.number;
     let unstamped: Vec<_> = current
@@ -66,10 +72,13 @@ pub fn submit_current(topic: &mut shoryo_core::Topic) -> Result<(), shoryo_core:
         .map(|question| question.id.clone())
         .collect();
     for question in unstamped {
-        topic.apply(shoryo_core::Operation::Stamp {
-            question,
-            stamped: true,
-        })?;
+        topic.apply(
+            shoryo_core::Operation::Stamp {
+                question,
+                stamped: true,
+            },
+            any_time(),
+        )?;
     }
-    topic.apply(shoryo_core::Operation::Submit { round })
+    topic.apply(shoryo_core::Operation::Submit { round }, any_time())
 }

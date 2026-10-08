@@ -96,6 +96,21 @@ pub struct Answer {
     pub deferred: bool,
     /// 判子: whether the answer (deferring included) has been confirmed, and by whom.
     pub stamp: Option<Stamp>,
+    /// When the person last pressed the stamp; only the person's stamp has one.
+    pub stamped_at: Option<Timestamp>,
+}
+
+/// A moment as the server's clock read it when it accepted something, in UTC. The domain
+/// never reads a clock: the server passes the time in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Timestamp(String);
+
+impl Timestamp {
+    /// `text` is an RFC 3339 time in UTC, as the server writes it.
+    pub fn new(text: impl Into<String>) -> Self {
+        Self(text.into())
+    }
 }
 
 /// Who put the 判子 on an answer.
@@ -320,7 +335,17 @@ impl Answer {
             note: String::new(),
             deferred: false,
             stamp: Stamp::initial(class),
+            stamped_at: None,
         }
+    }
+
+    /// Puts `stamp` on the answer; the time is kept only for the person's stamp.
+    pub(crate) fn set_stamp(&mut self, stamp: Option<Stamp>, at: Timestamp) {
+        self.stamped_at = match stamp {
+            Some(Stamp::Person) => Some(at),
+            Some(Stamp::PreApproved) | None => None,
+        };
+        self.stamp = stamp;
     }
 }
 

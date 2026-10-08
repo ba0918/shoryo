@@ -7,7 +7,7 @@ mod harness;
 use std::io::{BufRead, BufReader};
 use std::process::Command;
 
-use harness::{Env, Server, files_under, first_round, text, wait_until};
+use harness::{Env, Server, clock_ms, files_under, first_round, stored_time, text, wait_until};
 use serde_json::{Value, json};
 
 fn events(output: &std::process::Output) -> Vec<Value> {
@@ -518,4 +518,33 @@ fn skill_examples_are_accepted() {
             "the documented events differ from what wait prints"
         );
     }
+}
+
+fn first_answer(server: &Server) -> Value {
+    server.view()["topic"]["rounds"][0]["questions"][0]["answer"].clone()
+}
+
+#[test]
+fn stamp_time_is_kept_in_utc_and_cleared_when_the_stamp_is_lifted() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    let stamp = |stamped| {
+        server.operate(json!({ "op": "stamp", "question": "q1", "stamped": stamped }));
+    };
+
+    let before = clock_ms();
+    stamp(true);
+    let after = clock_ms();
+    let pressed = first_answer(&server)["stamped_at"].clone();
+    stamp(false);
+    let lifted = first_answer(&server)["stamped_at"].clone();
+
+    let (instant, offset) = stored_time(pressed.as_str().expect("the stamp has a time"));
+    assert!(
+        (before..=after).contains(&instant),
+        "{pressed} is not between {before} and {after}"
+    );
+    assert_eq!(offset, 0);
+    assert_eq!(lifted, Value::Null);
 }
