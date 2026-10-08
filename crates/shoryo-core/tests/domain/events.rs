@@ -1,7 +1,7 @@
 use serde_json::json;
 use shoryo_core::{
     AskId, AskState, Class, DecisionId, EventKind, Operation, OperationRefusal, QuestionId, Reply,
-    Stamp, Timestamp, Topic,
+    SentAs, Stamp, Timestamp, Topic,
 };
 
 use crate::common::{any_time, decision, question, round, submit_current};
@@ -852,4 +852,68 @@ fn round_without_questions_is_submitted_with_no_answers() {
             answers: vec![]
         }]
     );
+}
+
+#[test]
+fn submitting_records_the_sent_time() {
+    let mut topic = topic_on_a_round();
+    stamp(&mut topic, "q2", true);
+
+    topic
+        .apply(
+            Operation::Submit { round: 2 },
+            Timestamp::new("2026-10-08T04:05:00.000Z"),
+        )
+        .unwrap();
+
+    let round = topic.current_round().unwrap();
+    assert!(round.submitted);
+    assert_eq!(
+        round.sent_at,
+        Some(Timestamp::new("2026-10-08T04:05:00.000Z"))
+    );
+}
+
+/// The topic on its result round (round 3), with decision d1 decided.
+fn topic_on_the_result() -> Topic {
+    let mut topic = topic_on_a_round();
+    submit_current(&mut topic).expect("the second round can be sent");
+    topic
+        .apply_round(round(json!({ "subject": "Result" })))
+        .expect("a round without questions is valid");
+    topic
+}
+
+#[test]
+fn result_round_records_whether_it_proceeded_or_asked_for_review() {
+    let mut proceeded = topic_on_the_result();
+    let mut reviewed = topic_on_the_result();
+    reviewed
+        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
+        .unwrap();
+
+    proceeded
+        .apply(Operation::Submit { round: 3 }, any_time())
+        .unwrap();
+    reviewed
+        .apply(Operation::Submit { round: 3 }, any_time())
+        .unwrap();
+
+    assert_eq!(
+        proceeded.current_round().unwrap().sent_as,
+        Some(SentAs::Proceeded)
+    );
+    assert_eq!(
+        reviewed.current_round().unwrap().sent_as,
+        Some(SentAs::ReviewRequested)
+    );
+}
+
+#[test]
+fn a_round_with_questions_records_no_way_of_sending() {
+    let mut topic = topic_on_a_round();
+
+    submit_current(&mut topic).unwrap();
+
+    assert_eq!(topic.current_round().unwrap().sent_as, None);
 }

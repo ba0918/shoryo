@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
 use crate::state::{
-    Ask, AskState, Class, InReview, Question, Reply, Round, Stamp, Timestamp, Topic,
+    Ask, AskState, Class, InReview, Question, Reply, Round, SentAs, Stamp, Timestamp, Topic,
 };
 
 /// One thing the person does on the screen.
@@ -279,7 +279,7 @@ impl Topic {
             } => self.ask(question, text, follows)?,
             Operation::RequestReview { decision } => self.request_review(decision)?,
             Operation::StopReview { decision } => self.stop_review(decision)?,
-            Operation::Submit { round } => self.submit(round)?,
+            Operation::Submit { round } => self.submit(round, now)?,
         }
         Ok(())
     }
@@ -421,7 +421,7 @@ impl Topic {
         Ok(())
     }
 
-    fn submit(&mut self, made_on: u32) -> Result<(), OperationRefusal> {
+    fn submit(&mut self, made_on: u32, now: Timestamp) -> Result<(), OperationRefusal> {
         if self
             .current_round()
             .is_some_and(|round| round.number != made_on)
@@ -435,8 +435,15 @@ impl Topic {
                 questions: unstamped,
             });
         }
+        let sent_as = if self.records.in_review.is_empty() {
+            SentAs::Proceeded
+        } else {
+            SentAs::ReviewRequested
+        };
         let round = self.open_round()?;
         round.submitted = true;
+        round.sent_at = Some(now);
+        round.sent_as = round.questions.is_empty().then_some(sent_as);
         let number = round.number;
         let answers = round
             .questions

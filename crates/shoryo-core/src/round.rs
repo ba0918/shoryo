@@ -201,6 +201,8 @@ impl Topic {
             confirmed: input.confirmed,
             asks: Vec::new(),
             submitted: false,
+            sent_at: None,
+            sent_as: None,
         });
         Ok(number)
     }

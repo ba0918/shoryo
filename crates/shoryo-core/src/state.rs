@@ -35,6 +35,20 @@ pub struct Round {
     pub confirmed: Vec<NodeRef>,
     pub asks: Vec<Ask>,
     pub submitted: bool,
+    /// When the person sent the round.
+    pub sent_at: Option<Timestamp>,
+    /// For a sent result round: whether the person proceeded or asked for reviews.
+    pub sent_as: Option<SentAs>,
+}
+
+/// How the person sent a result round.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SentAs {
+    /// この結果で進める: sent with no decision in review.
+    Proceeded,
+    /// 見直しを頼む: sent while some decision was in review.
+    ReviewRequested,
 }
 
 /// 直したこと: a fix the agent derived from the records in a review round.

@@ -548,3 +548,23 @@ fn stamp_time_is_kept_in_utc_and_cleared_when_the_stamp_is_lifted() {
     assert_eq!(offset, 0);
     assert_eq!(lifted, Value::Null);
 }
+
+#[test]
+fn sent_round_keeps_its_sent_time_in_utc() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.stamp_all();
+
+    let before = clock_ms();
+    assert_eq!(server.send(), 200);
+    let after = clock_ms();
+
+    let sent = server.view()["topic"]["rounds"][0]["sent_at"].clone();
+    let (instant, offset) = stored_time(sent.as_str().expect("the sent round has a time"));
+    assert!(
+        (before..=after).contains(&instant),
+        "{sent} is not between {before} and {after}"
+    );
+    assert_eq!(offset, 0);
+}
