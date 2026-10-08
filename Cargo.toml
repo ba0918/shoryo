@@ -1,18 +1,20 @@
-[package]
-name = "shoryo"
+[workspace]
+members = ["crates/shoryo-core", "crates/shoryo-server", "crates/shoryo-webview"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
-description = "Run grill-me style brainstorm rounds on a local browser screen instead of the chat."
 repository = "https://github.com/ba0918/shoryo"
 publish = false
 
-[lints.rust]
+[workspace.lints.rust]
 unsafe_code = "forbid"
 unsafe_op_in_unsafe_fn = "deny"
 
-[lints.clippy]
+[workspace.lints.clippy]
 unwrap_used = "warn"
 allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
@@ -20,3 +22,22 @@ undocumented_unsafe_blocks = "warn"
 todo = "warn"
 unimplemented = "warn"
 dbg_macro = "warn"
+
+[package]
+name = "shoryo"
+description = "Run grill-me style brainstorm rounds on a local browser screen instead of the chat."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+serde_json = "1.0.151"
+shoryo-server = { version = "0.1.0", path = "crates/shoryo-server" }
+ureq = { version = "3.4.2", default-features = false, features = ["json"] }

@@ -7,28 +7,41 @@ shoryo runs grill-me style brainstorm rounds (an LLM interviewing a person until
 The specification is in `docs/spec/`:
 
 - `screen.md`: what the screen shows and lets the person do
+- `interaction.md`: how diagrams are moved, how arrivals from the LLM are announced, and which operations the screen promises (keyboard, focus, reduced motion)
 - `server.md`: start-up, the commands the agent uses, and the stored data
 - `skill.md`: what the shoryo skill tells the agent to do
 
 ## Stack and layout
 
-- One Rust package, `shoryo`, with a library (`src/lib.rs`) and a binary (`src/main.rs`). The edition, the minimum supported Rust version and the lint configuration are in `Cargo.toml`; the toolchain version is in `rust-toolchain.toml`.
+- A Cargo workspace. The root package `shoryo` is the binary (`src/main.rs`, the CLI). The edition, the minimum supported Rust version, the version and the lint configuration are declared once under `[workspace.*]` in `Cargo.toml` and inherited by every member; the toolchain version is in `rust-toolchain.toml`.
+- `crates/shoryo-core/`: the domain (the topic state, round validation, events, derived views). It holds no I/O; `scripts/check-domain-purity.sh` enforces this.
+- `crates/shoryo-server/`: the HTTP server, the page and agent APIs, the data directory, and the per-user config file (the screen's language and theme).
+- `web/strings.js`: the screen's fixed text in English and Japanese.
+- `crates/shoryo-webview/`: embeds `web/` into the binary.
+- `web/`: the screen (HTML, CSS and plain JavaScript, no build step). `web/tests/`: its browser tests (Playwright; `package.json` at the root exists only for them).
 - The screen's files are embedded in the binary; the release is that one binary (`docs/spec/server.md`, "作り方と配り方").
 - `docs/spec/`: the specification. `CONTEXT.md`: the glossary.
-- Not built yet: the server, the screen, and the shoryo skill.
+- `skills/shoryo/`: the shoryo skill (`SKILL.md` and `references/` with the command, round, event, reply and diagram formats). `tests/round_trip/` feeds every input example in the references to the binary.
+- `tests/round_trip/`: integration tests that run the built binary through the agent's commands and the page API.
 
 ## Commands
 
 | Purpose | Command |
 |---|---|
-| Install | (none beyond the pinned toolchain; rustup reads `rust-toolchain.toml`) |
-| Build | `cargo build --locked` |
-| Test | `cargo test --locked` |
-| Lint | `cargo clippy --all-targets --locked -- -D warnings` |
+| Install | (none beyond the pinned toolchain; rustup reads `rust-toolchain.toml`). For the browser tests: `npm ci` and `npx playwright install chromium` |
+| Build | `cargo build --workspace --locked` |
+| Test | `cargo test --workspace --locked` |
+| Lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
+| Domain purity | `scripts/check-domain-purity.sh` |
+| All gates (what CI runs) | `scripts/check.sh` |
+| Browser tests of the screen | `scripts/test-web.sh` (builds the binary, then runs Playwright on `web/tests/`) |
 | Format check | `cargo fmt --all --check` |
-| Run locally | (not yet) |
+| Release | Promote `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - <date>` with its comparison link (raise `version` in `Cargo.toml` first when the release carries a user-visible change since the last one; the first release ships the version already there), commit, run the gates, then push the tag `vX.Y.Z`; `.github/workflows/release.yml` checks that the tag, `Cargo.toml` and the changelog agree (`scripts/check-release-version.sh`) and publishes `shoryo-x86_64-unknown-linux-musl.tar.gz` with its SHA-256 |
+| Run locally | `cargo run -- start <topic>` (prints the page URL; the agent commands are `round`, `wait`, `reply`, `end`, `result`, `stop`; see `cargo run -- --help`) |
 
 ## Conventions specific to this project
+
+- The canonical version is `version` under `[workspace.package]` in `Cargo.toml`; every crate inherits it. The release tag and the changelog heading follow it, checked by `scripts/check-release-version.sh`.
 
 - Documents written for agents (`AGENTS.md`, `PROJECT.md`, the shoryo skill) are in English. The specification in `docs/spec/` and the glossary `CONTEXT.md` are in Japanese.
 - Use the terms in `CONTEXT.md` with the meanings given there, in code names and messages as well as documents. For example, the unit shoryo handles is a 議題 (topic), never a "session": "session" means the conversation with the LLM.

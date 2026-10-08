@@ -34,3 +34,30 @@ jobs:
 
       - name: Run the gates
         run: scripts/check.sh
+
+  browser:
+    name: Browser tests of the screen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The version the browser tests were written and run against.
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "26.10.0"
+          cache: npm
+
+      - name: Install the test dependencies
+        run: npm ci
+
+      # --with-deps installs the libraries Chromium needs through the runner's apt.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the browser tests
+        run: scripts/test-web.sh
