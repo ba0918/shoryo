@@ -275,8 +275,8 @@ const ja = {
   "thread.follow-up-placeholder": "続きの聞き返し",
   "thread.send": "送信",
   "thread.quick.more": "詳しく説明して",
-  "thread.quick.diagram": "図で説明して",
-  "thread.quick.recommendation": "推奨の理由は？",
+  "thread.quick.diagram": "図でかみ砕いて説明して",
+  "thread.quick.recommendation": "推奨はどういう意味ですか？",
 
   "past.none": "送ったラウンドはまだありません。",
   "round.number": "第 {number} ラウンド",
