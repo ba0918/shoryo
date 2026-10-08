@@ -50,7 +50,7 @@ when absent. Send the whole list whenever one entry changes.
 When the topic has converged, send a round with no `questions`: the last records and the
 finished picture. The screen shows it as the result — the finished picture, the decisions
 (those sent pre-approved marked 代決), not building, rejected options, undecided and delegated —
-with a "Proceed with this result" button, and 見直したい beside each decision. The person sends
+with a "Proceed with this result" button, and 見直す beside each decision. The person sends
 it as an ordinary `submitted` event with no answers.
 
 ## Refusals

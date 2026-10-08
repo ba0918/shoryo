@@ -1,7 +1,7 @@
 // A human question's card: folded at first, opened to the prerequisites, background and
 // option details (docs/spec/screen.md, "たたんだカード"). The question, its options with the
 // consequence, the note sent with them and the stamp are the body; the defer switch sits by
-// the question's mark, and asking back below.
+// the question's mark, and asks to the LLM below.
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {

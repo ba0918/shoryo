@@ -1,5 +1,5 @@
-// Asking back about a question, the replies, and the diagrams in them
-// (docs/spec/screen.md, "聞き返し", "図"). The agent's replies come from the reply command.
+// Asking the LLM about a question, the replies, and the diagrams in them
+// (docs/spec/screen.md, "質問", "図"). The agent's replies come from the reply command.
 import { test, expect } from "./fixtures.js";
 import { twoRounds } from "./rounds.js";
 import { action, card, mark, row } from "./screen.js";
@@ -84,7 +84,7 @@ test("thread_opens_and_closes_and_starts_open_when_there_are_asks", async ({ sho
   await shoryo.reply(first, { text: "First reply" });
 
   const toggle = action(q2, "thread-toggle");
-  await expect(toggle).toHaveText("Ask back (1)");
+  await expect(toggle).toHaveText("Asks to the LLM (1)");
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(q2.getByText("First reply")).toBeVisible();
 

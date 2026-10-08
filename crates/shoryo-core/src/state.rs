@@ -187,7 +187,7 @@ pub enum NodeRef {
     Decision(DecisionId),
 }
 
-/// 聞き返し: a question the person asked about one question before sending.
+/// 質問: a question the person asked the LLM about one question before sending.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ask {
     pub id: AskId,

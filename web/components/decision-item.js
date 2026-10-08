@@ -1,5 +1,5 @@
-// A decision as listed anywhere on the screen, with 見直したい beside it
-// (docs/spec/screen.md, "見直したい").
+// A decision as listed anywhere on the screen, with 見直す beside it
+// (docs/spec/screen.md, "見直す").
 import { h } from "../dom.js";
 import { translator } from "../strings.js";
 

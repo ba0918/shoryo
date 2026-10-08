@@ -1204,7 +1204,7 @@ button.send-status {
   gap: 1rem;
 }
 
-/* ---- 聞き返し ---- */
+/* ---- 質問 ---- */
 
 .thread {
   display: grid;

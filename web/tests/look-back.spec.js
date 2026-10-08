@@ -1,5 +1,5 @@
 // Past rounds, the decisions tab, review requests, review rounds and the ended state
-// (docs/spec/screen.md, "過去のラウンド", "決まったこと", "見直したい", "直したこと";
+// (docs/spec/screen.md, "過去のラウンド", "決まったこと", "見直す", "直したこと";
 // docs/spec/server.md, "終える").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";

@@ -41,6 +41,26 @@ test.describe("with a readable config", () => {
     await expect(refusal).not.toHaveText(/[A-Za-z]{3,}/);
   });
 
+  test("ja_screen_says_question_and_review_in_the_glossary_words", async ({ shoryo, page }) => {
+    await banner(page).locator('[data-language="ja"]').click();
+    await shoryo.op({ op: "ask", question: "q2", text: "Why one file?" });
+    await shoryo.reply(1, { text: "Because it moves with the person." });
+    const q2 = card(page, "q2");
+    const pageText = () => page.locator("body").innerText();
+
+    await expect(action(q2, "thread-toggle")).toHaveText(/^LLM への質問/);
+    await expect(action(q2, "follow-up")).toHaveText("この返事に続けて質問");
+    const currentText = await pageText();
+    await tab(page, "decisions").click();
+    await expect(action(page, "review").first()).toHaveText("見直す");
+    const decisionsText = await pageText();
+
+    for (const text of [currentText, decisionsText]) {
+      expect(text).not.toContain("聞き返し");
+      expect(text).not.toContain("見直したい");
+    }
+  });
+
   test("default_language_is_english", async ({ page }) => {
     await expect(banner(page).locator('[data-language="en"]')).toHaveAttribute("aria-pressed", "true");
     for (const id of ["current", "past", "map", "decisions"]) {

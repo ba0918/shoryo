@@ -1,5 +1,5 @@
-// 聞き返し under a card: the exchanges in the order they were asked, opened and closed under
-// one heading, and the ask box (docs/spec/screen.md, "聞き返し").
+// 質問 under a card: the exchanges in the order they were asked, opened and closed under
+// one heading, and the ask box (docs/spec/screen.md, "質問").
 import { h } from "../dom.js";
 import { renderDiagram } from "../diagram.js";
 import { translator } from "../strings.js";

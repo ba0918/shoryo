@@ -159,7 +159,7 @@ function currentNumber(topic) {
   return topic.rounds.length > 0 ? topic.rounds[topic.rounds.length - 1].number : 0;
 }
 
-/// Whether 見直したい can be pressed or stopped for this decision now.
+/// Whether 見直す can be pressed or stopped for this decision now.
 export function reviewState(view, id) {
   const topic = view.topic;
   const mark = topic.records.in_review.find((entry) => entry.decision === id);

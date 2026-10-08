@@ -1,5 +1,5 @@
 // 結果: what the current round shows when it has no questions — the topic has converged
-// (docs/spec/screen.md, "結果"). The finished picture and the records, with 見直したい beside
+// (docs/spec/screen.md, "結果"). The finished picture and the records, with 見直す beside
 // each decision; sending happens from the send bar.
 import { Component, h } from "../dom.js";
 import { diagramView } from "./diagram-view.js";

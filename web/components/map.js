@@ -235,7 +235,7 @@ export class MapTab extends Component {
     }
   }
 
-  /// The selected point's details, with going to its path, to its question, and 見直したい.
+  /// The selected point's details, with going to its path, to its question, and 見直す.
   fillDetails(map, t) {
     const node = map.columns.flatMap((column) => column.nodes).find((n) => n.key === map.selected);
     if (!node || !map.visible) {
