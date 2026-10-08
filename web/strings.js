@@ -238,7 +238,7 @@ const ja = {
   "send.all": "まとめて送る",
   "send.unstamped": "判子のない問い: {count} 問",
   "send.ready": "すべての問いに判子があります。",
-  "sent.next-round": "送りました。LLM が答えを読んでいます。次のラウンドはここに出ます。",
+  "sent.next-round": "送信しました。LLM が次のラウンドを用意しています。",
   "sent.proceeded": "この結果で進めました。これから LLM が仕様を書きます。この画面での操作はもうありません。",
   "current.waiting": "最初のラウンドを待っています。",
   "send.proceed": "この結果で進める",
