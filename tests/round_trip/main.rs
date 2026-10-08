@@ -631,3 +631,35 @@ fn review_request_between_sending_and_the_next_round_is_refused_and_leaves_no_tr
     let result: Value = serde_json::from_slice(&output.stdout).expect("the result is JSON");
     assert_eq!(result["records"]["in_review"], json!([]));
 }
+
+#[test]
+fn counted_commands_restart_the_quiet_time_and_result_does_not() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    let quiet_ms = || server.view()["agent"]["quiet_ms"].as_u64().unwrap_or(0);
+    let pause = || std::thread::sleep(std::time::Duration::from_millis(800));
+    let mut after = Vec::new();
+
+    pause();
+    env.run(&["round", "store"], &first_round());
+    after.push(("round", quiet_ms()));
+    server.operate(json!({ "op": "ask", "question": "q1", "text": "Why one file?" }));
+    pause();
+    env.run(&["reply", "store", "1"], r#"{ "text": "It is simple." }"#);
+    after.push(("reply", quiet_ms()));
+    pause();
+    let before_result = quiet_ms();
+    env.run(&["result", "store"], "");
+    let after_result = quiet_ms();
+    server.submit();
+    env.run(&["end", "store"], "");
+    after.push(("end", quiet_ms()));
+
+    for (command, quiet) in after {
+        assert!(quiet < 400, "{command} left the quiet time at {quiet} ms");
+    }
+    assert!(
+        after_result >= before_result && before_result >= 800,
+        "result restarted the quiet time: {before_result} ms, then {after_result} ms"
+    );
+}
