@@ -133,3 +133,12 @@ test("note_typed_is_kept_when_the_page_is_reopened_without_leaving_the_field", a
 
   await expect(card(page, "q2").locator("[data-field=note] textarea")).toHaveValue("Only while testing.");
 });
+
+test("opening_details_with_the_keyboard_keeps_the_focus_on_the_toggle", async ({ page }) => {
+  const toggle = action(card(page, "q2"), "open");
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(action(card(page, "q2"), "open")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(action(card(page, "q2"), "open")).toBeFocused();
+});

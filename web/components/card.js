@@ -65,7 +65,7 @@ export class Card extends Component {
       chainLine(question, this.emit),
       h(
         "button",
-        { type: "button", class: "link details-toggle", "data-action": "open", "aria-expanded": String(this.open), onclick: () => this.toggle() },
+        { type: "button", class: "link details-toggle", "data-action": "open", "data-focus": `details-${question.id}`, "aria-expanded": String(this.open), onclick: () => this.toggle() },
         this.open ? t("card.hide-details") : t("card.show-details"),
       ),
       this.open ? details(question) : null,
