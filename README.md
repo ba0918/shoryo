@@ -24,8 +24,8 @@ shoryo has two parts:
 - The [shoryo skill](skills/shoryo/SKILL.md) tells the agent how to write rounds, classify
   questions and handle answers.
 
-The calling brainstorm workflow, such as ba0918 or kotowari brainstorm, chooses the questions
-and writes the specification from shoryo's result data. The browser does not call a model API
+The brainstorm workflow that uses shoryo chooses the questions and writes the specification
+from shoryo's result data. The browser does not call a model API
 itself. The agent exchanges questions, answers and replies through the CLI.
 
 ## Install
