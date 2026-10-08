@@ -187,7 +187,7 @@ test("arrival_menu_separates_localized_types_from_unchanged_bodies_without_narro
   }
   expect(menuColors[0]).not.toBe(menuColors[1]);
   await page.locator('[data-language=ja]').click();
-  await expect(menu.getByRole("heading", { level: 2 })).toHaveText("届いたもの");
+  await expect(menu.getByRole("heading", { level: 2 })).toHaveText("通知");
   const japaneseTypes = await entries.locator('[data-arrival-type]').allTextContents();
   expect(new Set(japaneseTypes).size).toBe(3);
   expect(japaneseTypes.every((text, index) => text.length > 0 && text !== englishTypes[index])).toBe(true);
