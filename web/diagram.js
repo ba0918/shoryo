@@ -196,11 +196,16 @@ export function drawDiagram(text, onExtent = () => {}) {
     if (whole.length > cut.length) {
       group.prepend(el("title", {}, node.label));
       group.classList.add("cut");
+      group.setAttribute("tabindex", "0");
+      group.setAttribute("role", "button");
+      group.setAttribute("aria-label", node.label);
+      group.setAttribute("aria-expanded", "false");
       const full = labelText(whole, c.x, c.y, "node-label whole");
       group.append(full);
-      // A tap shows the whole label in a box grown to hold it, drawn above its neighbours.
-      group.addEventListener("click", () => {
+      const toggle = () => {
+        const focused = document.activeElement === group;
         const showing = group.classList.toggle("showing-whole");
+        group.setAttribute("aria-expanded", String(showing));
         const grown = showing ? boxHeight(whole.length) : height;
         rect.setAttribute("y", String(c.y - grown / 2));
         rect.setAttribute("height", String(grown));
@@ -211,6 +216,13 @@ export function drawDiagram(text, onExtent = () => {}) {
           grownBoxes.delete(id);
         }
         onExtent(extent());
+        if (focused) group.focus({ preventScroll: true });
+      };
+      group.addEventListener("click", toggle);
+      group.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        toggle();
       });
     }
     boxes.append(group);

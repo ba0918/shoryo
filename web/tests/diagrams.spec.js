@@ -85,6 +85,52 @@ test("tapping_a_cut_label_shows_it_whole_inside_the_reply_diagram", async ({ sho
   expect(inside(whole, grown)).toBe(true);
 });
 
+async function keyboardTo(page, control) {
+  await expect(control).toBeAttached();
+  for (let i = 0; i < 120; i++) {
+    if (await control.evaluate(element => element === document.activeElement)) return;
+    await page.keyboard.press("Tab");
+  }
+  throw new Error("Keyboard cannot reach the diagram label control");
+}
+
+const keyboardLabel = "利用者が画面で問いを読み、質問し、答えをまとめて送るまでの流れを、記録に残しながら進める仕組みの全体。".repeat(2);
+
+for (const surface of ["reply", "result", "dialog"]) {
+  test(`keyboard_expands_and_folds_a_long_label_in_the_${surface}_diagram`, async ({ shoryo, page }) => {
+    const diagram = `a = ${keyboardLabel}\nb = 記録\n| a | b |`;
+    let scope;
+    if (surface === "reply") {
+      await shoryo.op({ op: "ask", question: "q2", text: "Explain the full workflow" });
+      const ask = (await shoryo.wait()).find(event => event.kind === "ask");
+      await shoryo.reply(ask.ask, { text: "Workflow diagram", diagram });
+      scope = card(page, "q2").locator("[data-reply]");
+    } else {
+      await shoryo.submit();
+      await shoryo.round({ subject: "Result", questions: [], finished_picture: diagram });
+      if (surface === "dialog") {
+        await keyboardTo(page, action(page, "finished-picture"));
+        await page.keyboard.press("Enter");
+        scope = page.locator("[data-finished-picture]");
+      } else {
+        scope = page.locator("[data-panel=current] [data-result]");
+      }
+    }
+    const control = scope.getByRole("button", { name: keyboardLabel, exact: true });
+    await keyboardTo(page, control);
+    const shown = control.locator("text").filter({ visible: true });
+    await expect(shown).toContainText("…");
+    for (const key of ["Enter", "Space"]) {
+      await page.keyboard.press(key);
+      await expect(shown).toHaveText(keyboardLabel);
+      await expect(control).toBeFocused();
+      await page.keyboard.press(key);
+      await expect(shown).toContainText("…");
+      await expect(control).toBeFocused();
+    }
+  });
+}
+
 test("reply_diagram_is_sized_to_its_content", async ({ shoryo, page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   const svg = await replyWith(shoryo, page, "a = File\nb = Disk\nc = Backup\n| a | b | c |\na -> b : lives on\nb -> c : copied to");
