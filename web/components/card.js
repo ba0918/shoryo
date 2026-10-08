@@ -63,6 +63,11 @@ export class Card extends Component {
       ),
       h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, t("card.why-now")), question.why_now),
       chainLine(question, this.emit),
+      h(
+        "button",
+        { type: "button", class: "link details-toggle", "data-action": "open", "aria-expanded": String(this.open), onclick: () => this.toggle() },
+        this.open ? t("card.hide-details") : t("card.show-details"),
+      ),
       this.open ? details(question) : null,
       h(
         "div",
@@ -84,11 +89,6 @@ export class Card extends Component {
         h(
           "div",
           { class: "card-links" },
-          h(
-            "button",
-            { type: "button", class: "link", "data-action": "open", "aria-expanded": String(this.open), onclick: () => this.toggle() },
-            this.open ? t("card.hide-details") : t("card.show-details"),
-          ),
           this.past
             ? null
             : h(

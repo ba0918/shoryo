@@ -689,6 +689,10 @@ textarea:disabled {
   padding-top: 0.2rem;
 }
 
+.details-toggle {
+  justify-self: start;
+}
+
 .why-now {
   font-size: 0.875rem;
   color: var(--ink-soft);
