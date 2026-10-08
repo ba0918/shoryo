@@ -201,7 +201,7 @@ const ja = {
   "refusal.unknown_decision": "決まったこと {decision} はありません。",
   "refusal.already_replied": "その聞き返しには、すでに返事があります。",
   "refusal.not_in_review": "決まったこと {decision} は見直し中ではありません。",
-  "refusal.next_round_arrived": "次のラウンドが届いたため、見直したいは外せません。",
+  "refusal.next_round_arrived": "次のラウンドが届いたため、見直したいはやめられません。",
   "refusal.not_current_round": "第 {round} ラウンドは今のラウンドではなくなりました。今のラウンドを表示しています。",
   "refusal.follows_another_question": "別の問いへの聞き返しなので、続けて聞けません。",
   "refusal.unstamped": "判子のない問いがあります（{questions}）。すべての問いに判子を押してから送ってください。",
@@ -298,7 +298,7 @@ const ja = {
   "decision.fixed-in": "第 {round} ラウンドで直したこと",
   "decision.revised": "後から改めた",
   "decision.review": "見直したい",
-  "decision.stop-review": "見直したいを外す",
+  "decision.stop-review": "見直したいをやめる",
 
   "fixes.title": "直したこと",
   "fixes.new": "（新規）",
