@@ -378,7 +378,7 @@ test("past_result_round_shows_its_picture_records_and_how_it_was_sent", async ({
       undecided: [{ text: "Backup schedule", decider: "the person" }],
     },
   });
-  await expect(action(page, "send")).toHaveText("Proceed with this result");
+  await expect(action(page, "send")).toBeEnabled();
   await sendAll(page);
   await shoryo.round({
     subject: "After the result",

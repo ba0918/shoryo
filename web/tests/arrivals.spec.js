@@ -26,7 +26,7 @@ async function unseenReply(shoryo, page, text = "New reply") {
   const id = await ask(shoryo, page);
   await tab(page, "decisions").click();
   await shoryo.reply(id, { text });
-  await expect(toast(page).last()).toContainText("View");
+  await expect(action(toast(page).last(), "view-arrival")).toBeVisible();
   return id;
 }
 

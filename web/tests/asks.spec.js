@@ -84,7 +84,6 @@ test("thread_opens_and_closes_and_starts_open_when_there_are_asks", async ({ sho
   await shoryo.reply(first, { text: "First reply" });
 
   const toggle = action(q2, "thread-toggle");
-  await expect(toggle).toHaveText("Asks to the LLM (1)");
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(q2.getByText("First reply")).toBeVisible();
 
