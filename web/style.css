@@ -16,6 +16,7 @@
   --accent-soft: #e5ebf5;
   --seal: #bf3a2b;
   --seal-soft: #f9e6e2;
+  --proxy-ink: #5d7090;
   --prov: #56662f;
   --prov-soft: #ebf0de;
   --warn: #8a5a00;
@@ -25,6 +26,8 @@
   --danger: #b42318;
   --shadow: 0 1px 2px rgb(28 35 48 / 6%), 0 4px 16px rgb(28 35 48 / 5%);
   --overlay: rgb(20 24 32 / 40%);
+  /* Mostly opaque noise: where it thins, the stamp's ink did not take. */
+  --ink-speckle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 2.25'/%3E%3C/filter%3E%3Crect width='96' height='96' filter='url(%23n)'/%3E%3C/svg%3E");
 
   --font-sans: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
   --font-serif: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", "Source Han Serif JP", Georgia, serif;
@@ -59,6 +62,7 @@
     --accent-soft: #233150;
     --seal: #f08070;
     --seal-soft: #3b2220;
+    --proxy-ink: #93a6c6;
     --prov: #bfd08a;
     --prov-soft: #2a311f;
     --warn: #efc36a;
@@ -86,6 +90,7 @@
   --accent-soft: #233150;
   --seal: #f08070;
   --seal-soft: #3b2220;
+  --proxy-ink: #93a6c6;
   --prov: #bfd08a;
   --prov-soft: #2a311f;
   --warn: #efc36a;
@@ -835,6 +840,7 @@ textarea:disabled {
 /* ---- 判子 ---- */
 
 .stamp {
+  --stamp-ink: var(--seal);
   width: 5.25rem;
   height: 5.25rem;
   border-radius: 50%;
@@ -843,7 +849,7 @@ textarea:disabled {
   color: var(--muted);
   display: grid;
   place-items: center;
-  padding: 0.35rem;
+  padding: 0.3rem;
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
@@ -864,26 +870,46 @@ textarea:disabled {
   border-radius: 50%;
 }
 
-.stamp.person {
-  border: 3px solid var(--seal);
-  color: var(--seal);
-  background: var(--seal-soft);
-  transform: rotate(-8deg);
-}
-
-.stamp.person .stamp-face {
-  border: 1px solid var(--seal);
-}
-
+/* A pressed stamp is a vermilion seal: two rings and the word in a brush-like serif, slightly
+   turned, with the speckle of ink that did not take. */
+.stamp.person,
 .stamp.pre_approved {
-  border: 2px solid var(--seal);
-  color: var(--seal);
-  background: var(--sheet);
+  border: 3px solid var(--stamp-ink);
+  color: var(--stamp-ink);
+  background: transparent;
+  font-family: var(--font-serif);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  -webkit-mask-image: var(--ink-speckle);
+  mask-image: var(--ink-speckle);
+  mask-size: 6rem 6rem;
+}
+
+.stamp.person {
+  transform: rotate(-9deg);
+}
+
+.stamp.person:lang(ja) {
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+}
+
+.stamp.person .stamp-face,
+.stamp.pre_approved .stamp-face {
+  border: 1.5px solid var(--stamp-ink);
+}
+
+/* The LLM's stamp keeps the seal's shape, drawn dashed in grey-blue: not the person's ink. */
+.stamp.pre_approved {
+  --stamp-ink: var(--proxy-ink);
+  border-style: dashed;
+  font-size: 0.72rem;
   transform: rotate(-4deg);
 }
 
 .stamp.pre_approved .stamp-face {
-  border: 1px dashed var(--seal);
+  border-style: dashed;
 }
 
 .stamp:disabled {

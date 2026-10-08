@@ -58,7 +58,7 @@ const en = {
   "card.pre-approved": "Pre-approved",
 
   "stamp.none": "Approve",
-  "stamp.person": "Approved",
+  "stamp.person": "Approve",
   "stamp.pre_approved": "Pre-approved",
 
   "provisional.title": "Provisional answers",
@@ -215,7 +215,7 @@ const ja = {
   "card.pre-approved": "代決",
 
   "stamp.none": "判子を押す",
-  "stamp.person": "判子",
+  "stamp.person": "確認",
   "stamp.pre_approved": "代決",
 
   "provisional.title": "仮決め",
