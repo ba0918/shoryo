@@ -22,7 +22,7 @@ export class ResultView extends Component {
         h("h2", {}, t("result.title")),
         result.sentAs
           ? h("p", { class: "badge sent-as", "data-sent-as": result.sentAs }, t(`past.sent-as.${result.sentAs}`))
-          : h("p", { class: "list-hint" }, t("result.hint")),
+          : h("p", { class: "list-hint" }, t(result.hint)),
       ),
       h(
         "div",

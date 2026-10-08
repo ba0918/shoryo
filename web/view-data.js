@@ -125,6 +125,7 @@ function resultData(view, locked) {
   const records = decisionsTabData(view);
   return {
     lang: view.lang,
+    hint: view.topic.ended ? "result.hint-ended" : locked ? "result.hint-sent" : "result.hint",
     picture: view.topic.finished_picture,
     decisions: records.decisions.map((item) => ({
       ...item,
@@ -327,6 +328,7 @@ function pastResultData(view, round) {
   const topic = view.topic;
   return {
     lang: view.lang,
+    hint: "result.hint-sent",
     picture: round.finished_picture,
     decisions: topic.records.decisions
       .filter((decision) => decisionContent(decision, round.number) !== null)

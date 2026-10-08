@@ -98,6 +98,8 @@ const en = {
 
   "result.title": "Result",
   "result.hint": "The brainstorm has converged. Check the finished picture and the decisions; ask for a review of anything that looks wrong.",
+  "result.hint-sent": "The result has been sent. You can still check the finished picture and the decisions.",
+  "result.hint-ended": "This topic has ended. You can check the finished picture and the decisions.",
   "result.no-picture": "No finished picture was drawn.",
 
   "thread.heading": "Asks to the LLM ({count})",
@@ -282,6 +284,8 @@ const ja = {
 
   "result.title": "結果",
   "result.hint": "壁打ちがまとまりました。完成図と決まったことを確かめて、気になるものがあれば「見直す」を押してください。",
+  "result.hint-sent": "結果を送りました。完成図と決まったことは引き続き確認できます。",
+  "result.hint-ended": "この議題は終了しました。完成図と決まったことを確認できます。",
   "result.no-picture": "完成図はありません。",
 
   "thread.heading": "LLM への質問（{count}）",

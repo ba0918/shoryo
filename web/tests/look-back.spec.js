@@ -21,6 +21,38 @@ const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
 const pastRound = (page, number) => page.locator(`[data-past-round="${number}"]`);
 const decisionItem = (scope, id) => scope.locator(`[data-decision-item="${id}"]`);
 
+for (const lang of ['en', 'ja']) {
+  test(`past_result_heading_keeps_submission_history_without_inviting_operations_${lang}`, async ({ shoryo, page }) => {
+    await sendAll(page);
+    await shoryo.round({ subject: 'Result', questions: [], finished_picture: 'a = Screen\n| a |' });
+    await sendAll(page);
+    await shoryo.round({ subject: 'Next', questions: [question('q5', 'Anything else?')] });
+    await page.getByRole('banner').locator(`[data-language=${lang}]`).click();
+    await tab(page, 'past').click();
+    await action(page.locator('[data-round-choice="3"]'), 'choose-round').click();
+    const result = pastRound(page, 3).locator('[data-result]');
+    await expect(result.locator('[data-sent-as]')).toHaveAttribute('data-sent-as', 'proceeded');
+    await expect(result.locator('.result-head')).not.toContainText(lang === 'ja' ? '押してください' : /ask for a review/i);
+    await expect(action(decisionItem(result, 'd1'), 'review')).toBeEnabled();
+
+    const view = await (await fetch(`${shoryo.url}api/view`)).json();
+    const legacyHeading = await page.evaluate(async ({ view, lang }) => {
+      const { pastRoundsData } = await import('./view-data.js');
+      const { ResultView } = await import('./components/result.js');
+      delete view.topic.rounds[2].sent_as;
+      const data = pastRoundsData({ ...view, lang }, 3).round.result;
+      const component = new ResultView(() => { throw new Error('Drawing must not emit actions'); });
+      component.update(data);
+      return component.el.querySelector('.result-head').textContent;
+    }, { view, lang });
+    expect(legacyHeading).not.toMatch(lang === 'ja' ? /押してください/ : /ask for a review/i);
+    await shoryo.submit();
+    await shoryo.end();
+    await expect(result.locator('[data-node=a]')).toContainText('Screen');
+    await expect(result.locator('[data-sent-as]')).toHaveAttribute('data-sent-as', 'proceeded');
+  });
+}
+
 async function askAndReply(shoryo, page, id, text, diagram) {
   await card(page, id).locator("[data-field=ask]").fill("Show me");
   await action(card(page, id), "ask").click();

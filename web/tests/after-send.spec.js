@@ -9,6 +9,38 @@ const notice = (page) => page.locator("[data-wait-footer]");
 const agentStatus = (page) => banner(page).locator("[data-agent-status]");
 const guidance = (page) => notice(page).locator('[data-wait-guidance]');
 
+for (const lang of ['en', 'ja']) {
+  for (const reviewing of [false, true]) {
+    test(`current_result_heading_describes_unsent_sent_and_ended_states_${lang}_${reviewing ? 'review' : 'proceed'}`, async ({ shoryo, page }) => {
+      await twoRounds(shoryo);
+      await shoryo.submit();
+      await shoryo.round({ subject: 'Result', questions: [], finished_picture: 'a = Screen\n| a |' });
+      await page.goto(shoryo.url);
+      await banner(page).locator(`[data-language=${lang}]`).click();
+      const result = page.locator('[data-panel=current] [data-result]');
+      const hint = result.locator('.result-head .list-hint');
+      await expect(hint).toContainText(lang === 'ja' ? '「見直す」を押してください' : /ask for a review/i);
+      if (reviewing) await reviewAndConfirm(page, result.locator('[data-decision-item=d1]'));
+      await sendAll(page);
+      await expect(hint).toContainText(lang === 'ja' ? '結果を送りました。完成図と決まったことは引き続き確認できます。' : /result.*sent/i);
+      await expect(hint).not.toContainText(lang === 'ja' ? '押してください' : /ask for a review/i);
+      if (lang === 'en') await expect(hint).toContainText(/can.*check.*finished picture.*decisions/i);
+      await expect(result.locator('[data-node=a]')).toContainText('Screen');
+      await expect(result.locator('[data-decision-item=d1]')).toContainText('Person reads cards');
+      const reviewAction = action(result.locator('[data-decision-item=d1]'), reviewing ? 'stop-review' : 'review');
+      if (reviewing) await expect(reviewAction).toBeEnabled();
+      else await expect(reviewAction).toBeDisabled();
+      await shoryo.end();
+      await expect(hint).toContainText(lang === 'ja' ? 'この議題は終了しました。完成図と決まったことを確認できます。' : /topic.*ended/i);
+      if (lang === 'en') await expect(hint).toContainText(/can.*check.*finished picture.*decisions/i);
+      await expect(hint).not.toContainText(lang === 'ja' ? '押してください' : /ask for a review/i);
+      await expect(result.locator('[data-node=a]')).toContainText('Screen');
+      await expect(result.locator('[data-decision-item=d1]')).toContainText('Person reads cards');
+      await expect(action(result, 'review')).toHaveCount(0);
+    });
+  }
+}
+
 test("accepted_answers_replace_current_notice_and_send_button_with_global_next_round_wait", async ({ shoryo, page }) => {
   await twoRounds(shoryo);
   await page.goto(shoryo.url);
