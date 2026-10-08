@@ -3,7 +3,7 @@
 shoryo runs grill-me style brainstorm rounds — an LLM interviewing you until a specification is
 settled — on a local browser screen instead of in the chat.
 
-Each round's questions arrive as cards. You can ask back about a question before answering,
+Each round's questions arrive as cards. You can ask the LLM about a question before answering,
 stamp each answer once you have checked it, and send the whole round at once. Questions whose
 answer is cheap to change later sit in a separate list with the recommendation filled in and
 already stamped by the LLM; you send back only the ones that look wrong. When the topic
@@ -56,8 +56,14 @@ choice is kept for every topic in your per-user config file (`~/.config/shoryo/c
 Linux).
 
 The header also shows what the LLM is doing: waiting for what you do on the screen, working on
-what you sent, or not responding when it has sent shoryo no command for 10 minutes. After you
+what you sent, or not responding after 10 minutes without a counted command. The counted
+commands are `round`, `wait` (when it starts and returns), `reply` and `end`; `result` and
+`stop` do not count. After you
 proceed with the result, it stays "working" while the LLM writes the specification.
+
+An arrival you cannot already see gets a toast with a View button that takes you to it. The
+header's notification icon lists the last ten arrivals and counts the ones you have not seen;
+you can use it after a toast disappears. Back returns to the place you left.
 
 A topic's data stays in your per-user data directory (`~/.local/share/shoryo/` on Linux), never
 in the repository. shoryo never deletes it; remove a topic's directory yourself when you no
@@ -66,6 +72,7 @@ longer need it.
 ## Specification
 
 - [The screen](docs/spec/screen.md)
+- [Diagram gestures, arrivals and operation promises](docs/spec/interaction.md)
 - [Start-up, the agent's commands and the stored data](docs/spec/server.md)
 - [The shoryo skill](docs/spec/skill.md)
 - [Glossary](CONTEXT.md)

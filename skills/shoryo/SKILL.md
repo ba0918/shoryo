@@ -108,7 +108,7 @@ A deferred question stays undecided. Ask it again in the next round in a differe
 into smaller questions, make it concrete with a scenario, or add background. Give the new
 question a new id and set `reasks` to the old one. Never decide it by the recommendation.
 
-### Review requests (見直したい)
+### Review requests (見直す)
 
 Ask each decision in review again in the next round. Then:
 
@@ -119,6 +119,12 @@ Ask each decision in review again in the next round. Then:
 Either way send a `review_conclusions` entry for it. After a change, check in the next round
 whether each question and decision resting directly on it is still right, and send those you
 confirm in `confirmed`.
+
+A `review_stopped` can arrive even after you have asked that decision again, until you send
+its conclusion. Withdrawal returns the decision to its original content: keep that content,
+ignore the answer to the re-asked question, and send the conclusion `unchanged`. This extends
+withdrawal beyond the arrival of the next round; it is not limited to the round in which the
+review was requested.
 
 ## When the topic converges
 
