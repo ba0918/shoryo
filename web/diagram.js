@@ -112,8 +112,10 @@ function take(bounds, x, y, width, height) {
 }
 
 /// Draws a diagram's text. Returns the arrowhead's definition, the drawing moved so that what
-/// is drawn starts at the margin, and the size with the margin around it.
-export function drawDiagram(text) {
+/// is drawn starts at the margin, and the size with the margin around it. While a tapped
+/// label shows whole, what is drawn reaches further; `onExtent` then receives the area, in
+/// the drawing's coordinates, that takes it in with the margin around it.
+export function drawDiagram(text, onExtent = () => {}) {
   const diagram = parseDiagram(text);
   const at = positions(diagram);
   const nodes = [...at].map(([id, point]) => {
@@ -173,6 +175,18 @@ export function drawDiagram(text) {
   }
 
   const boxes = el("g", { class: "nodes" });
+  /// The grown box of each label showing whole.
+  const grownBoxes = new Map();
+  const extent = () => {
+    const reach = { ...bounds };
+    for (const box of grownBoxes.values()) take(reach, box.x, box.y, box.width, box.height);
+    return {
+      x: reach.left - bounds.left,
+      y: reach.top - bounds.top,
+      width: reach.right - reach.left + 2 * PAD,
+      height: reach.bottom - reach.top + 2 * PAD,
+    };
+  };
   for (const { id, point, node, cut, whole } of nodes) {
     const c = centre(point);
     const height = heightAt(point);
@@ -190,7 +204,13 @@ export function drawDiagram(text) {
         const grown = showing ? boxHeight(whole.length) : height;
         rect.setAttribute("y", String(c.y - grown / 2));
         rect.setAttribute("height", String(grown));
-        if (showing) group.parentNode?.append(group);
+        if (showing) {
+          group.parentNode?.append(group);
+          grownBoxes.set(id, { x: c.x - BOX_W / 2, y: c.y - grown / 2, width: BOX_W, height: grown });
+        } else {
+          grownBoxes.delete(id);
+        }
+        onExtent(extent());
       });
     }
     boxes.append(group);
@@ -212,18 +232,16 @@ export function drawDiagram(text) {
 }
 
 /// A diagram at its own size, which the page may shrink to fit (a reply's diagram).
+/// It grows to take in a label shown whole.
 export function renderDiagram(text) {
-  const { defs, content, size } = drawDiagram(text);
-  return el(
-    "svg",
-    {
-      class: "diagram",
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-      "data-diagram": "",
-    },
-    defs,
-    content,
-  );
+  const svg = el("svg", { class: "diagram", "data-diagram": "" });
+  const frame = ({ x, y, width, height }) => {
+    svg.setAttribute("viewBox", `${x} ${y} ${width} ${height}`);
+    svg.setAttribute("width", String(width));
+    svg.setAttribute("height", String(height));
+  };
+  const { defs, content, size } = drawDiagram(text, frame);
+  frame({ x: 0, y: 0, ...size });
+  svg.append(defs, content);
+  return svg;
 }

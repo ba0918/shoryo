@@ -66,6 +66,22 @@ test("long_japanese_diagram_label_stays_inside_its_box", async ({ shoryo, page }
   await expect(node.locator("title")).toHaveText(longLabel);
 });
 
+test("tapping_a_cut_label_shows_it_whole_inside_the_reply_diagram", async ({ shoryo, page }) => {
+  const veryLong = `${longLabel}。${longLabel}`;
+  const svg = await replyWith(shoryo, page, `a = ${veryLong}\nb = 短い\n| a | b |`);
+  const node = svg.locator('[data-node="a"]');
+
+  await node.click();
+
+  const frame = await svg.boundingBox();
+  const grown = await node.locator("rect").boundingBox();
+  const whole = await node.locator("text.whole").boundingBox();
+  expect(whole.height).toBeGreaterThan(3 * 15 * 1.5);
+  expect(inside(grown, frame)).toBe(true);
+  expect(inside(whole, frame)).toBe(true);
+  expect(inside(whole, grown)).toBe(true);
+});
+
 test("reply_diagram_is_sized_to_its_content", async ({ shoryo, page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   const svg = await replyWith(shoryo, page, "a = File\nb = Disk\nc = Backup\n| a | b | c |\na -> b : lives on\nb -> c : copied to");
