@@ -225,6 +225,27 @@ fn wait_returns_when_an_event_happens() {
     assert_eq!(events(&output)[0]["kind"], "submitted");
 }
 
+#[test]
+fn status_reports_whether_a_wait_is_in_progress() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    let waiting_now = || server.view()["agent"]["waiting"].as_bool();
+    assert_eq!(waiting_now(), Some(false));
+
+    let waiting = env
+        .command(&["wait", "store", "--timeout", "20"])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("wait starts");
+    wait_until(|| waiting_now() == Some(true));
+
+    server.submit();
+    let output = waiting.wait_with_output().expect("wait finishes");
+    assert_eq!(events(&output)[0]["kind"], "submitted");
+    wait_until(|| waiting_now() == Some(false));
+}
+
 fn read_page_stream_until(server: &Server, needle: &str) -> bool {
     let mut response = Server::agent()
         .get(format!("{}api/events", server.url))

@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::Router;
 use axum::extract::{Path, State};
@@ -32,6 +32,8 @@ pub struct Shared {
     location: TopicLocation,
     config: ConfigFile,
     url: String,
+    /// What the page shows of the agent; not part of the topic, so never saved.
+    agent: Mutex<AgentActivity>,
     /// Increases on every change; the page stream and `wait` watch it.
     version: watch::Sender<u64>,
     /// Becomes true when the server is to stop.
@@ -50,6 +52,10 @@ impl Shared {
             location,
             config,
             url,
+            agent: Mutex::new(AgentActivity {
+                waits: 0,
+                heard: Instant::now(),
+            }),
             version: watch::channel(0).0,
             shutdown: watch::channel(false).0,
         })
@@ -88,7 +94,27 @@ impl Shared {
         Ok(value)
     }
 
+    fn agent(&self) -> MutexGuard<'_, AgentActivity> {
+        self.agent
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Notes that the agent sent a command, and tells the page.
+    fn heard_from_agent(&self) {
+        self.agent().heard = Instant::now();
+        self.version.send_modify(|version| *version += 1);
+    }
+
+    /// Marks a `wait` in progress until the returned guard is dropped, however it ends.
+    fn wait_started(self: &Arc<Self>) -> WaitInProgress {
+        self.agent().waits += 1;
+        self.heard_from_agent();
+        WaitInProgress(Arc::clone(self))
+    }
+
     fn view(&self) -> View {
+        let agent = self.agent().view();
         let state = self.lock();
         let topic = &state.topic;
         let chains = topic
@@ -112,6 +138,7 @@ impl Shared {
             .collect();
         View {
             version: *self.version.borrow(),
+            agent,
             map,
             paths,
             chains,
@@ -122,10 +149,43 @@ impl Shared {
     }
 }
 
+/// Whether the agent is waiting for the screen, and when it last sent a command.
+struct AgentActivity {
+    waits: usize,
+    heard: Instant,
+}
+
+impl AgentActivity {
+    fn view(&self) -> AgentView {
+        AgentView {
+            waiting: self.waits > 0,
+            quiet_ms: u64::try_from(self.heard.elapsed().as_millis()).unwrap_or(u64::MAX),
+        }
+    }
+}
+
+/// The agent as the page shows it; the page decides from `quiet_ms` when it stopped responding.
+#[derive(Serialize)]
+struct AgentView {
+    waiting: bool,
+    /// Milliseconds since the agent's last command, when the view was made.
+    quiet_ms: u64,
+}
+
+struct WaitInProgress(Arc<Shared>);
+
+impl Drop for WaitInProgress {
+    fn drop(&mut self) {
+        self.0.agent().waits -= 1;
+        self.0.heard_from_agent();
+    }
+}
+
 /// Everything the page draws, sent whole on every change.
 #[derive(Serialize)]
 struct View {
     version: u64,
+    agent: AgentView,
     topic: StoredTopic,
     chains: BTreeMap<QuestionId, Vec<Vec<ChainLink>>>,
     map: Map,
@@ -293,6 +353,7 @@ async fn change_config(State(shared): State<Arc<Shared>>, body: String) -> ApiRe
 }
 
 async fn round(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
+    shared.heard_from_agent();
     let input = RoundInput::from_json(&body)
         .map_err(|error| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, error))?;
     let number = shared.change(|state| state.topic.apply_round(input))?;
@@ -310,6 +371,7 @@ struct WaitRequest {
 
 async fn wait(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
     let request: WaitRequest = parse(&body)?;
+    let _in_progress = shared.wait_started();
     if !request.ack.is_empty() {
         shared.change(|state| {
             state.topic.check_wait()?;
@@ -360,6 +422,7 @@ struct ReplyRequest {
 }
 
 async fn reply(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
+    shared.heard_from_agent();
     let request: ReplyRequest = parse(&body)?;
     let reply = Reply {
         text: request.text,
@@ -370,6 +433,7 @@ async fn reply(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
 }
 
 async fn end(State(shared): State<Arc<Shared>>) -> ApiResult {
+    shared.heard_from_agent();
     shared.change(|state| state.topic.end())?;
     ok(json!({}))
 }
