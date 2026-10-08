@@ -1555,6 +1555,19 @@ svg.diagram .edge text {
   font-weight: 600;
 }
 
+.decision-source {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.decision-source .link {
+  font-size: inherit;
+  text-align: left;
+}
+
 .record-meta,
 .decision-meta {
   display: flex;

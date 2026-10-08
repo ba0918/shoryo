@@ -43,26 +43,29 @@ export function decisionItem(item, emit) {
     { class: "decision-item", "data-decision-item": item.id },
     h("p", { class: "decision-name" }, item.name),
     h("p", { class: "decision-text" }, item.text),
+    item.source
+      ? h(
+          "p",
+          { class: "decision-source" },
+          h("span", { class: "decision-source-arrow", "aria-hidden": "true" }, "←"),
+          item.jump
+            ? h(
+                "button",
+                {
+                  type: "button",
+                  class: "link",
+                  "data-action": "go-to-source",
+                  title: t("decision.go-to-source"),
+                  onclick: () => emit({ type: "jump", target: item.jump }),
+                },
+                item.source,
+              )
+            : h("span", {}, item.source),
+        )
+      : null,
     h(
       "div",
       { class: "decision-meta" },
-      item.source
-        ? [
-            h("span", { class: "meta-label" }, t("decision.decided-in")),
-            item.jump
-              ? h(
-                  "button",
-                  {
-                    type: "button",
-                    class: "link",
-                    "data-action": "go-to-source",
-                    onclick: () => emit({ type: "jump", target: item.jump }),
-                  },
-                  item.source,
-                )
-              : h("span", {}, item.source),
-          ]
-        : null,
       item.revised ? h("span", { class: "badge revised", "data-mark": "revised" }, t("decision.revised")) : null,
       item.preApproved ? h("span", { class: "badge pre-approved", "data-mark": "pre-approved" }, t("card.pre-approved")) : null,
       h("span", { class: "decision-actions" }, reviewControls(item.review, emit)),

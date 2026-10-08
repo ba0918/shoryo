@@ -124,7 +124,7 @@ const en = {
   "records.before": "Before",
   "records.after": "After",
 
-  "decision.decided-in": "Decided in",
+  "decision.go-to-source": "Go to the question it was decided in",
   "decision.fixed-in": "Fixed in round {round}",
   "decision.revised": "Revised later",
   "decision.review": "Review this",
@@ -280,7 +280,7 @@ const ja = {
   "records.before": "前",
   "records.after": "後",
 
-  "decision.decided-in": "決まった問い",
+  "decision.go-to-source": "決まった問いへ移る",
   "decision.fixed-in": "第 {round} ラウンドの直したこと",
   "decision.revised": "あとで改めた",
   "decision.review": "見直したい",
