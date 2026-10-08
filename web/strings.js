@@ -243,7 +243,7 @@ const ja = {
   "current.waiting": "最初のラウンドを待っています。",
   "send.proceed": "この結果で進める",
   "send.review-requests": "見直しを頼む",
-  "send.go-unstamped": "判子のない問いへ移動",
+  "send.go-unstamped": "判子のない最初の問いへ移動",
 
   "confirm.title": "この内容で送りますか？",
   "confirm.result-title": "この内容で送りますか？",
