@@ -1092,9 +1092,39 @@ button.send-status {
   gap: 0.5rem;
 }
 
+.thread-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.thread-toggle::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.thread-toggle[aria-expanded="true"]::before {
+  transform: rotate(45deg);
+}
+
 .exchanges {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--sheet-sunk);
 }
 
 .exchange {
@@ -1104,31 +1134,55 @@ button.send-status {
 
 .asked,
 .reply {
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 0.4rem 0.75rem;
   font-size: 0.9rem;
-  max-width: var(--read-max);
+  max-width: min(var(--read-max), 85%);
+  overflow-wrap: anywhere;
 }
 
 .asked {
-  background: var(--sheet-sunk);
+  background: var(--accent);
+  color: var(--accent-ink);
   justify-self: end;
-  margin-left: 2.5rem;
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.asked .speaker {
+  color: inherit;
+  opacity: 0.8;
 }
 
 .reply {
-  background: var(--accent-soft);
-  margin-right: 1.5rem;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  justify-self: start;
+  border-bottom-left-radius: 4px;
   display: grid;
   gap: 0.3rem;
   justify-items: start;
+  min-width: 0;
+}
+
+.reply.flash {
+  animation: flash 1.2s ease-out;
+}
+
+@keyframes flash {
+  from {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 3px transparent;
+  }
 }
 
 .reply.pending {
   color: var(--muted);
   font-style: italic;
   background: transparent;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--line-strong);
 }
 
 .speaker {
@@ -1142,19 +1196,41 @@ button.send-status {
   color: var(--accent);
 }
 
-.follow-ups {
-  margin-left: 1.25rem;
-  border-left: 2px solid var(--line);
-  padding-left: 0.75rem;
-  display: grid;
-  gap: 0.5rem;
+.quote {
+  justify-self: end;
+  max-width: min(var(--read-max), 85%);
+  border: none;
+  border-left: 3px solid var(--line-strong);
+  background: none;
+  padding: 0 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+.quote:hover {
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.elided {
+  justify-self: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  background: var(--sheet);
+  padding: 0 0.8rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.elided:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .ask-box {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 0.4rem 0.75rem;
+  display: grid;
+  gap: 0.4rem;
 }
 
 .quick-asks {
@@ -1163,15 +1239,45 @@ button.send-status {
   gap: 0.35rem;
 }
 
-.free-ask {
-  display: flex;
-  gap: 0.4rem;
-  align-items: flex-start;
-  flex: 1 1 18rem;
+.quick-asks .chip {
+  line-height: 1.5rem;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
 }
 
-.following {
-  flex-basis: 100%;
+.free-ask {
+  position: relative;
+  display: flex;
+}
+
+.free-ask textarea {
+  flex: 1;
+  border-radius: 18px;
+  padding-right: 2.75rem;
+  min-height: 2.6rem;
+}
+
+.send-ask {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.3rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0;
+}
+
+.send-ask svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 .following {

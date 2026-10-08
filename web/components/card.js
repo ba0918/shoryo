@@ -17,12 +17,12 @@ import {
 import { thread } from "./thread.js";
 
 export class Card extends Component {
-  /// `past` draws a question of a past round: read only, with every exchange shown.
+  /// `past` draws a question of a past round: read only.
   constructor(emit, { past = false } = {}) {
     super(emit);
     this.past = past;
     this.open = false;
-    this.thread = { mode: past ? "all" : "latest", follows: null };
+    this.thread = { open: null, expanded: false, follows: null };
   }
 
   threadFor(question) {

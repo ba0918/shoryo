@@ -31,7 +31,7 @@ async function askIds(shoryo, count) {
 }
 
 test("two_asks_pending_while_other_cards_stay_usable", async ({ shoryo, page }) => {
-  await action(card(page, "q2"), "quick-ask").first().click();
+  await askFreely(card(page, "q2"), "Why a file?");
   await askFreely(card(page, "q4"), "Who else could delete it?");
 
   await expect(mark(card(page, "q2"), "writing")).toBeVisible();
@@ -74,46 +74,97 @@ test("reply_appears_under_its_card", async ({ shoryo, page }) => {
   expect(second).not.toBe(first);
 });
 
-test("thread_starts_latest_only_and_switches_to_all_and_hidden", async ({ shoryo, page }) => {
+const exchangeTexts = (scope) => scope.locator("[data-ask] .asked-text").allTextContents();
+
+test("thread_opens_and_closes_and_starts_open_when_there_are_asks", async ({ shoryo, page }) => {
   const q2 = card(page, "q2");
+  await expect(action(q2, "thread-toggle")).toHaveCount(0);
   await askFreely(q2, "First question");
   const [first] = await askIds(shoryo, 1);
   await shoryo.reply(first, { text: "First reply" });
+
+  const toggle = action(q2, "thread-toggle");
+  await expect(toggle).toHaveText("Ask back (1)");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(q2.getByText("First reply")).toBeVisible();
-  await askFreely(q2, "Second question");
-  const [, second] = await askIds(shoryo, 2);
-  await shoryo.reply(second, { text: "Second reply" });
 
-  await expect(q2.getByText("Second reply")).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(q2.getByText("First reply")).toHaveCount(0);
-
-  await q2.locator("[data-thread-mode=all]").click();
+  await toggle.click();
   await expect(q2.getByText("First reply")).toBeVisible();
-  await expect(q2.getByText("Second reply")).toBeVisible();
 
-  await q2.locator("[data-thread-mode=hidden]").click();
-  await expect(q2.getByText("First reply")).toHaveCount(0);
-  await expect(q2.getByText("Second reply")).toHaveCount(0);
+  await page.reload();
+  await expect(card(page, "q2").getByText("First reply")).toBeVisible();
+  await expect(action(card(page, "q4"), "thread-toggle")).toHaveCount(0);
 });
 
-test("follow_up_attaches_to_chosen_reply", async ({ shoryo, page }) => {
+const longReply = "The first reply runs on well past forty characters, so its quote is cut.";
+
+test("follow_up_is_placed_in_time_order_with_a_quote_of_the_reply_it_continues", async ({ shoryo, page }) => {
   const q2 = card(page, "q2");
   await askFreely(q2, "First question");
   const [first] = await askIds(shoryo, 1);
-  await shoryo.reply(first, { text: "First reply" });
+  await shoryo.reply(first, { text: longReply });
   await askFreely(q2, "Unrelated question");
   const [, other] = await askIds(shoryo, 2);
   await shoryo.reply(other, { text: "Unrelated reply" });
-  await q2.locator("[data-thread-mode=all]").click();
 
   await action(q2.locator(`[data-ask="${first}"]`), "follow-up").click();
   await askFreely(q2, "And after that?");
 
   const asks = await askEvents(shoryo, 3);
   expect(asks[2].follows).toBe(first);
-  await expect(
-    q2.locator(`[data-ask="${first}"] [data-ask]`).getByText("And after that?"),
-  ).toBeVisible();
+  await expect.poll(() => exchangeTexts(q2)).toEqual(["First question", "Unrelated question", "And after that?"]);
+  await expect(q2.locator("[data-ask] [data-ask]")).toHaveCount(0);
+  const quote = q2.locator(`[data-ask="${asks[2].ask}"] [data-quote]`);
+  await expect(quote).toHaveText(`${[...longReply].slice(0, 40).join("")}…`);
+
+  await page.setViewportSize({ width: 1280, height: 300 });
+  await quote.scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 400);
+  const quoted = q2.locator(`[data-ask="${first}"] [data-reply]`);
+  await expect(quoted).not.toBeInViewport();
+  await quote.click();
+  await expect(quoted).toBeInViewport();
+});
+
+test("more_than_five_exchanges_collapse_the_middle_and_expand_on_click", async ({ shoryo, page }) => {
+  const q2 = card(page, "q2");
+  const texts = ["one", "two", "three", "four", "five", "six"];
+  for (const text of texts) await askFreely(q2, text);
+  await askIds(shoryo, 6);
+
+  await expect.poll(() => exchangeTexts(q2)).toEqual(["one", "five", "six"]);
+  const more = action(q2, "show-all-exchanges");
+  await expect(more).toContainText("3");
+
+  await more.click();
+  await expect.poll(() => exchangeTexts(q2)).toEqual(texts);
+  await expect(action(q2, "show-all-exchanges")).toHaveCount(0);
+});
+
+test("preset_ask_button_fills_the_input_without_sending", async ({ shoryo, page }) => {
+  const q2 = card(page, "q2");
+  await action(q2, "quick-ask").first().click();
+
+  await expect(q2.locator("[data-field=ask]")).toHaveValue("Explain more");
+  await expect(q2.locator("[data-field=ask]")).toBeFocused();
+  await expect(mark(q2, "writing")).toHaveCount(0);
+  expect((await shoryo.wait()).filter((event) => event.kind === "ask")).toHaveLength(0);
+});
+
+test("send_button_and_enter_send_the_ask", async ({ shoryo, page }) => {
+  const q2 = card(page, "q2");
+  const field = q2.locator("[data-field=ask]");
+  await field.fill("Sent with the button");
+  await q2.getByRole("button", { name: "Send the ask" }).click();
+  await field.fill("Sent with Enter");
+  await field.press("Enter");
+
+  const asks = await askEvents(shoryo, 2);
+  expect(asks.map((ask) => ask.text)).toEqual(["Sent with the button", "Sent with Enter"]);
+  await expect(mark(q2, "writing")).toHaveCount(2);
 });
 
 test("shift_enter_inserts_a_newline_and_enter_sends", async ({ shoryo, page }) => {

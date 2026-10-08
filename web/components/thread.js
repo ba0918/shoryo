@@ -1,67 +1,97 @@
-// 聞き返し under a card: the three ways to ask, and the exchanges shown latest-only, all, or
-// hidden (docs/spec/screen.md, "聞き返し").
+// 聞き返し under a card: the exchanges in the order they were asked, opened and closed under
+// one heading, and the ask box (docs/spec/screen.md, "聞き返し").
 import { h } from "../dom.js";
 import { renderDiagram } from "../diagram.js";
 import { translator } from "../strings.js";
+import { shownExchanges } from "../view-data.js";
+
+const SVG = "http://www.w3.org/2000/svg";
 
 const QUICK_ASKS = ["thread.quick.more", "thread.quick.diagram", "thread.quick.recommendation"];
 
-const MODES = ["latest", "all", "hidden"];
-
-/// The exchanges and the ask box. `local` is the card's own state: `mode` and `follows`
-/// (the ask a follow-up continues). `onLocal` changes it; `emit` sends asks upwards.
+/// The heading, the exchanges and the ask box. `local` is the card's own state: `open` (null
+/// until the person opens or closes the thread), `expanded` (the elided middle shown) and
+/// `follows` (the ask a follow-up continues). `onLocal` changes it; `emit` sends asks upwards.
 export function thread(question, local, onLocal, emit) {
   const t = translator(question.lang);
   const asks = question.asks;
+  const open = local.open ?? asks.length > 0;
   return h(
     "div",
     { class: "thread" },
-    asks.length > 0 ? modeSwitch(local, onLocal, t) : null,
-    exchanges(asks, local, onLocal, t),
+    asks.length > 0
+      ? h(
+          "button",
+          {
+            type: "button",
+            class: "thread-toggle",
+            "data-action": "thread-toggle",
+            "data-focus": `thread-toggle-${question.id}`,
+            "aria-expanded": String(open),
+            onclick: () => onLocal({ open: !open }),
+          },
+          t("thread.heading", { count: asks.length }),
+        )
+      : null,
+    open && asks.length > 0 ? exchanges(asks, local, onLocal, t) : null,
     question.locked ? null : askBox(question, local, onLocal, emit, t),
   );
 }
 
-function modeSwitch(local, onLocal, t) {
+function exchanges(asks, local, onLocal, t) {
+  const { head, elided, tail } = shownExchanges(asks, local.expanded);
   return h(
     "div",
-    { class: "thread-modes seg-group", role: "group", "aria-label": t("thread.modes") },
-    MODES.map((mode) =>
-      h(
-        "button",
-        {
-          type: "button",
-          class: `seg${mode === local.mode ? " on" : ""}`,
-          "aria-pressed": String(mode === local.mode),
-          "data-thread-mode": mode,
-          onclick: () => onLocal({ mode }),
-        },
-        t(`thread.${mode}`),
-      ),
-    ),
+    { class: "exchanges", "data-exchanges": true },
+    head.map((ask) => exchange(ask, local, onLocal, t)),
+    elided > 0
+      ? h(
+          "button",
+          { type: "button", class: "elided", "data-action": "show-all-exchanges", onclick: () => onLocal({ expanded: true }) },
+          t("thread.elided", { count: elided }),
+        )
+      : null,
+    tail.map((ask) => exchange(ask, local, onLocal, t)),
   );
 }
 
-function exchanges(asks, local, onLocal, t) {
-  if (local.mode === "hidden" || asks.length === 0) return null;
-  if (local.mode === "latest") {
-    return h("div", { class: "exchanges" }, exchange(asks[asks.length - 1], [], local, onLocal, t));
-  }
-  const ids = new Set(asks.map((ask) => ask.id));
-  const children = (id) => asks.filter((ask) => ask.follows === id);
-  const tree = (ask) => exchange(ask, children(ask.id).map(tree), local, onLocal, t);
-  const roots = asks.filter((ask) => ask.follows === null || !ids.has(ask.follows));
-  return h("div", { class: "exchanges" }, roots.map(tree));
-}
-
-function exchange(ask, followUps, local, onLocal, t) {
+function exchange(ask, local, onLocal, t) {
   return h(
     "div",
     { class: "exchange", "data-ask": ask.id },
-    h("p", { class: "asked" }, h("span", { class: "speaker" }, t("thread.you")), ask.text),
+    ask.quote !== null
+      ? h(
+          "button",
+          {
+            type: "button",
+            class: "quote",
+            "data-quote": true,
+            title: t("thread.go-to-quoted"),
+            onclick: (event) => showReply(event.currentTarget, ask.follows, onLocal),
+          },
+          ask.quote,
+        )
+      : null,
+    h("p", { class: "asked" }, h("span", { class: "speaker" }, t("thread.you")), h("span", { class: "asked-text" }, ask.text)),
     reply(ask, local, onLocal, t),
-    followUps.length > 0 ? h("div", { class: "follow-ups" }, followUps) : null,
   );
+}
+
+/// Scrolls to the reply a follow-up continues, first showing the elided middle when it is there.
+function showReply(from, id, onLocal) {
+  const selector = `[data-ask="${CSS.escape(String(id))}"] [data-reply]`;
+  const here = from.closest(".thread")?.querySelector(selector);
+  if (here) return flash(here);
+  onLocal({ expanded: true });
+  const shown = [...document.querySelectorAll(selector)].find((element) => element.offsetParent !== null);
+  if (shown) flash(shown);
+}
+
+function flash(element) {
+  element.scrollIntoView({ block: "center" });
+  element.classList.remove("flash");
+  void element.offsetWidth;
+  element.classList.add("flash");
 }
 
 function reply(ask, local, onLocal, t) {
@@ -73,7 +103,7 @@ function reply(ask, local, onLocal, t) {
     case "replied":
       return h(
         "div",
-        { class: "reply" },
+        { class: "reply", "data-reply": true },
         h("span", { class: "speaker" }, t("thread.llm")),
         h("p", {}, ask.reply.text),
         ask.reply.diagram ? h("div", { class: "diagram-box" }, renderDiagram(ask.reply.diagram)) : null,
@@ -90,23 +120,30 @@ function reply(ask, local, onLocal, t) {
   }
 }
 
+function sendIcon() {
+  const svg = document.createElementNS(SVG, "svg");
+  for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true" })) {
+    svg.setAttribute(name, String(value));
+  }
+  const path = document.createElementNS(SVG, "path");
+  path.setAttribute("d", "M3.5 11.2 20.5 3.5l-7.7 17-2.4-6.9-6.9-2.4zM10.4 13.6l4.6-4.6");
+  svg.append(path);
+  return svg;
+}
+
 function askBox(question, local, onLocal, emit, t) {
-  const send = (text) => {
+  const following = question.asks.find((ask) => ask.id === local.follows);
+  // An emptied field holds nothing to lose, so the card can redraw at once.
+  const send = () => {
+    const text = input.value;
     if (!text.trim()) return;
+    input.value = "";
     emit({
       type: "op",
       op: { op: "ask", question: question.id, text, follows: local.follows ?? null },
     });
-    onLocal({ follows: null });
+    onLocal({ follows: null, open: true });
   };
-  // An emptied field holds nothing to lose, so the card can redraw at once.
-  const sendTyped = () => {
-    const text = input.value;
-    if (!text.trim()) return;
-    input.value = "";
-    send(text);
-  };
-  const following = question.asks.find((ask) => ask.id === local.follows);
   // Enter sends and Shift+Enter starts a new line; Enter that confirms an input method's
   // conversion belongs to the input method.
   const input = h("textarea", {
@@ -118,7 +155,7 @@ function askBox(question, local, onLocal, emit, t) {
     onkeydown: (event) => {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
-      sendTyped();
+      send();
     },
   });
   return h(
@@ -129,7 +166,7 @@ function askBox(question, local, onLocal, emit, t) {
           "p",
           { class: "following" },
           h("span", { class: "following-label" }, t("thread.following")),
-          h("span", { class: "following-text" }, following.text),
+          h("span", { class: "following-text" }, following.excerpt ?? following.text),
           h(
             "button",
             { type: "button", class: "link small", "data-action": "cancel-follow-up", onclick: () => onLocal({ follows: null }) },
@@ -140,15 +177,44 @@ function askBox(question, local, onLocal, emit, t) {
     h(
       "div",
       { class: "quick-asks" },
+      // A suggestion only fills the field: a mistaken press must not reach the LLM. The card is
+      // not redrawn, and the focus stays in the field so a redraw waits for what it holds.
       QUICK_ASKS.map((key) =>
-        h("button", { type: "button", class: "chip", "data-action": "quick-ask", onclick: () => send(t(key)) }, t(key)),
+        h(
+          "button",
+          {
+            type: "button",
+            class: "chip",
+            "data-action": "quick-ask",
+            onclick: () => {
+              input.value = t(key);
+              input.focus();
+              input.setSelectionRange(input.value.length, input.value.length);
+            },
+          },
+          t(key),
+        ),
       ),
     ),
     h(
       "div",
       { class: "free-ask" },
       input,
-      h("button", { type: "button", class: "btn small", "data-action": "ask", onclick: sendTyped }, t("thread.ask")),
+      h(
+        "button",
+        {
+          type: "button",
+          class: "send-ask",
+          "data-action": "ask",
+          "aria-label": t("thread.send"),
+          title: t("thread.send"),
+          // Pressing must not take the focus from the field: losing it lets a waiting redraw
+          // replace this button before the click lands.
+          onmousedown: (event) => event.preventDefault(),
+          onclick: send,
+        },
+        sendIcon(),
+      ),
     ),
   );
 }

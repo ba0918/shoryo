@@ -49,7 +49,7 @@ export function questionData(view, round, question, locked, landed = null, asOf 
     note: question.answer.note,
     deferred: question.answer.deferred,
     stamp: question.answer.stamp,
-    asks: round.asks.filter((ask) => ask.question === question.id).map(askData),
+    asks: questionAsks(round, question.id),
     locked,
     landed: question.id === landed,
   };
@@ -166,13 +166,48 @@ function decidedBy(topic, questionId) {
   return topic.records.decisions.filter((decision) => decision.origin.question === questionId);
 }
 
+/// How many characters of a reply a follow-up quotes.
+const QUOTE_CHARS = 40;
+
+/// The opening of a reply, as a follow-up quotes it.
+function excerpt(text) {
+  const chars = [...text];
+  return chars.length > QUOTE_CHARS ? `${chars.slice(0, QUOTE_CHARS).join("")}…` : text;
+}
+
 function askData(ask) {
+  const replied = ask.state.status === "replied";
   return {
     id: ask.id,
     text: ask.text,
     follows: ask.follows,
     status: ask.state.status,
-    reply: ask.state.status === "replied" ? { text: ask.state.text, diagram: ask.state.diagram } : null,
+    reply: replied ? { text: ask.state.text, diagram: ask.state.diagram } : null,
+    excerpt: replied ? excerpt(ask.state.text) : null,
+  };
+}
+
+/// A question's exchanges in the order they were asked; a follow-up carries the quote of the
+/// reply it continues.
+function questionAsks(round, questionId) {
+  const asks = round.asks.filter((ask) => ask.question === questionId).map(askData);
+  const byId = new Map(asks.map((ask) => [ask.id, ask]));
+  return asks.map((ask) => ({ ...ask, quote: byId.get(ask.follows)?.excerpt ?? null }));
+}
+
+/// Up to this many exchanges are all shown; beyond it the middle is folded away.
+const ALL_EXCHANGES_UP_TO = 5;
+const FIRST_SHOWN = 1;
+const LAST_SHOWN = 2;
+
+/// Which exchanges a thread shows: all of them, or the first and the latest with the number
+/// folded away between them.
+export function shownExchanges(asks, expanded) {
+  if (expanded || asks.length <= ALL_EXCHANGES_UP_TO) return { head: asks, elided: 0, tail: [] };
+  return {
+    head: asks.slice(0, FIRST_SHOWN),
+    elided: asks.length - FIRST_SHOWN - LAST_SHOWN,
+    tail: asks.slice(asks.length - LAST_SHOWN),
   };
 }
 
