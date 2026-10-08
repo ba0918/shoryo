@@ -1743,9 +1743,28 @@ svg.diagram .edge text {
   gap: 0.5rem;
 }
 
+/* The picture's view takes only the height left under the title and the zoom buttons, so the
+   dialog itself never scrolls and the bottom of the view is never cut off. */
 .dialog[data-finished-picture] {
   width: min(100%, 96vw);
   max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog[data-finished-picture] .dialog-body,
+.dialog[data-finished-picture] .diagram-viewer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dialog[data-finished-picture] .diagram-viewer {
+  gap: 0.4rem;
+}
+
+.dialog[data-finished-picture] .close {
+  align-self: flex-end;
 }
 
 .dialog .close {
