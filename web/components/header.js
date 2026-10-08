@@ -52,6 +52,7 @@ class AgentStatus extends Component {
     const { agent, lang } = this.data;
     const t = translator(lang);
     this.el.className = agent ? `agent-status ${agent}` : "visually-hidden";
+    this.el.hidden = !agent;
     this.el.textContent = agent ? t(`agent.${agent}`) : "";
     for (const [name, value] of [["data-agent-status", agent], ["title", agent && t(`agent.${agent}-title`)]]) {
       if (value) this.el.setAttribute(name, value);

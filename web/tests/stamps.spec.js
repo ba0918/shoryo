@@ -85,7 +85,7 @@ test.describe("on a round with questions", () => {
     await action(page, "send").click();
     await action(confirmation(page), "confirm-send").click();
 
-    await expect(page.locator("[data-sent-notice]")).toBeVisible();
+    await expect(page.locator("[data-wait-footer]")).toBeVisible();
     expect(await submittedEvents(shoryo, 2)).toHaveLength(1);
   });
 });
@@ -145,7 +145,7 @@ test.describe("with dated stamps", () => {
     const pressed = answerOf(await storedTopic(shoryo), 2, "q2").stamped_at;
 
     await sendAll(page);
-    await expect(page.locator("[data-sent-notice]")).toBeVisible();
+    await expect(page.locator("[data-wait-footer]")).toBeVisible();
     await q2.click();
     await page.mouse.move(0, 0);
     await q2.evaluate((element) => element.blur());

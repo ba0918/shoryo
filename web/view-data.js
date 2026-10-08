@@ -94,33 +94,30 @@ export function currentRoundData(view, landed = null) {
       lang: view.lang,
     },
     fixes: round.review ? fixesData(view, round) : [],
-    notice: round.submitted && !topic.ended ? (proceeded(topic) ? "sent.proceeded" : "sent.next-round") : null,
+    showSend: !locked,
   };
 }
 
-/// Whether the person proceeded with the result: it was sent without review requests, so the
-/// brainstorm is over on this screen and no next round is coming; with review requests, the
-/// LLM asks again. The server records which it was when the result was sent.
-function proceeded(topic) {
-  const round = topic.rounds[topic.rounds.length - 1];
-  return !topic.ended && round !== undefined && round.submitted && round.sent_as === "proceeded";
+const WAIT_GUIDANCE_MS = 3 * 60 * 1000;
+
+export function waitFooterData(view, tab, now) {
+  const round = view.topic.rounds.at(-1);
+  if (view.topic.ended || !round?.submitted) return null;
+  const kind = round.questions.length ? "answers" : round.sent_as;
+  const sentAt = Date.parse(round.sent_at);
+  const remaining = Number.isFinite(sentAt) ? Math.max(0, sentAt + WAIT_GUIDANCE_MS - now) : null;
+  return {
+    lang: view.lang,
+    kind,
+    target: kind === "proceeded" ? "end" : "next_round",
+    round: tab === "past" ? round.number : null,
+    guidance: remaining === 0,
+    changesIn: remaining > 0 ? remaining : null,
+  };
 }
 
-/// How long the agent may be silent, neither waiting nor sending a command, before the
-/// screen says it is not responding.
-export const NOT_RESPONDING_MS = 10 * 60 * 1000;
-
-/// What the header says the LLM is doing at `now`: waiting for the screen, working on what
-/// it received, or not responding; nothing once the topic has ended. `agent` is the server's
-/// report, received at `receivedAt`. Once the person proceeded with the result, the LLM writes
-/// the specification without calling the screen, so its silence is not taken as not responding.
-export function agentStatus(agent, receivedAt, topic, now) {
-  if (topic.ended || !agent) return null;
-  if (agent.waiting) return { state: "waiting", changesIn: null };
-  if (proceeded(topic)) return { state: "working", changesIn: null };
-  const quiet = agent.quiet_ms + (now - receivedAt);
-  if (quiet >= NOT_RESPONDING_MS) return { state: "not-responding", changesIn: null };
-  return { state: "working", changesIn: NOT_RESPONDING_MS - quiet };
+export function agentStatus(agent, topic) {
+  return !topic.ended && agent?.waiting ? "waiting" : null;
 }
 
 /// 結果: what a round without questions shows — the finished picture and the records.

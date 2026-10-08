@@ -3,7 +3,7 @@
 import { test as base, expect } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,10 +58,33 @@ export const test = base.extend({
       await mkdir(path.join(scratch, ".config", "shoryo"), { recursive: true });
       await writeFile(path.join(scratch, ".config", "shoryo", "config.toml"), configText);
     }
-    const server = spawn(bin, ["start", "topic"], { cwd: dirs.work, env: dirs.env });
-    const url = await started(server);
+    let server;
+    let url;
+    async function start() {
+      server = spawn(bin, ["start", "topic"], { cwd: dirs.work, env: dirs.env });
+      url = await started(server);
+    }
+    async function stop() {
+      const exited = new Promise((resolve) => server.once("exit", resolve));
+      server.kill("SIGTERM");
+      const timer = setTimeout(() => server.kill("SIGKILL"), 5000);
+      await exited;
+      clearTimeout(timer);
+    }
+    await start();
     const shoryo = {
-      url,
+      get url() { return url; },
+      restart: async () => { await stop(); await start(); },
+      /// Older saved rounds may omit sent_at; load that allowed format without adding a test API.
+      restartWithoutSentTimestamp: async () => {
+        await stop();
+        const files = await readdir(dirs.env.XDG_DATA_HOME, { recursive: true });
+        const file = path.join(dirs.env.XDG_DATA_HOME, files.find(file => path.basename(file) === "state.json"));
+        const topic = JSON.parse(await readFile(file, "utf8"));
+        delete topic.rounds.at(-1).sent_at;
+        await writeFile(file, JSON.stringify(topic));
+        await start();
+      },
       round: (body) => run(dirs, ["round", "topic"], JSON.stringify(body)),
       reply: (ask, body) => run(dirs, ["reply", "topic", String(ask)], JSON.stringify(body)),
       end: () => run(dirs, ["end", "topic"]),
@@ -85,11 +108,7 @@ export const test = base.extend({
       },
     };
     await use(shoryo);
-    const exited = new Promise((resolve) => server.once("exit", resolve));
-    server.kill("SIGTERM");
-    const timer = setTimeout(() => server.kill("SIGKILL"), 5000);
-    await exited;
-    clearTimeout(timer);
+    await stop();
     await rm(scratch, { recursive: true, force: true });
   },
 });

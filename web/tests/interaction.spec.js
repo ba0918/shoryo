@@ -50,7 +50,7 @@ test("keyboard_alone_answers_stamps_asks_reviews_and_sends", async ({ shoryo, pa
   await page.keyboard.press("Enter");
   await keyboardTo(page, '[data-confirm-send] [data-action=confirm-send]');
   await page.keyboard.press("Enter");
-  await expect(page.locator("[data-sent-notice]")).toBeVisible();
+  await expect(page.locator("[data-wait-footer]")).toBeVisible();
 });
 
 test("reply_arriving_while_typing_keeps_the_focus_in_the_field", async ({ shoryo, page }) => {
@@ -94,21 +94,33 @@ test("reply_arriving_during_input_conversion_keeps_the_editor_and_does_not_send_
   expect((await shoryo.wait()).filter(event => event.kind === "ask").map(event => event.text)).toEqual(["First ask", "変換済み"]);
 });
 
-test("reduced_motion_stops_the_status_dot_the_typing_dots_and_the_toasts", async ({ shoryo, page }) => {
+test("reduced_motion_stops_the_typing_dots_and_toasts_while_unconfirmed_header_status_is_hidden", async ({ shoryo, page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const question of ["q2", "q4"]) await shoryo.op({ op: "ask", question, text: "Explain" });
   const asks = (await shoryo.wait()).filter(event => event.kind === "ask");
   await page.locator('[data-tab=decisions]').click();
   await shoryo.reply(asks[0].ask, { text: "Motionless reply" });
   await expect(page.locator("[data-toast]")).toBeVisible();
+  await expect(page.getByRole("banner").locator("[data-agent-status]")).toHaveCount(0);
   const moving = await page.evaluate(() => [
-    document.querySelector("[data-agent-status]"),
     document.querySelector(".typing-dots"),
     document.querySelector("[data-toast]"),
   ].flatMap(element => element.getAnimations({ subtree: true })).filter(animation =>
     animation.playState === "running" && animation.playbackRate !== 0 && animation.effect.getComputedTiming().duration > 0,
   ).length);
   expect(moving).toBe(0);
+});
+
+test("reducing_motion_after_submission_keeps_footer_text_and_three_static_dots", async ({ shoryo, page }) => {
+  await shoryo.submit();
+  const footer = page.locator('[data-wait-footer]');
+  await expect(footer).toBeVisible();
+  const text = await footer.locator('[data-wait-text]').innerText();
+  expect(await footer.evaluate(el => el.getAnimations({ subtree: true }).some(animation => animation.playState === "running"))).toBe(true);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(footer.locator('[data-wait-dot]')).toHaveCount(3);
+  await expect(footer.locator('[data-wait-text]')).toHaveText(text);
+  expect(await footer.evaluate(el => el.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length)).toBe(0);
 });
 
 test("follow_up_keeps_keyboard_focus_when_opened_and_when_another_reply_arrives", async ({ shoryo, page }) => {

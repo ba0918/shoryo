@@ -118,10 +118,10 @@ test("swap_moves_question_between_cards_and_list", async ({ page }) => {
 test("send_locks_the_round", async ({ page }) => {
   await sendAll(page);
 
-  await expect(page.locator("[data-sent-notice]")).toBeVisible();
+  await expect(page.locator("[data-wait-footer]")).toBeVisible();
   await expect(card(page, "q2").getByRole("radio", { name: /A database/ })).toBeDisabled();
   await expect(row(page, "q3").getByRole("radio", { name: /q3 no/ })).toBeDisabled();
-  await expect(action(page, "send")).toBeDisabled();
+  await expect(action(page, "send")).not.toBeVisible();
 });
 
 test("note_typed_is_kept_when_the_page_is_reopened_without_leaving_the_field", async ({ page }) => {

@@ -252,7 +252,7 @@ test("review_cannot_be_pressed_after_sending_while_stop_review_still_works", asy
   await expect(mark(decisionItem(decisionsPanel(page), "d2"), "in-review")).toBeVisible();
   await tab(page, "current").click();
   await sendAll(page);
-  await expect(page.locator("[data-sent-notice]")).toBeVisible();
+  await expect(page.locator("[data-wait-footer]")).toBeVisible();
 
   await tab(page, "decisions").click();
   expect(await cannotReview(decisionItem(decisionsPanel(page), "d3"))).toBe(true);
@@ -361,7 +361,7 @@ test("ended_topic_blocks_all_input", async ({ shoryo, page }) => {
   await shoryo.end();
 
   await expect(page.locator("[data-ended]")).toBeVisible();
-  await expect(action(page, "send")).toBeDisabled();
+  await expect(action(page, "send")).not.toBeVisible();
   await expect(card(page, "q2").locator("[data-field=ask]")).toHaveCount(0);
   await expect(action(card(page, "q2"), "swap")).toBeDisabled();
   await tab(page, "decisions").click();

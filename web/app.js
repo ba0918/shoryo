@@ -12,6 +12,7 @@ import { DEFAULT_VIEW, MapTab } from "./components/map.js";
 import { diagramView } from "./components/diagram-view.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { Toasts } from "./components/toasts.js";
+import { WaitFooter } from "./components/wait-footer.js";
 import { confirmSend } from "./components/confirm-send.js";
 import {
   agentStatus,
@@ -25,6 +26,7 @@ import {
   pastRoundsData,
   placeReachable,
   reviewConfirmData,
+  waitFooterData,
 } from "./view-data.js";
 
 const TABS = [{ id: "current" }, { id: "past" }, { id: "map" }, { id: "decisions" }];
@@ -58,11 +60,8 @@ const ui = {
 let pendingArrivals = [];
 let arrivalFrame = null;
 let toastTimer = null;
+let waitTimer = null;
 let view = null;
-/// When the newest view arrived, so the time since the agent was last heard keeps counting.
-let viewReceivedAt = 0;
-/// Redraws the header when the agent's silence crosses into "not responding".
-let agentTimer = null;
 /// Where the focus was when the open dialog opened, so closing it can return there.
 let dialogOpener = null;
 
@@ -70,6 +69,7 @@ const emit = (event) => handle(event);
 
 const header = new Header(emit);
 const toasts = new Toasts(emit);
+const waitFooter = new WaitFooter(emit);
 const tabs = new Tabs(emit);
 const current = new CurrentRound(emit);
 const past = new PastRounds(emit);
@@ -100,16 +100,14 @@ panels.decisions.appendChild(decisions.el);
 panels.map.appendChild(map.el);
 
 const page = h("main", { class: "page" }, ended, h("div", { class: "nav-row" }, tabs.el), error, ...Object.values(panels));
-document.body.append(header.el, page, toasts.el, dialogs.el);
+document.body.append(header.el, page, waitFooter.el, toasts.el, dialogs.el);
 
 function render() {
   if (!view || !ui.config) return;
   const lang = ui.config.language;
   const t = translator(lang);
   const shown = { ...view, lang };
-  const agent = agentStatus(view.agent, viewReceivedAt, view.topic, Date.now());
-  clearTimeout(agentTimer);
-  if (agent?.changesIn != null) agentTimer = setTimeout(render, agent.changesIn);
+  const agent = agentStatus(view.agent, view.topic);
   const title = view.topic.title || t("header.untitled");
   document.title = document.hidden && ui.backgroundCount ? `(${ui.backgroundCount}) ${title}` : title;
   header.update({
@@ -119,7 +117,7 @@ function render() {
     theme: ui.config.theme,
     unreadable: ui.config.unreadable,
     canGoBack: ui.history.length > 0,
-    agent: agent?.state ?? null,
+    agent,
     arrivals: {
       count: ui.arrivals.filter(arrival => !arrival.seen).length,
       open: ui.arrivalsOpen,
@@ -131,6 +129,7 @@ function render() {
   ended.hidden = !view.topic.ended;
   ended.textContent = t("screen.ended");
   current.update(currentRoundData(shown, ui.landed), lang);
+  updateWaitFooter();
   past.update(pastRoundsData(shown, ui.pastRound, ui.landed));
   map.update({ ...mapData(shown, ui.mapRange, ui.mapSelected, ui.mapRoot), view: ui.mapView ?? DEFAULT_VIEW, visible: ui.tab === "map" });
   decisions.update(decisionsTabData(shown));
@@ -153,6 +152,17 @@ function render() {
       render();
     });
   }
+}
+
+function updateWaitFooter() {
+  clearTimeout(waitTimer);
+  if (!view || !ui.config) return;
+  const pending = waitFooterData({ ...view, lang: ui.config.language }, ui.tab, Date.now());
+  const { changesIn, ...data } = pending ?? {};
+  const inert = waitFooter.el.inert;
+  waitFooter.update(pending ? data : null);
+  waitFooter.el.inert = inert;
+  if (changesIn != null) waitTimer = setTimeout(updateWaitFooter, Math.min(changesIn, 2147483647));
 }
 
 function arrivalElement(arrival) {
@@ -348,7 +358,6 @@ function accept(next) {
   if (!view || next.version >= view.version) {
     pendingArrivals.push(...arrivalsBetween(view, next));
     view = next;
-    viewReceivedAt = Date.now();
     // A place whose card went with its round can no longer be returned to.
     ui.history = ui.history.filter((place) => placeReachable(view, place));
   }

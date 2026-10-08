@@ -31,7 +31,7 @@ test.describe("with a readable config", () => {
     await page.clock.install();
     await note.fill("Written while the round is sent from another tab.");
     await shoryo.submit();
-    await expect(page.locator("[data-sent-notice]")).toBeAttached();
+    await expect(page.locator("[data-wait-footer]")).toBeAttached();
 
     await note.blur();
 
@@ -180,9 +180,11 @@ test.describe("with a broken config", () => {
     await expect(banner(page).locator("[data-config-unreadable]")).toBeVisible();
   });
 
-  test("header_lists_back_title_status_config_notice_theme_and_language_in_order", async ({ page }) => {
+  test("header_lists_back_title_status_config_notice_theme_and_language_in_order", async ({ shoryo, page }) => {
     await tab(page, "decisions").click();
     await action(page.locator('[data-panel=decisions] [data-decision-item="d1"]'), "go-to-source").click();
+    const earlier = await shoryo.wait();
+    const waiting = shoryo.waitAfter(earlier.map(event => event.id), 2);
     const parts = [
       action(banner(page), "back"),
       page.getByRole("heading", { level: 1 }),
@@ -199,6 +201,7 @@ test.describe("with a broken config", () => {
     }
 
     expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
+    await waiting;
   });
 
   test("switches_still_work_for_the_page_when_config_is_unreadable", async ({ page }) => {
