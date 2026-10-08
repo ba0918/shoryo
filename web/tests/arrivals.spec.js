@@ -179,6 +179,47 @@ test("arrival_comparison_keeps_coalesced_replies_and_ignores_the_initial_view", 
   expect(result[2]).toEqual([]);
 });
 
+test("reconnecting_announces_each_round_received_while_disconnected_and_can_open_both", async ({ shoryo, page, request }) => {
+  const initial = await (await request.get(`${shoryo.url}api/view`)).json();
+  let release;
+  const reconnect = new Promise(resolve => { release = resolve; });
+  let first = true;
+  // Browser offline mode can leave an existing stream open; gate reconnect with real server views instead.
+  await page.route("**/api/events", async route => {
+    let snapshot;
+    if (first) {
+      first = false;
+      snapshot = initial;
+    } else {
+      await reconnect;
+      snapshot = await (await request.get(`${shoryo.url}api/view`)).json();
+    }
+    await route.fulfill({ contentType: "text/event-stream", body: `retry: 50\nevent: view\ndata: ${JSON.stringify(snapshot)}\n\n` });
+  });
+  await page.reload();
+  await expect(card(page, "q2")).toBeVisible();
+  await tab(page, "decisions").click();
+  await expect(toast(page)).toHaveCount(0);
+  await expect(badge(page)).toHaveCount(0);
+  await shoryo.submit();
+  await shoryo.round({ subject: "Disconnected question round", questions: [question("q5", "Question delivered while disconnected")] });
+  await shoryo.submit();
+  await shoryo.round({ subject: "Disconnected result", questions: [] });
+  release();
+  await expect(badge(page)).toHaveText("2", { timeout: 10000 });
+  await expect(toast(page)).toHaveCount(2);
+  await action(page, "arrivals").click();
+  const entries = page.locator("[data-arrival-entry]");
+  await expect(entries).toHaveCount(2);
+  await entries.last().click();
+  await expect(tab(page, "past")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-panel=past]').getByText("Question delivered while disconnected", { exact: true })).toBeInViewport();
+  await action(page, "arrivals").click();
+  await entries.first().click();
+  await expect(tab(page, "current")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-panel=current] [data-result]')).toBeInViewport();
+});
+
 test("reply_below_the_viewport_shows_a_toast_and_back_restores_the_scroll_anchor", async ({ shoryo, page }) => {
   await page.setViewportSize({ width: 900, height: 500 });
   const id = await ask(shoryo, page, "Explain", "q4");

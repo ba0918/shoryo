@@ -503,9 +503,10 @@ export function placeReachable(view, place) {
 export function arrivalsBetween(previous, next) {
   if (!previous) return [];
   const arrivals = [];
-  const last = next.topic.rounds.at(-1);
-  if (last && last.number > (previous.topic.rounds.at(-1)?.number ?? 0)) {
-    arrivals.push({ id: `round:${last.number}`, kind: last.questions.length ? "round" : "result", round: last.number });
+  const knownRounds = new Set(previous.topic.rounds.map(round => round.number));
+  for (const round of next.topic.rounds) {
+    if (knownRounds.has(round.number)) continue;
+    arrivals.push({ id: `round:${round.number}`, kind: round.questions.length ? "round" : "result", round: round.number });
   }
   const replied = new Set(previous.topic.rounds.flatMap(round => round.asks.filter(ask => ask.state.status === "replied").map(ask => ask.id)));
   for (const round of next.topic.rounds) {
