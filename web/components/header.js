@@ -37,15 +37,24 @@ function icon(theme) {
 
 /// What the LLM is doing. It changes on its own, with every `wait`, so it redraws apart from
 /// the rest of the header: an opened original request stays open and the focus stays put.
+/// The live region is one element that stays put while only its content changes, because a
+/// screen reader may miss text that arrives together with a new live region. With no status
+/// it is left empty and takes no room.
 class AgentStatus extends Component {
-  draw({ agent, lang }) {
-    if (!agent) return document.createComment("agent-status");
+  constructor(emit) {
+    super(emit);
+    this.el = h("p", { role: "status" });
+  }
+
+  redraw() {
+    const { agent, lang } = this.data;
     const t = translator(lang);
-    return h(
-      "p",
-      { class: `agent-status ${agent}`, role: "status", "data-agent-status": agent, title: t(`agent.${agent}-title`) },
-      t(`agent.${agent}`),
-    );
+    this.el.className = agent ? `agent-status ${agent}` : "visually-hidden";
+    this.el.textContent = agent ? t(`agent.${agent}`) : "";
+    for (const [name, value] of [["data-agent-status", agent], ["title", agent && t(`agent.${agent}-title`)]]) {
+      if (value) this.el.setAttribute(name, value);
+      else this.el.removeAttribute(name);
+    }
   }
 }
 
