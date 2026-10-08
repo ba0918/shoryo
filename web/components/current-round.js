@@ -10,9 +10,7 @@ import { ResultView } from "./result.js";
 class SendBar extends Component {
   draw(bar) {
     const t = translator(bar.lang);
-    const status = bar.sent
-      ? h("p", { class: "send-status", "data-sent-notice": true }, t("send.sent"))
-      : bar.unstamped > 0
+    const status = bar.unstamped > 0
         ? h(
             "button",
             {
@@ -65,7 +63,8 @@ export class CurrentRound {
     this.fixes = new Fixes(emit);
     this.cards = new KeyedList(this.cardBox, () => new Card(emit));
     this.rows = new KeyedList(this.rowBox, () => new ProvisionalRow(emit));
-    this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.result.el, this.cardBox, this.list, this.send.el);
+    this.notice = h("p", { class: "sent-notice", "data-sent-notice": true, role: "status" });
+    this.el = h("div", { class: "current-round" }, this.empty, this.notice, this.fixes.el, this.result.el, this.cardBox, this.list, this.send.el);
   }
 
   /// `round` is null before the first round; `lang` is the screen's language.
@@ -75,12 +74,14 @@ export class CurrentRound {
     this.listTitle.textContent = t("provisional.title");
     this.listHint.textContent = t("provisional.hint");
     this.empty.hidden = round !== null;
+    this.notice.hidden = !round?.notice;
+    this.notice.textContent = round?.notice ? t(round.notice) : "";
     this.list.hidden = round === null || round.provisional.length === 0;
     this.fixes.update({ fixes: round?.fixes ?? [], lang });
     this.result.update(round?.result ?? null);
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
-    this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, sent: false, label: "send.all", lang });
+    this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, label: "send.all", lang });
     this.send.el.hidden = round === null;
   }
 }

@@ -532,6 +532,16 @@ textarea:disabled {
   margin-left: -0.6rem;
 }
 
+.sent-notice {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .page {
   max-width: var(--page-max);
   margin: 0 auto;

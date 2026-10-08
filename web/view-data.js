@@ -75,13 +75,19 @@ export function currentRoundData(view, landed = null) {
       round: round.number,
       locked,
       unstamped: locked ? 0 : view.unstamped.length,
-      sent: round.submitted && !topic.ended,
       result,
       label: result ? (reviewing ? "send.review-requests" : "send.proceed") : "send.all",
       lang: view.lang,
     },
     fixes: round.review ? fixesData(view, round) : [],
+    notice: round.submitted && !topic.ended ? sentNotice(result, reviewing) : null,
   };
+}
+
+/// What the screen says once the round is sent. A result sent without review requests ends
+/// the brainstorm, so no next round is coming; with them, the LLM asks again.
+function sentNotice(result, reviewing) {
+  return result && !reviewing ? "sent.proceeded" : "sent.next-round";
 }
 
 /// 結果: what a round without questions shows — the finished picture and the records.
