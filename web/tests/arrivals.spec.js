@@ -117,6 +117,111 @@ test("notification_badge_counts_unseen_arrivals_and_clears_when_the_list_opens",
   await expect(page.locator("[data-arrival-entry]")).toHaveCount(1);
 });
 
+test("unseen_count_is_a_red_white_number_at_the_bell_corner_in_both_themes", async ({ shoryo, page }) => {
+  await expect(badge(page)).toHaveCount(0);
+  await unseenReply(shoryo, page);
+  for (const theme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: theme });
+    const colors = await badge(page).evaluate(element => {
+      const style = getComputedStyle(element);
+      return [style.backgroundColor, style.color].map(color => color.match(/[\d.]+/g).map(Number));
+    });
+    const [red, green, blue, alpha = 1] = colors[0];
+    expect(red).toBeGreaterThan(green * 2);
+    expect(red).toBeGreaterThan(blue * 2);
+    expect(alpha).toBe(1);
+    expect(colors[1].slice(0, 3).every(channel => channel >= 250)).toBe(true);
+    const count = await badge(page).boundingBox();
+    const bell = await action(page, "arrivals").boundingBox();
+    expect(count.x + count.width / 2).toBeGreaterThan(bell.x + bell.width / 2);
+    expect(count.y + count.height / 2).toBeLessThan(bell.y + bell.height / 2);
+    await expect(badge(page)).toHaveText("1");
+  }
+  await action(page, "arrivals").click();
+  await expect(badge(page)).toHaveCount(0);
+});
+
+test("arrival_menu_separates_localized_types_from_unchanged_bodies_without_narrow_window_overflow", async ({ shoryo, page }) => {
+  await tab(page, "decisions").click();
+  await shoryo.submit();
+  await shoryo.round({ subject: "Next", questions: [question("q5", "W".repeat(60))] });
+  await expect(badge(page)).toHaveText("1");
+  const bodies = [await toast(page).last().locator("p").textContent()];
+  const id = await ask(shoryo, page, "Explain", "q5");
+  await shoryo.reply(id, { text: "New reply" });
+  await expect(badge(page)).toHaveText("2");
+  bodies.push(await toast(page).last().locator("p").textContent());
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [] });
+  await expect(badge(page)).toHaveText("3");
+  bodies.push(await toast(page).last().locator("p").textContent());
+  await action(page, "arrivals").click();
+  const menu = page.locator('[data-arrival-list]');
+  const entries = menu.locator('[data-arrival-entry]');
+  await expect(menu.getByRole("heading", { level: 2 })).toBeVisible();
+  await expect(entries).toHaveCount(3);
+  await expect(entries.locator('[data-arrival-body]')).toHaveText(bodies.reverse());
+  const englishTypes = await entries.locator('[data-arrival-type]').allTextContents();
+  expect(new Set(englishTypes).size).toBe(3);
+  expect(englishTypes.every(text => text.trim().length > 0)).toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 700 });
+  const menuColors = [];
+  for (const theme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: theme });
+    const frame = await menu.boundingBox();
+    expect(frame.x).toBeGreaterThanOrEqual(0);
+    expect(frame.x + frame.width).toBeLessThanOrEqual(page.viewportSize().width);
+    menuColors.push(await menu.evaluate(element => getComputedStyle(element).backgroundColor));
+    for (const entry of await entries.all()) {
+      const row = await entry.boundingBox();
+      const type = await entry.locator('[data-arrival-type]').boundingBox();
+      const body = await entry.locator('[data-arrival-body]').boundingBox();
+      expect(type.y + type.height).toBeLessThanOrEqual(body.y);
+      expect(type.y - row.y).toBeGreaterThan(type.height / 4);
+      expect(body.y + body.height).toBeLessThan(row.y + row.height);
+      expect(body.x + body.width).toBeLessThanOrEqual(frame.x + frame.width);
+      expect(await entry.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+      expect(await entry.evaluate(element => getComputedStyle(element).backgroundColor)).toBe(menuColors.at(-1));
+    }
+  }
+  expect(menuColors[0]).not.toBe(menuColors[1]);
+  await page.locator('[data-language=ja]').click();
+  await expect(menu.getByRole("heading", { level: 2 })).toHaveText("届いたもの");
+  const japaneseTypes = await entries.locator('[data-arrival-type]').allTextContents();
+  expect(new Set(japaneseTypes).size).toBe(3);
+  expect(japaneseTypes.every((text, index) => text.length > 0 && text !== englishTypes[index])).toBe(true);
+});
+
+test("flat_arrival_rows_show_hover_and_keyboard_focus_and_keep_navigation", async ({ shoryo, page }) => {
+  const id = await unseenReply(shoryo, page);
+  await page.mouse.move(0, 0);
+  await action(page, "arrivals").focus();
+  await page.keyboard.press("Enter");
+  const entry = page.locator(`[data-arrival-entry="reply:${id}"]`);
+  const appearance = () => entry.evaluate(element => {
+    const style = getComputedStyle(element);
+    return [style.backgroundColor, style.outlineStyle, style.outlineWidth, style.boxShadow];
+  });
+  const resting = await appearance();
+  await entry.hover();
+  expect(await appearance()).not.toEqual(resting);
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(entry).toBeFocused();
+  expect(await appearance()).not.toEqual(resting);
+  await shoryo.op({ op: "ask", question: "q2", text: "Explain another part" });
+  const next = (await shoryo.wait()).filter(event => event.kind === "ask").at(-1).ask;
+  await shoryo.reply(next, { text: "Another reply" });
+  await expect(page.locator('[data-arrival-entry]')).toHaveCount(2);
+  await expect(entry).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(card(page, "q2").locator(`[data-ask="${id}"] [data-reply]`)).toBeInViewport();
+  await expect(badge(page)).toHaveText("1");
+  await action(page, "back").click();
+  await expect(tab(page, "decisions")).toHaveAttribute("aria-selected", "true");
+});
+
 test("choosing_from_the_notification_list_moves_like_view", async ({ shoryo, page }) => {
   const id = await unseenReply(shoryo, page);
   await action(page, "arrivals").click();

@@ -51,9 +51,12 @@ export class Arrivals extends Component {
       }, bell(),
       data.count ? h("span", { class: "arrival-count", "data-arrival-count": true }, data.count) : null),
       data.open ? h("div", { class: "arrival-list", "data-arrival-list": true },
+        h("h2", { class: "arrival-list-heading" }, t("arrival.label")),
         data.entries.length ? data.entries.map(entry => h("button", {
           type: "button", "data-arrival-entry": entry.id, "data-focus": `entry-${entry.id}`,
           onclick: () => this.emit({ type: "view-arrival", id: entry.id }),
-        }, entry.text)) : h("p", {}, t("arrival.empty"))) : null);
+        }, h("span", { class: "arrival-type", "data-arrival-type": true }, t(`arrival.kind.${entry.kind}`)),
+        h("span", { class: "arrival-body", "data-arrival-body": true }, entry.text)))
+        : h("p", { class: "arrival-empty" }, t("arrival.empty"))) : null);
   }
 }

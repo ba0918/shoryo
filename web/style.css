@@ -1,5 +1,5 @@
 /* shoryo's screen. A desk where questions are read, answered and approved one by one: cool
-   paper, indigo ink for what the person acts on, and vermilion only for the stamp. Every
+   paper, indigo ink for what the person acts on, and red for stamps and unseen arrivals. Every
    colour is a custom property so the theme can be switched on the root element. */
 
 :root {
@@ -24,6 +24,9 @@
   --review: #6a4bb3;
   --review-soft: #eee8fa;
   --danger: #b42318;
+  /* Dark-theme danger ink is pale; the white count needs a consistently dark red background. */
+  --arrival-badge: #b42318;
+  --arrival-badge-ink: #ffffff;
   --shadow: 0 1px 2px rgb(28 35 48 / 6%), 0 4px 16px rgb(28 35 48 / 5%);
   --overlay: rgb(20 24 32 / 40%);
   /* Mostly opaque noise: where it thins, the stamp's ink did not take. */
@@ -1586,6 +1589,7 @@ button.send-status {
 .toast { animation: toast-arrive 150ms ease-out; }
 @keyframes toast-arrive { from { opacity: 0; transform: translateY(-8px); } }
 .arrivals { position: relative; }
+.arrivals > .icon-button { position: relative; }
 .arrival-list {
   position: absolute;
   right: 0;
@@ -1594,9 +1598,51 @@ button.send-status {
   max-height: 60vh;
   overflow: auto;
   z-index: 40;
+  padding: 0;
 }
-.arrival-list button { display: block; width: 100%; padding: 8px; text-align: left; }
-.arrival-count { font-size: 0.7rem; }
+.arrival-list-heading {
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.arrival-list button {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--sheet);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.arrival-list button + button { border-top: 1px solid var(--line); }
+.arrival-list button:hover,
+.arrival-list button:focus-visible { background: var(--accent-soft); }
+.arrival-list button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.arrival-type { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.arrival-body { min-width: 0; overflow-wrap: anywhere; font-size: 0.85rem; }
+.arrival-empty { padding: 0.8rem 1rem; color: var(--muted); font-size: 0.85rem; }
+.arrival-count {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.4rem;
+  min-width: 1.2rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  background: var(--arrival-badge);
+  color: var(--arrival-badge-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+}
 
 .diagram-view svg.diagram {
   display: block;
@@ -2170,7 +2216,12 @@ svg.map.far .edge-label-group:not(.lit, .hovered) {
 
   .topbar-inner {
     flex-wrap: wrap;
+    position: relative;
   }
+
+  /* The bell starts on the left when the header wraps; anchor the menu to the header instead. */
+  .arrivals { position: static; }
+  .arrival-list { right: var(--gutter); }
 
   .topbar-title {
     flex-basis: 100%;

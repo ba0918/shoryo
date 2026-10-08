@@ -123,7 +123,7 @@ function render() {
     arrivals: {
       count: ui.arrivals.filter(arrival => !arrival.seen).length,
       open: ui.arrivalsOpen,
-      entries: ui.arrivals.slice(-10).reverse().map(arrival => ({ id: arrival.id, text: arrivalText(arrival, lang) })),
+      entries: ui.arrivals.slice(-10).reverse().map(arrival => ({ id: arrival.id, kind: arrival.kind, text: arrivalText(arrival, lang) })),
     },
   });
   tabs.update({ tabs: TABS, current: ui.tab, lang });
