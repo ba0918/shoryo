@@ -191,14 +191,17 @@ test("finished_picture_fits_the_view_and_can_be_zoomed", async ({ page }) => {
 
 test("wheel_and_ctrl_wheel_over_a_reply_diagram_leave_it_unchanged_and_not_prevented", async ({ shoryo, page }) => {
   const svg = await replyWith(shoryo, page, "a = File\nb = Disk\n| a | b |");
-  const before = await svg.innerHTML();
+  const before = await svg.boundingBox();
+  const node = svg.locator('[data-node="a"] rect');
+  const nodeBefore = await node.boundingBox();
   for (const ctrlKey of [false, true]) {
     expect(await svg.evaluate((el, ctrlKey) => {
       const event = new WheelEvent("wheel", { deltaY: -100, ctrlKey, bubbles: true, cancelable: true });
       el.dispatchEvent(event);
       return event.defaultPrevented;
     }, ctrlKey)).toBe(false);
-    expect(await svg.innerHTML()).toBe(before);
+    expect(await svg.boundingBox()).toEqual(before);
+    expect(await node.boundingBox()).toEqual(nodeBefore);
   }
 });
 

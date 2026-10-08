@@ -101,15 +101,14 @@ test("reduced_motion_stops_the_status_dot_the_typing_dots_and_the_toasts", async
   await page.locator('[data-tab=decisions]').click();
   await shoryo.reply(asks[0].ask, { text: "Motionless reply" });
   await expect(page.locator("[data-toast]")).toBeVisible();
-  const styles = await page.evaluate(() => [
-    getComputedStyle(document.querySelector("[data-agent-status]"), "::before"),
-    getComputedStyle(document.querySelector(".typing-dots span")),
-    getComputedStyle(document.querySelector("[data-toast]")),
-  ].map(style => ({ animation: style.animationName, transition: style.transitionDuration })));
-  for (const style of styles) {
-    expect(style.animation).toBe("none");
-    expect(style.transition.split(",").every(value => parseFloat(value) === 0)).toBe(true);
-  }
+  const moving = await page.evaluate(() => [
+    document.querySelector("[data-agent-status]"),
+    document.querySelector(".typing-dots"),
+    document.querySelector("[data-toast]"),
+  ].flatMap(element => element.getAnimations({ subtree: true })).filter(animation =>
+    animation.playState === "running" && animation.playbackRate !== 0 && animation.effect.getComputedTiming().duration > 0,
+  ).length);
+  expect(moving).toBe(0);
 });
 
 test("follow_up_keeps_keyboard_focus_when_opened_and_when_another_reply_arrives", async ({ shoryo, page }) => {
