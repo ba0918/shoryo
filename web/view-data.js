@@ -82,7 +82,7 @@ export function currentRoundData(view, landed = null) {
   const reviewing = topic.records.in_review.length > 0;
   return {
     lang: view.lang,
-    result: result ? resultData(view) : null,
+    result: result ? resultData(view, locked) : null,
     human: questions.filter((q) => q.cls === "human").map((q) => q.data),
     provisional: questions.filter((q) => q.cls === "provisional").map((q) => q.data),
     send: {
@@ -124,12 +124,15 @@ export function agentStatus(agent, receivedAt, topic, now) {
 }
 
 /// 結果: what a round without questions shows — the finished picture and the records.
-function resultData(view) {
+function resultData(view, locked) {
   const records = decisionsTabData(view);
   return {
     lang: view.lang,
     picture: view.topic.finished_picture,
-    decisions: records.decisions,
+    decisions: records.decisions.map((item) => ({
+      ...item,
+      review: reviewState(view, item.id, { resultWording: !locked }),
+    })),
     not_building: records.not_building,
     rejected: records.rejected,
     undecided: records.undecided,
@@ -167,20 +170,23 @@ export function decisionDetail(view, id) {
   return decisionItemData(view, decision);
 }
 
-function currentNumber(topic) {
-  return topic.rounds.length > 0 ? topic.rounds[topic.rounds.length - 1].number : 0;
-}
-
-/// Whether 見直す can be pressed or stopped for this decision now.
-export function reviewState(view, id) {
+/// Whether 見直す can be pressed or stopped for this decision now. 見直す shows until the topic
+/// ends, and cannot be pressed between sending a round and the next one, when the LLM would
+/// not read it; stopping works until a round gives the review's conclusion. `resultWording`
+/// says 見直す is pressed inside the current result, which is still to be sent.
+export function reviewState(view, id, { resultWording = false } = {}) {
   const topic = view.topic;
-  const mark = topic.records.in_review.find((entry) => entry.decision === id);
+  const round = topic.rounds[topic.rounds.length - 1];
+  const inReview = topic.records.in_review.some((entry) => entry.decision === id);
+  const offered = !inReview && !topic.ended;
   return {
     lang: view.lang,
     decision: id,
-    inReview: mark !== undefined,
-    canReview: mark === undefined && !topic.ended,
-    canStop: mark !== undefined && !topic.ended && mark.since_round === currentNumber(topic),
+    inReview,
+    showReview: offered,
+    canReview: offered && !(round?.submitted ?? false),
+    canStop: inReview && !topic.ended,
+    resultWording,
   };
 }
 
@@ -453,5 +459,17 @@ export function mapData(view, range, selected, root) {
       }),
     })),
     edges: map.edges.filter((edge) => visible(edge.from) && visible(edge.to)),
+  };
+}
+
+/// The confirmation 見直す opens: which decision, and whether it is pressed in the current
+/// result, where sending with "Send review requests" is what asks the LLM.
+export function reviewConfirmData(view, decision, resultWording) {
+  const found = findDecision(view.topic, decision);
+  return {
+    lang: view.lang,
+    decision,
+    name: found ? decisionContent(found).name : decision,
+    resultWording,
   };
 }

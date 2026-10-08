@@ -2,7 +2,7 @@
 // (docs/spec/screen.md, "地図", "完成図", "画面の構成").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, mark } from "./screen.js";
+import { action, mark, reviewAndConfirm } from "./screen.js";
 
 const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
 const node = (page, key) => page.locator(`[data-map] [data-map-node="${key}"]`);
@@ -142,7 +142,7 @@ test("selected_decision_can_be_put_in_review_and_stopped_from_the_map", async ({
   await node(page, "d:d1").click();
   const selection = page.locator("[data-map-selection]");
 
-  await action(selection, "review").click();
+  await reviewAndConfirm(page, selection);
   await expect(mark(node(page, "d:d1"), "in-review")).toBeVisible();
   await action(selection, "stop-review").click();
 

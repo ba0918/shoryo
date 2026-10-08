@@ -38,6 +38,7 @@ const en = {
   "refusal.unknown_decision": "Decision {decision} does not exist.",
   "refusal.already_replied": "That ask already has a reply.",
   "refusal.not_in_review": "Decision {decision} is not in review.",
+  "refusal.review_while_round_sent": "Review requests cannot be sent until the next round arrives.",
   "refusal.not_current_round": "Round {round} is no longer the current round; the screen now shows the current one.",
   "refusal.follows_another_question": "That ask is about another question, so this cannot follow it.",
   "refusal.unstamped": "Some questions are not approved yet ({questions}); approve every question before sending.",
@@ -138,6 +139,12 @@ const en = {
   "decision.review": "Review this",
   "decision.stop-review": "Stop review",
 
+  "review.title": "Review this decision?",
+  "review.confirm": "The LLM is told now and asks this again in the next round. You can stop the review until the LLM gives its conclusion.",
+  "review.confirm-result": "Send with “Send review requests” and this is asked again in the next round. You can stop the review until the LLM gives its conclusion.",
+  "review.yes": "Review",
+  "review.no": "Don't review",
+
   "fixes.title": "Fixed by the LLM",
   "fixes.new": "(new)",
 
@@ -202,6 +209,7 @@ const ja = {
   "refusal.unknown_decision": "決まったこと {decision} はありません。",
   "refusal.already_replied": "その質問には、すでに返事があります。",
   "refusal.not_in_review": "決まったこと {decision} は見直し中ではありません。",
+  "refusal.review_while_round_sent": "送ってから次のラウンドが届くまでは、見直すを使えません。",
   "refusal.not_current_round": "第 {round} ラウンドは今のラウンドではなくなりました。今のラウンドを表示しています。",
   "refusal.follows_another_question": "別の問いへの質問なので、続けて質問できません。",
   "refusal.unstamped": "判子のない問いがあります（{questions}）。すべての問いに判子を押してから送ってください。",
@@ -301,6 +309,12 @@ const ja = {
   "decision.revised": "後から改めた",
   "decision.review": "見直す",
   "decision.stop-review": "見直しをやめる",
+
+  "review.title": "この決まったことを見直しますか？",
+  "review.confirm": "LLM に伝えて、次のラウンドで問い直してもらいます。LLM が見直しの結論を出すまでは、見直しをやめられます。",
+  "review.confirm-result": "見直しを頼むで送ると、次のラウンドで問い直されます。LLM が見直しの結論を出すまでは、見直しをやめられます。",
+  "review.yes": "見直す",
+  "review.no": "見直さない",
 
   "fixes.title": "直したこと",
   "fixes.new": "（新規）",

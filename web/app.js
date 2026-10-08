@@ -20,6 +20,7 @@ import {
   decisionsTabData,
   mapData,
   pastRoundsData,
+  reviewConfirmData,
 } from "./view-data.js";
 
 const TABS = [{ id: "current" }, { id: "past" }, { id: "map" }, { id: "decisions" }];
@@ -155,6 +156,9 @@ function dialogData(shown) {
   }
   if (dialog?.kind === "confirm-send") {
     return { kind: "confirm-send", data: confirmData(shown), lang: shown.lang };
+  }
+  if (dialog?.kind === "confirm-review") {
+    return { kind: "confirm-review", data: reviewConfirmData(shown, dialog.decision, dialog.resultWording), lang: shown.lang };
   }
   if (dialog?.kind === "finished-picture") {
     return { kind: "finished-picture", data: { picture: view.topic.finished_picture, lang: shown.lang }, lang: shown.lang };
@@ -328,6 +332,13 @@ function handle(event) {
         block: "center",
       });
       return;
+    case "confirm-review":
+      ui.dialog = { kind: "confirm-review", decision: event.decision, resultWording: event.resultWording };
+      break;
+    case "review":
+      ui.dialog = null;
+      enqueue({ op: "request_review", decision: event.decision });
+      break;
     case "close-dialog":
       ui.dialog = null;
       break;

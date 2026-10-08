@@ -3,7 +3,19 @@
 // docs/spec/server.md, "終える").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, card, mark, row, sendAll, shownIn, stampDate, storedTopic, stampTime } from "./screen.js";
+import {
+  action,
+  card,
+  mark,
+  reviewAndConfirm,
+  reviewConfirmation,
+  row,
+  sendAll,
+  shownIn,
+  stampDate,
+  stampTime,
+  storedTopic,
+} from "./screen.js";
 
 const tab = (page, id) => page.locator(`[data-tab="${id}"]`);
 const pastRound = (page, number) => page.locator(`[data-past-round="${number}"]`);
@@ -186,23 +198,122 @@ test("decisions_tab_lists_the_seven_kinds", async ({ shoryo, page }) => {
   }
 });
 
-test("review_request_can_be_stopped_before_next_round", async ({ shoryo, page }) => {
+const decisionsPanel = (page) => page.locator("[data-panel=decisions]");
+
+/// The kinds of the review events the agent has received so far, once `predicate` holds.
+async function reviewKinds(shoryo, predicate = () => true) {
+  let kinds = [];
+  await expect
+    .poll(async () => {
+      kinds = (await shoryo.wait()).map((event) => event.kind).filter((kind) => kind.startsWith("review"));
+      return predicate(kinds);
+    })
+    .toBe(true);
+  return kinds;
+}
+
+/// Whether 見直す cannot be pressed: drawn disabled, or not drawn.
+async function cannotReview(item) {
+  const review = action(item, "review");
+  return (await review.count()) === 0 || (await review.isDisabled());
+}
+
+test("review_asks_for_confirmation_and_dont_review_changes_nothing", async ({ shoryo, page }) => {
   await tab(page, "decisions").click();
-  const item = decisionItem(page.locator("[data-panel=decisions]"), "d1");
+  const item = decisionItem(decisionsPanel(page), "d1");
 
   await action(item, "review").click();
-  await expect(mark(item, "in-review")).toBeVisible();
-  await action(item, "stop-review").click();
+  await expect(reviewConfirmation(page)).toBeVisible();
+  await action(reviewConfirmation(page), "cancel-review").click();
+  await expect(reviewConfirmation(page)).toHaveCount(0);
+  await action(item, "review").click();
+  await page.keyboard.press("Escape");
 
+  await expect(reviewConfirmation(page)).toHaveCount(0);
   await expect(mark(item, "in-review")).toHaveCount(0);
-  const kinds = (await shoryo.wait()).map((event) => event.kind);
-  expect(kinds).toContain("review_requested");
-  expect(kinds).toContain("review_stopped");
+  expect(await reviewKinds(shoryo)).toEqual([]);
+});
+
+test("confirming_review_marks_in_review_and_reaches_the_waiting_llm", async ({ shoryo, page }) => {
+  await tab(page, "decisions").click();
+  const item = decisionItem(decisionsPanel(page), "d1");
+
+  await reviewAndConfirm(page, item);
+
+  await expect(mark(item, "in-review")).toBeVisible();
+  expect(await reviewKinds(shoryo, (kinds) => kinds.length > 0)).toEqual(["review_requested"]);
+});
+
+test("review_cannot_be_pressed_after_sending_while_stop_review_still_works", async ({ shoryo, page }) => {
+  await sendAll(page);
+  await shoryo.round(roundThree);
+  await tab(page, "decisions").click();
+  await reviewAndConfirm(page, decisionItem(decisionsPanel(page), "d2"));
+  await expect(mark(decisionItem(decisionsPanel(page), "d2"), "in-review")).toBeVisible();
+  await tab(page, "current").click();
+  await sendAll(page);
+  await expect(page.locator("[data-sent-notice]")).toBeVisible();
+
+  await tab(page, "decisions").click();
+  expect(await cannotReview(decisionItem(decisionsPanel(page), "d3"))).toBe(true);
+  await action(decisionItem(decisionsPanel(page), "d2"), "stop-review").click();
+
+  await expect(mark(decisionItem(decisionsPanel(page), "d2"), "in-review")).toHaveCount(0);
+  expect(await cannotReview(decisionItem(decisionsPanel(page), "d2"))).toBe(true);
+});
+
+test("stop_review_works_after_the_next_round_until_its_conclusion", async ({ shoryo, page }) => {
+  await tab(page, "decisions").click();
+  const item = () => decisionItem(decisionsPanel(page), "d1");
+  await reviewAndConfirm(page, item());
+  await expect(mark(item(), "in-review")).toBeVisible();
+  await tab(page, "current").click();
+  await sendAll(page);
+  await shoryo.round(roundThree);
+
+  await tab(page, "decisions").click();
+  await action(item(), "stop-review").click();
+  await expect(mark(item(), "in-review")).toHaveCount(0);
+  await reviewAndConfirm(page, item());
+  await expect(mark(item(), "in-review")).toBeVisible();
+  await tab(page, "current").click();
+  await sendAll(page);
+  await shoryo.round({
+    subject: "Review",
+    questions: [question("q6", "Is d1 still right?")],
+    review_conclusions: [{ decision: "d1", outcome: "unchanged" }],
+  });
+
+  await tab(page, "decisions").click();
+  await expect(mark(item(), "in-review")).toHaveCount(0);
+  await expect(action(item(), "stop-review")).toHaveCount(0);
+});
+
+test("review_from_a_past_result_marks_the_current_content", async ({ shoryo, page }) => {
+  await sendAll(page);
+  await shoryo.round({ subject: "Result", records: { decisions: [decision("d2", "Data in one file", "q2")] } });
+  await sendAll(page);
+  await shoryo.round({
+    subject: "Revised",
+    questions: [question("q5", "Who may read the file?", { premises: ["d2"] })],
+    records: { decisions: [decision("d2", "Data in two files", "q2")] },
+  });
+  await tab(page, "past").click();
+  await action(page.locator('[data-round-choice="3"]'), "choose-round").click();
+  const fromPast = decisionItem(pastRound(page, 3).locator("[data-result]"), "d2");
+  await expect(fromPast).toContainText("Data in one file");
+
+  await reviewAndConfirm(page, fromPast);
+
+  await tab(page, "decisions").click();
+  const inReview = decisionsPanel(page).locator('[data-record="in-review"]');
+  await expect(inReview).toContainText("Data in two files");
+  await expect(inReview).not.toContainText("Data in one file");
 });
 
 test("decision_in_review_is_marked_in_chains", async ({ page }) => {
   await tab(page, "decisions").click();
-  await action(decisionItem(page.locator("[data-panel=decisions]"), "d1"), "review").click();
+  await reviewAndConfirm(page, decisionItem(page.locator("[data-panel=decisions]"), "d1"));
 
   await tab(page, "current").click();
 
@@ -240,7 +351,7 @@ test("fixed_item_that_changed_a_decision_offers_review_request", async ({ shoryo
   await expect(items.nth(0)).toContainText("The person reads cards alone");
   await expect(action(items.nth(1), "review")).toHaveCount(0);
 
-  await action(items.nth(0), "review").click();
+  await reviewAndConfirm(page, items.nth(0));
 
   await expect(mark(items.nth(0), "in-review")).toBeVisible();
 });

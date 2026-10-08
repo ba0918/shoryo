@@ -44,3 +44,11 @@ export async function storedTopic(shoryo) {
 
 export const stampDate = (stamp) => stamp.locator("[data-stamp-date]");
 export const stampTime = (stamp) => stamp.locator("xpath=..").locator("[data-stamp-time]");
+
+export const reviewConfirmation = (page) => page.locator("[data-review-confirmation]");
+
+/// Presses 見直す in `scope` and confirms it in the dialog that opens.
+export async function reviewAndConfirm(page, scope) {
+  await action(scope, "review").click();
+  await action(reviewConfirmation(page), "confirm-review").click();
+}

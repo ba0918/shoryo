@@ -2,7 +2,19 @@
 // (docs/spec/screen.md, "判子", "仮決めの一覧", "まとめて送る", "結果").
 import { test, expect } from "./fixtures.js";
 import { decision, question, twoRounds } from "./rounds.js";
-import { action, card, mark, row, sendAll, shownIn, stampDate, stampTime, storedTopic } from "./screen.js";
+import {
+  action,
+  card,
+  mark,
+  reviewAndConfirm,
+  reviewConfirmation,
+  row,
+  sendAll,
+  shownIn,
+  stampDate,
+  stampTime,
+  storedTopic,
+} from "./screen.js";
 
 const stamp = (scope) => action(scope, "stamp");
 const confirmation = (page) => page.locator("[data-confirm-send]");
@@ -195,10 +207,28 @@ test.describe("on a round without questions", () => {
   test("result_with_pending_review_request_sends_review_requests_instead_of_proceed", async ({ page }) => {
     const result = page.locator("[data-panel=current] [data-result]");
 
-    await action(result.locator('[data-decision-item="d2"]'), "review").click();
+    await reviewAndConfirm(page, result.locator('[data-decision-item="d2"]'));
 
     await expect(action(page, "send")).toHaveText("Send review requests");
     await action(page, "send").click();
     await expect(confirmation(page)).toContainText("Data in one file");
+  });
+
+  test("current_result_uses_the_result_confirmation_and_a_past_result_the_ordinary_one", async ({ shoryo, page }) => {
+    const declared = "見直しを頼むで送ると、次のラウンドで問い直されます";
+    await page.getByRole("banner").locator('[data-language="ja"]').click();
+    const result = page.locator("[data-panel=current] [data-result]");
+
+    await action(result.locator('[data-decision-item="d2"]'), "review").click();
+    await expect(reviewConfirmation(page)).toContainText(declared);
+    await action(reviewConfirmation(page), "cancel-review").click();
+    await sendAll(page);
+    await shoryo.round({ subject: "After the result", questions: [question("q9", "Anything else?")] });
+    await page.locator('[data-tab="past"]').click();
+    await action(page.locator('[data-round-choice="3"]'), "choose-round").click();
+    await action(page.locator('[data-past-round="3"] [data-result] [data-decision-item="d2"]'), "review").click();
+
+    await expect(reviewConfirmation(page)).toBeVisible();
+    await expect(reviewConfirmation(page)).not.toContainText(declared);
   });
 });

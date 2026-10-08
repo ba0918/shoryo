@@ -9,14 +9,16 @@ export function reviewControls(review, emit) {
   const t = translator(review.lang);
   return [
     review.inReview ? h("span", { class: "badge review", "data-mark": "in-review" }, t("card.in-review")) : null,
-    review.canReview
+    review.showReview
       ? h(
           "button",
           {
             type: "button",
             class: "btn small",
             "data-action": "review",
-            onclick: () => emit({ type: "op", op: { op: "request_review", decision: review.decision } }),
+            disabled: !review.canReview,
+            onclick: () =>
+              emit({ type: "confirm-review", decision: review.decision, resultWording: review.resultWording }),
           },
           t("decision.review"),
         )

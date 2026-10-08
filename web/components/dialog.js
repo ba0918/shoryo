@@ -10,6 +10,38 @@ const bodies = {
     attrs: { "data-decision-detail": detail.id },
     body: decisionItem(detail, emit),
   }),
+  /// 見直す asks first: a mistaken press must not reach the LLM.
+  "confirm-review": (data, emit) => {
+    const t = translator(data.lang);
+    return {
+      label: t("review.title"),
+      attrs: { "data-review-confirmation": data.decision },
+      body: [
+        h("h2", { class: "dialog-title" }, t("review.title")),
+        h("p", { class: "review-target" }, data.name),
+        h("p", {}, t(data.resultWording ? "review.confirm-result" : "review.confirm")),
+        h(
+          "div",
+          { class: "dialog-actions" },
+          h(
+            "button",
+            { type: "button", class: "btn", "data-action": "cancel-review", onclick: () => emit({ type: "close-dialog" }) },
+            t("review.no"),
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              class: "btn primary",
+              "data-action": "confirm-review",
+              onclick: () => emit({ type: "review", decision: data.decision }),
+            },
+            t("review.yes"),
+          ),
+        ),
+      ],
+    };
+  },
 };
 
 export class DialogLayer extends Component {
