@@ -9,7 +9,7 @@ const SVG = "http://www.w3.org/2000/svg";
 /// "Fit" never draws the picture larger than its own size.
 const FIT_MAX_ZOOM = 1;
 /// The view is never taller than this share of the window.
-const MAX_HEIGHT = "65vh";
+const MAX_HEIGHT = "80vh";
 
 export function diagramView(text, lang) {
   const t = translator(lang);

@@ -1704,6 +1704,11 @@ svg.diagram .edge text {
   gap: 0.5rem;
 }
 
+.dialog[data-finished-picture] {
+  width: min(100%, 96vw);
+  max-height: 92vh;
+}
+
 .dialog .close {
   justify-self: end;
 }
