@@ -47,7 +47,7 @@ function exchanges(asks, local, onLocal, t) {
     elided > 0
       ? h(
           "button",
-          { type: "button", class: "elided", "data-action": "show-all-exchanges", onclick: () => onLocal({ expanded: true }) },
+          { type: "button", class: "elided", "data-action": "show-all-exchanges", "data-focus": `exchanges-${asks[0].id}`, onclick: () => onLocal({ expanded: true }) },
           t("thread.elided", { count: elided }),
         )
       : null,
@@ -66,6 +66,7 @@ function exchange(ask, local, onLocal, t) {
             type: "button",
             class: "quote",
             "data-quote": true,
+            "data-focus": `quote-${ask.id}`,
             title: t("thread.go-to-quoted"),
             onclick: (event) => showReply(event.currentTarget, ask.follows, onLocal),
           },
@@ -115,7 +116,7 @@ function reply(ask, local, onLocal, t) {
         local.canAsk
           ? h(
               "button",
-              { type: "button", class: "link small", "data-action": "follow-up", onclick: () => onLocal({ follows: ask.id }) },
+              { type: "button", class: "link small", "data-action": "follow-up", "data-focus": `follow-up-${ask.id}`, onclick: () => onLocal({ follows: ask.id }) },
               t("thread.follow-up"),
             )
           : null,
@@ -174,7 +175,7 @@ function askBox(question, local, onLocal, emit, t) {
           h("span", { class: "following-text" }, following.excerpt ?? following.text),
           h(
             "button",
-            { type: "button", class: "link small", "data-action": "cancel-follow-up", onclick: () => onLocal({ follows: null }) },
+            { type: "button", class: "link small", "data-action": "cancel-follow-up", "data-focus": `cancel-follow-up-${question.id}`, onclick: () => onLocal({ follows: null }) },
             t("thread.cancel"),
           ),
         )
@@ -190,6 +191,7 @@ function askBox(question, local, onLocal, emit, t) {
             type: "button",
             class: "chip",
             "data-action": "quick-ask",
+            "data-focus": `quick-ask-${question.id}-${key}`,
             onclick: (event) => {
               const input = event.currentTarget.closest(".ask-box").querySelector("textarea");
               input.value = t(key);
@@ -211,6 +213,7 @@ function askBox(question, local, onLocal, emit, t) {
           type: "button",
           class: "send-ask",
           "data-action": "ask",
+          "data-focus": `send-ask-${question.id}`,
           "aria-label": t("thread.send"),
           title: t("thread.send"),
           // Keep the editor's selection intact when sending with the pointer.

@@ -242,6 +242,8 @@ export class MapTab extends Component {
 
   /// The selected point's details, with going to its path, to its question, and 見直す.
   fillDetails(map, t) {
+    const active = document.activeElement;
+    const focused = this.details.contains(active) ? active.dataset.focus : undefined;
     const node = map.columns.flatMap((column) => column.nodes).find((n) => n.key === map.selected);
     if (!node || !map.visible) {
       this.details.hidden = true;
@@ -251,7 +253,7 @@ export class MapTab extends Component {
     this.details.replaceChildren(
       h(
         "button",
-        { type: "button", class: "btn quiet small details-close", "data-action": "close-details", onclick: () => this.emit({ type: "select-node", key: null }) },
+        { type: "button", class: "btn quiet small details-close", "data-action": "close-details", "data-focus": `close-details-${node.key}`, onclick: () => this.emit({ type: "select-node", key: null }) },
         t("dialog.close"),
       ),
       ...this.detailLines(node, t).filter(Boolean),
@@ -262,17 +264,18 @@ export class MapTab extends Component {
           ? null
           : h(
               "button",
-              { type: "button", class: "btn small", "data-action": "show-path", onclick: () => this.emit({ type: "show-path", key: node.key }) },
+              { type: "button", class: "btn small", "data-action": "show-path", "data-focus": `show-path-${node.key}`, onclick: () => this.emit({ type: "show-path", key: node.key }) },
               t("map.show-path"),
             ),
         node.jump
-          ? h("button", { type: "button", class: "btn small", "data-action": "jump", onclick: () => this.emit({ type: "jump", target: node.jump }) }, t("map.go-to-question"))
+          ? h("button", { type: "button", class: "btn small", "data-action": "jump", "data-focus": `jump-${node.key}`, onclick: () => this.emit({ type: "jump", target: node.jump }) }, t("map.go-to-question"))
           : null,
         reviewControls(node.review, this.emit),
       ),
     );
     this.details.hidden = false;
     this.placeDetails();
+    if (focused) this.details.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
   }
 
   placeDetails() {

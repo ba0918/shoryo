@@ -16,6 +16,7 @@ export function reviewControls(review, emit) {
             type: "button",
             class: "btn small",
             "data-action": "review",
+            "data-focus": `review-${review.decision}`,
             disabled: !review.canReview,
             onclick: () =>
               emit({ type: "confirm-review", decision: review.decision, resultWording: review.resultWording }),
@@ -30,6 +31,7 @@ export function reviewControls(review, emit) {
             type: "button",
             class: "btn quiet small",
             "data-action": "stop-review",
+            "data-focus": `stop-review-${review.decision}`,
             onclick: () => emit({ type: "op", op: { op: "stop_review", decision: review.decision } }),
           },
           t("decision.stop-review"),

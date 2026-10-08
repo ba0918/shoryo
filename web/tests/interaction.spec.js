@@ -111,3 +111,40 @@ test("reduced_motion_stops_the_status_dot_the_typing_dots_and_the_toasts", async
     expect(style.transition.split(",").every(value => parseFloat(value) === 0)).toBe(true);
   }
 });
+
+test("follow_up_keeps_keyboard_focus_when_opened_and_when_another_reply_arrives", async ({ shoryo, page }) => {
+  for (const text of ["First ask", "Second ask"]) await shoryo.op({ op: "ask", question: "q2", text });
+  const asks = (await shoryo.wait()).filter(event => event.kind === "ask");
+  await shoryo.reply(asks[0].ask, { text: "First reply" });
+  const follow = card(page, "q2").getByRole("button", { name: "Follow up on this reply" });
+  await follow.focus();
+  await page.keyboard.press("Enter");
+  await expect(card(page, "q2").locator(".following")).toBeVisible();
+  await expect(follow).toBeFocused();
+  await shoryo.reply(asks[1].ask, { text: "Second reply" });
+  await expect(card(page, "q2").getByText("Second reply", { exact: true })).toBeVisible();
+  await expect(follow.first()).toBeFocused();
+});
+
+test("retained_map_details_controls_keep_focus_when_an_answer_changes", async ({ shoryo, page }) => {
+  await page.locator('[data-tab=map]').click();
+  await page.locator('[data-map-node="d:d1"]').click();
+  const details = page.locator("[data-map-selection]");
+  let option = 0;
+  for (const name of ["Close", "Show the path to this", "Go to its question", "Review this"]) {
+    const control = details.getByRole("button", { name, exact: true });
+    await control.focus();
+    option = 1 - option;
+    await shoryo.op({ op: "choose", question: "q2", option });
+    await expect(card(page, "q2").getByRole("radio", { name: option ? "A database" : "One JSON file", includeHidden: true })).toBeChecked();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(control).toBeFocused();
+  }
+  await shoryo.op({ op: "request_review", decision: "d1" });
+  const stop = details.getByRole("button", { name: "Stop review", exact: true });
+  await stop.focus();
+  await shoryo.op({ op: "choose", question: "q2", option: 1 });
+  await expect(card(page, "q2").getByRole("radio", { name: "A database", exact: true, includeHidden: true })).toBeChecked();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(stop).toBeFocused();
+});
