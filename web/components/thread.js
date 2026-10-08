@@ -97,7 +97,12 @@ function flash(element) {
 function reply(ask, local, onLocal, t) {
   switch (ask.status) {
     case "waiting":
-      return h("p", { class: "reply pending", "data-mark": "writing" }, t("thread.writing"));
+      return h(
+        "p",
+        { class: "reply pending typing", "data-mark": "writing" },
+        h("span", { class: "typing-dots", "aria-hidden": "true" }, h("span", {}), h("span", {}), h("span", {})),
+        h("span", { class: "visually-hidden" }, t("thread.writing")),
+      );
     case "no_reply":
       return h("p", { class: "reply pending", "data-mark": "no-reply" }, t("thread.no-reply"));
     case "replied":
