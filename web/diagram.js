@@ -8,17 +8,26 @@
 //   a -> b : label    an edge (the label is optional)
 // Blank lines are ignored.
 
+import { fitLines, textWidth } from "./measure.js";
+
 const SVG = "http://www.w3.org/2000/svg";
 const CELL_W = 250;
 const CELL_H = 130;
 const BOX_W = 150;
-const BOX_H = 64;
-const PAD = 24;
-const LINE_CHARS = 18;
+const TEXT_PAD_X = 8;
+const TEXT_PAD_Y = 10;
+const TEXT_W = BOX_W - 2 * TEXT_PAD_X;
+const LINE_H = 15;
+const MIN_BOX_H = 44;
+/// A box grows to this many lines; a longer label is cut with "…" and shown whole on hover
+/// or tap.
 const MAX_LINES = 3;
+/// The margin around what is drawn.
+const PAD = 16;
 /// How far apart two edges between the same two nodes in opposite directions are drawn.
 const REVERSE_OFFSET = 8;
 const LABEL_GAP = 6;
+const LABEL_H = 14;
 
 export function parseDiagram(text) {
   const nodes = new Map();
@@ -71,52 +80,57 @@ function el(name, attrs = {}, ...children) {
   return element;
 }
 
-function wrap(label) {
-  const chars = [...label];
-  const lines = [];
-  for (let i = 0; i < chars.length && lines.length < MAX_LINES; i += LINE_CHARS) {
-    lines.push(chars.slice(i, i + LINE_CHARS).join(""));
-  }
-  if (chars.length > LINE_CHARS * MAX_LINES) lines[MAX_LINES - 1] += "…";
-  return lines;
-}
+const boxHeight = (lineCount) => Math.max(MIN_BOX_H, lineCount * LINE_H + 2 * TEXT_PAD_Y);
 
-const centre = ({ x, y }) => ({ x: PAD + x * CELL_W + CELL_W / 2, y: PAD + y * CELL_H + CELL_H / 2 });
+const centre = ({ x, y }) => ({ x: x * CELL_W + CELL_W / 2, y: y * CELL_H + CELL_H / 2 });
 
-/// The point where a ray from the box centre in direction (dx, dy) leaves the box.
-function border(point, dx, dy) {
+/// The point where a ray from the centre of a box `height` tall in direction (dx, dy) leaves it.
+function border(point, height, dx, dy) {
   const hw = BOX_W / 2 + 3;
-  const hh = BOX_H / 2 + 3;
+  const hh = height / 2 + 3;
   const t = Math.min(dx === 0 ? Infinity : hw / Math.abs(dx), dy === 0 ? Infinity : hh / Math.abs(dy));
   return { x: point.x + dx * t, y: point.y + dy * t };
 }
 
-export function renderDiagram(text) {
+/// A label's lines centred on (x, y).
+function labelText(lines, x, y, cls) {
+  const text = el("text", { class: cls, x, y: y - ((lines.length - 1) * LINE_H) / 2, "text-anchor": "middle", "dominant-baseline": "middle" });
+  lines.forEach((line, index) => {
+    const span = el("tspan", { x, dy: index === 0 ? 0 : LINE_H });
+    span.textContent = line;
+    text.append(span);
+  });
+  return text;
+}
+
+/// Grows `bounds` to take in a rectangle.
+function take(bounds, x, y, width, height) {
+  bounds.left = Math.min(bounds.left, x);
+  bounds.top = Math.min(bounds.top, y);
+  bounds.right = Math.max(bounds.right, x + width);
+  bounds.bottom = Math.max(bounds.bottom, y + height);
+}
+
+/// Draws a diagram's text. Returns the arrowhead's definition, the drawing moved so that what
+/// is drawn starts at the margin, and the size with the margin around it.
+export function drawDiagram(text) {
   const diagram = parseDiagram(text);
   const at = positions(diagram);
-  const columns = Math.max(1, ...[...at.values()].map((p) => p.x + 1));
-  const rowCount = Math.max(1, ...[...at.values()].map((p) => p.y + 1));
-  const width = PAD * 2 + columns * CELL_W;
-  const height = PAD * 2 + rowCount * CELL_H;
-  const svg = el("svg", {
-    class: "diagram",
-    viewBox: `0 0 ${width} ${height}`,
-    width,
-    height,
-    "data-diagram": "",
+  const nodes = [...at].map(([id, point]) => {
+    const node = diagram.nodes.get(id) ?? { label: id, slot: false };
+    const cut = fitLines(node.label, "node-label", TEXT_W, MAX_LINES, "diagram");
+    const whole = fitLines(node.label, "node-label", TEXT_W, Infinity, "diagram");
+    return { id, point, node, cut, whole };
   });
-  svg.append(
-    el(
-      "defs",
-      {},
-      el(
-        "marker",
-        { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" },
-        el("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "arrow-head" }),
-      ),
-    ),
-  );
+  // Every box in a grid row is as tall as the row's tallest, so the row stays one line.
+  const rowHeights = new Map();
+  for (const { point, cut } of nodes) {
+    rowHeights.set(point.y, Math.max(rowHeights.get(point.y) ?? 0, boxHeight(cut.length)));
+  }
+  const heightAt = (point) => rowHeights.get(point.y);
+  const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
 
+  const edges = el("g", { class: "edges" });
   const pairs = new Set(diagram.edges.map((edge) => `${edge.from}->${edge.to}`));
   for (const edge of diagram.edges) {
     const from = at.get(edge.from);
@@ -132,8 +146,8 @@ export function renderDiagram(text) {
     const nx = -dy;
     const ny = dx;
     const shift = pairs.has(`${edge.to}->${edge.from}`) ? REVERSE_OFFSET : 0;
-    const start = border(a, dx, dy);
-    const end = border(b, -dx, -dy);
+    const start = border(a, heightAt(from), dx, dy);
+    const end = border(b, heightAt(to), -dx, -dy);
     const line = el("line", {
       x1: start.x + nx * shift,
       y1: start.y + ny * shift,
@@ -147,31 +161,69 @@ export function renderDiagram(text) {
       // Put the text wholly on the normal's side of the line, so it never sits on it.
       const anchor = Math.abs(nx) > 0.5 ? (nx > 0 ? "start" : "end") : "middle";
       const baseline = Math.abs(ny) >= 0.5 ? (ny > 0 ? "hanging" : "alphabetic") : "middle";
-      const label = el("text", { x: mid.x, y: mid.y, "text-anchor": anchor, "dominant-baseline": baseline });
+      const label = el("text", { class: "edge-label", x: mid.x, y: mid.y, "text-anchor": anchor, "dominant-baseline": baseline });
       label.textContent = edge.label;
       group.append(label);
+      const width = textWidth(edge.label, "edge-label", "diagram");
+      const left = anchor === "start" ? mid.x : anchor === "end" ? mid.x - width : mid.x - width / 2;
+      const top = baseline === "hanging" ? mid.y : baseline === "alphabetic" ? mid.y - LABEL_H : mid.y - LABEL_H / 2;
+      take(bounds, left, top, width, LABEL_H);
     }
-    svg.append(group);
+    edges.append(group);
   }
 
-  for (const [id, point] of at) {
-    const node = diagram.nodes.get(id) ?? { label: id, slot: false };
+  const boxes = el("g", { class: "nodes" });
+  for (const { id, point, node, cut, whole } of nodes) {
     const c = centre(point);
-    const lines = wrap(node.label);
-    const text = el("text", { x: c.x, y: c.y - ((lines.length - 1) * 15) / 2, "text-anchor": "middle", "dominant-baseline": "middle" });
-    lines.forEach((line, index) => {
-      const span = el("tspan", { x: c.x, dy: index === 0 ? 0 : 15 });
-      span.textContent = line;
-      text.append(span);
-    });
-    svg.append(
-      el(
-        "g",
-        { class: node.slot ? "node slot" : "node", "data-node": id },
-        el("rect", { x: c.x - BOX_W / 2, y: c.y - BOX_H / 2, width: BOX_W, height: BOX_H, rx: 6 }),
-        text,
-      ),
-    );
+    const height = heightAt(point);
+    const rect = el("rect", { x: c.x - BOX_W / 2, y: c.y - height / 2, width: BOX_W, height, rx: 6 });
+    const group = el("g", { class: node.slot ? "node slot" : "node", "data-node": id }, rect, labelText(cut, c.x, c.y, "node-label"));
+    take(bounds, c.x - BOX_W / 2, c.y - height / 2, BOX_W, height);
+    if (whole.length > cut.length) {
+      group.prepend(el("title", {}, node.label));
+      group.classList.add("cut");
+      const full = labelText(whole, c.x, c.y, "node-label whole");
+      group.append(full);
+      // A tap shows the whole label in a box grown to hold it, drawn above its neighbours.
+      group.addEventListener("click", () => {
+        const showing = group.classList.toggle("showing-whole");
+        const grown = showing ? boxHeight(whole.length) : height;
+        rect.setAttribute("y", String(c.y - grown / 2));
+        rect.setAttribute("height", String(grown));
+        if (showing) group.parentNode?.append(group);
+      });
+    }
+    boxes.append(group);
   }
-  return svg;
+
+  if (bounds.left === Infinity) take(bounds, 0, 0, 0, 0);
+  const content = el("g", { transform: `translate(${PAD - bounds.left} ${PAD - bounds.top})` }, edges, boxes);
+  const defs = el(
+    "defs",
+    {},
+    el(
+      "marker",
+      { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" },
+      el("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "arrow-head" }),
+    ),
+  );
+  const size = { width: bounds.right - bounds.left + 2 * PAD, height: bounds.bottom - bounds.top + 2 * PAD };
+  return { defs, content, size };
+}
+
+/// A diagram at its own size, which the page may shrink to fit (a reply's diagram).
+export function renderDiagram(text) {
+  const { defs, content, size } = drawDiagram(text);
+  return el(
+    "svg",
+    {
+      class: "diagram",
+      viewBox: `0 0 ${size.width} ${size.height}`,
+      width: size.width,
+      height: size.height,
+      "data-diagram": "",
+    },
+    defs,
+    content,
+  );
 }

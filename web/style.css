@@ -1294,12 +1294,53 @@ button.send-status {
 }
 
 .diagram-box {
-  overflow-x: auto;
   background: var(--sheet);
   border: 1px solid var(--line);
   border-radius: var(--radius-small);
-  padding: 0.25rem;
   max-width: 100%;
+  line-height: 0;
+}
+
+.diagram-box svg.diagram {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.diagram-viewer {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.diagram-zoom .seg {
+  min-width: 2rem;
+}
+
+.diagram-view {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.diagram-view svg.diagram {
+  display: block;
+}
+
+svg.diagram .node.cut {
+  cursor: pointer;
+}
+
+svg.diagram .node .whole,
+svg.diagram .node.showing-whole .node-label:not(.whole) {
+  display: none;
+}
+
+svg.diagram .node.showing-whole .whole {
+  display: inline;
 }
 
 svg.diagram .node rect {

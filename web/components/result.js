@@ -2,7 +2,7 @@
 // (docs/spec/screen.md, "結果"). The finished picture and the records, with 見直したい beside
 // each decision; sending happens from the send bar.
 import { Component, h } from "../dom.js";
-import { renderDiagram } from "../diagram.js";
+import { diagramView } from "./diagram-view.js";
 import { translator } from "../strings.js";
 import { recordSections } from "./decisions.js";
 
@@ -21,7 +21,7 @@ export class ResultView extends Component {
         { class: "result-picture" },
         h("h3", {}, t("header.finished-picture")),
         result.picture
-          ? h("div", { class: "diagram-box" }, renderDiagram(result.picture))
+          ? diagramView(result.picture, result.lang)
           : h("p", { class: "empty" }, t("result.no-picture")),
       ),
       h("div", { class: "result-records" }, recordSections(result, RESULT_RECORDS, this.emit)),

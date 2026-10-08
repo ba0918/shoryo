@@ -9,7 +9,7 @@ import { DialogLayer } from "./components/dialog.js";
 import { Header, Tabs } from "./components/header.js";
 import { DecisionsTab } from "./components/decisions.js";
 import { DEFAULT_VIEW, MapTab } from "./components/map.js";
-import { renderDiagram } from "./diagram.js";
+import { diagramView } from "./components/diagram-view.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { confirmSend } from "./components/confirm-send.js";
 import { confirmData, currentRoundData, decisionDetail, decisionsTabData, mapData, pastRoundsData } from "./view-data.js";
@@ -59,7 +59,7 @@ const dialogs = new DialogLayer(emit, {
       attrs: { "data-finished-picture": true },
       body: [
         h("h2", { class: "dialog-title" }, t("header.finished-picture")),
-        picture ? h("div", { class: "diagram-box" }, renderDiagram(picture)) : h("p", { class: "empty" }, t("dialog.no-picture")),
+        picture ? diagramView(picture, lang) : h("p", { class: "empty" }, t("dialog.no-picture")),
       ],
     };
   },
