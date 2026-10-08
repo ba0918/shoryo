@@ -14,7 +14,7 @@ test("after_send_the_notice_says_what_happens_next", async ({ shoryo, page }) =>
 
   await sendAll(page);
 
-  await expect(notice(page)).toHaveText("Sent. The LLM is reading your answers; the next round will appear here.");
+  await expect(notice(page)).toHaveText("Sent. The LLM is preparing the next round.");
   const first = await page
     .locator("[data-panel=current]")
     .locator("[data-sent-notice], [data-card]")
@@ -32,7 +32,7 @@ test("after_proceeding_with_a_result_the_notice_does_not_promise_a_next_round", 
   await page.locator("[data-confirm-send] [data-action=confirm-send]").click();
 
   await expect(notice(page)).toHaveText(
-    "You proceeded with this result. The LLM now writes the specification; nothing more is needed on this screen.",
+    "You proceeded with this result. The LLM is writing up the specification.",
   );
   await expect(page.locator("[data-panel=current]")).not.toContainText("next round");
 });
