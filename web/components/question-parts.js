@@ -135,34 +135,31 @@ export function details(question) {
   return parts.length > 0 ? h("div", { class: "context" }, parts) : null;
 }
 
-/// The note and the defer switch: compact, under the answer. A past question shows only the
-/// note it was sent with; its defer switch is one of its marks.
-export function answerExtras(question, emit) {
+/// The note sent with the answer, labelled as such, under the answer. A past question shows
+/// it only when it was sent with one.
+export function noteField(question, emit) {
   const save = noteSaver(question, emit);
   if (question.past && question.note === "") return null;
   const t = translator(question.lang);
   return h(
-    "div",
-    { class: "extras" },
-    h(
-      "label",
-      { class: "note", "data-field": "note" },
-      h("span", { class: "visually-hidden" }, t("card.note")),
-      h("textarea", {
-        rows: 1,
-        value: question.note,
-        placeholder: t("card.note-placeholder"),
-        disabled: question.locked,
-        "data-focus": `note-${question.id}`,
-        oninput: (event) => save.later(event.target.value),
-        onchange: (event) => save.now(event.target.value),
-      }),
-    ),
-    question.past ? null : deferSwitch(question, emit, t),
+    "label",
+    { class: "note", "data-field": "note" },
+    h("span", { class: "note-label" }, t("card.note")),
+    h("textarea", {
+      rows: 1,
+      value: question.note,
+      disabled: question.locked,
+      "data-focus": `note-${question.id}`,
+      oninput: (event) => save.later(event.target.value),
+      onchange: (event) => save.now(event.target.value),
+    }),
   );
 }
 
-function deferSwitch(question, emit, t) {
+/// 先送りのラベル. A past question has none; its deferral is one of its marks.
+export function deferSwitch(question, emit) {
+  if (question.past) return null;
+  const t = translator(question.lang);
   return h(
     "label",
     { class: "toggle defer", "data-field": "defer" },

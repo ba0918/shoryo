@@ -812,16 +812,28 @@ textarea:disabled {
   gap: 0.5rem;
 }
 
-.extras {
+.note {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.note-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.badges .toggle,
+.row-card-head .toggle {
+  font-size: 0.8rem;
+}
+
+.row-card-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.25rem;
-}
-
-.note {
-  flex: 1 1 18rem;
-  display: block;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
 }
 
 .card-links,

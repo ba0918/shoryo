@@ -1,14 +1,15 @@
 // A human question's card: folded at first, opened to the prerequisites, background and
 // option details (docs/spec/screen.md, "たたんだカード"). The question, its options with the
-// consequence and the stamp are the body; the note, the defer switch and asking back sit
-// below as secondary parts.
+// consequence, the note sent with them and the stamp are the body; the defer switch sits by
+// the question's mark, and asking back below.
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {
-  answerExtras,
   chainLine,
   consequence,
+  deferSwitch,
   details,
+  noteField,
   optionList,
   pastAnswer,
   pastMarks,
@@ -56,6 +57,7 @@ export class Card extends Component {
           "div",
           { class: "badges", "data-question-marks": true },
           h("span", { class: "badge human", "data-mark": "human" }, t("card.human")),
+          deferSwitch(question, this.emit),
           pastMarks(question),
         ),
       ),
@@ -65,14 +67,19 @@ export class Card extends Component {
       h(
         "div",
         { class: "card-body" },
-        h("div", { class: "card-answer" }, optionList(question, this.emit, this.open), consequence(question)),
+        h(
+          "div",
+          { class: "card-answer" },
+          optionList(question, this.emit, this.open),
+          consequence(question),
+          noteField(question, this.emit),
+        ),
         this.past ? null : h("div", { class: "card-stamp" }, stampButton(question, this.emit)),
       ),
       pastAnswer(question, this.emit),
       h(
         "footer",
         { class: "card-foot" },
-        answerExtras(question, this.emit),
         this.threadFor(question),
         h(
           "div",

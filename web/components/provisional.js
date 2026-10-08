@@ -3,10 +3,11 @@
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {
-  answerExtras,
   chainLine,
   consequence,
+  deferSwitch,
   details,
+  noteField,
   optionList,
   optionSegments,
   pastAnswer,
@@ -60,12 +61,17 @@ export class ProvisionalRow extends Component {
         ? h(
             "div",
             { class: "row-card" },
-            h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, t("card.why-now")), question.why_now),
+            h(
+              "div",
+              { class: "row-card-head" },
+              h("p", { class: "why-now" }, h("span", { class: "why-now-label" }, t("card.why-now")), question.why_now),
+              deferSwitch(question, this.emit),
+            ),
             chainLine(question, this.emit),
             details(question),
             optionList(question, this.emit, true),
             consequence(question),
-            answerExtras(question, this.emit),
+            noteField(question, this.emit),
             this.threadFor(question),
           )
         : null,
