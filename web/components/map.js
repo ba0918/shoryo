@@ -200,6 +200,11 @@ export class MapTab extends Component {
       if (event.pointerType === "mouse" && !this.zoom.panning) this.showHover(node, group, t);
     });
     group.addEventListener("pointerleave", () => this.hideHover(node));
+    group.addEventListener("focus", () => {
+      this.zoom.reveal(group);
+      this.showHover(node, group, t);
+    });
+    group.addEventListener("blur", () => this.hideHover(node));
     return group;
   }
 

@@ -44,6 +44,15 @@ export class PanZoom {
     this.zoomAt(factor, box.width / 2, box.height / 2, "now");
   }
 
+  reveal(element) {
+    const area = this.wrap.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    const shift = (start, end, low, high) => start < low ? low - start : end > high ? high - end : 0;
+    const x = shift(box.left, box.right, area.left + 8, area.right - 8);
+    const y = shift(box.top, box.bottom, area.top + 8, area.bottom - 8);
+    if (x || y) this.set({ ...this.view, x: this.view.x + x, y: this.view.y + y }, "idle");
+  }
+
   /// Fits a drawing of `size` into the area, centred, zooming in no further than `maxZoom`.
   fit(size, maxZoom) {
     this.set(fitView(this.wrap.getBoundingClientRect(), size, maxZoom), "now");

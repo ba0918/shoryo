@@ -89,6 +89,24 @@ test.describe("with a mouse", () => {
     await expect(node(page, "d:d1")).toBeInViewport();
   });
 
+  test("focusing_a_point_shows_its_details", async ({ page }) => {
+    const before = await page.locator("[data-map]").boundingBox();
+    await node(page, "d:d2").focus();
+    await expect(page.locator("[data-map-hover]")).toBeVisible();
+    await expect(page.locator("[data-map-hover]")).toContainText(`${LONG_NAME}, written out in full.`);
+    expect(await page.locator("[data-map]").boundingBox()).toEqual(before);
+    await tab(page, "map").focus();
+    await expect(page.locator("[data-map-hover]")).toBeHidden();
+  });
+
+  test("focusing_a_point_outside_the_view_pans_it_into_view", async ({ page }) => {
+    await page.setViewportSize({ width: 650, height: 600 });
+    const before = await node(page, "q:q5").locator("rect").boundingBox();
+    expect(inside(before, await page.locator("[data-map]").boundingBox())).toBe(false);
+    await node(page, "q:q5").focus();
+    await expect.poll(async () => inside(await node(page, "q:q5").locator("rect").boundingBox(), await page.locator("[data-map]").boundingBox())).toBe(true);
+  });
+
   test("path_range_nodes_and_edge_labels_do_not_overlap_at_default_zoom", async ({ page }) => {
     await node(page, "d:d2").click();
     await action(details(page), "show-path").click();
