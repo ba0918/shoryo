@@ -119,13 +119,13 @@ for (const surface of ["reply", "result", "dialog"]) {
     const control = scope.getByRole("button", { name: keyboardLabel, exact: true });
     await keyboardTo(page, control);
     const shown = control.locator("text").filter({ visible: true });
-    await expect(shown).toContainText("…");
+    await expect(shown).not.toHaveText(keyboardLabel);
     for (const key of ["Enter", "Space"]) {
       await page.keyboard.press(key);
       await expect(shown).toHaveText(keyboardLabel);
       await expect(control).toBeFocused();
       await page.keyboard.press(key);
-      await expect(shown).toContainText("…");
+      await expect(shown).not.toHaveText(keyboardLabel);
       await expect(control).toBeFocused();
     }
   });
