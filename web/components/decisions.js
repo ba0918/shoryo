@@ -7,7 +7,7 @@ import { decisionItem, reviewControls } from "./decision-item.js";
 function recordSection(kind, title, items, draw, t) {
   return h(
     "section",
-    { class: "record", "data-record": kind },
+    { class: "record", "data-record": kind, "data-focus-scope": `record-${kind}` },
     h("h2", {}, title, h("span", { class: "count" }, String(items.length))),
     items.length > 0 ? h("div", { class: "record-items" }, items.map(draw)) : h("p", { class: "empty" }, t("records.none")),
   );
@@ -64,7 +64,7 @@ export function recordSections(data, kinds, emit) {
       section("in-review", t("records.in-review"), data.in_review, (item) =>
         h(
           "div",
-          { class: "record-item", "data-in-review-item": item.id },
+          { class: "record-item", "data-in-review-item": item.id, "data-focus-scope": `decision-${item.id}` },
           h("p", { class: "record-title" }, item.name),
           h("p", {}, item.text),
           h("div", { class: "decision-meta" }, reviewControls(item.review, emit)),

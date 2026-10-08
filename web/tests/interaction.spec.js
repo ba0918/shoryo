@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures.js";
-import { twoRounds } from "./rounds.js";
+import { twoRounds, question, decision } from "./rounds.js";
 import { action, card } from "./screen.js";
 
 test.beforeEach(async ({ shoryo, page }) => {
@@ -194,4 +194,37 @@ test("reply_during_note_editing_does_not_overwrite_the_completed_note_with_older
   await expect.poll(storedNote).toBe("AB");
   await page.reload();
   await expect(note).toHaveValue("AB");
+});
+
+test("redrawing_duplicate_decisions_keeps_focus_in_the_same_record_region", async ({ shoryo, page }) => {
+  await shoryo.submit();
+  await shoryo.round({
+    subject: "Access",
+    questions: [question("q5", "Who can read the file?")],
+    records: { decisions: [decision("d2", "Data in one file", "q2")] },
+  });
+  await shoryo.op({ op: "request_review", decision: "d1" });
+  await page.locator('[data-tab=decisions]').click();
+  const panel = page.locator('[data-panel=decisions]');
+  for (const region of ["decisions", "in-review"]) {
+    const scope = panel.locator(`[data-record="${region}"]`).locator('[data-decision-item=d1], [data-in-review-item=d1]');
+    const control = action(scope, "stop-review");
+    await control.focus();
+    await shoryo.op({ op: "request_review", decision: "d2" });
+    await expect(panel.locator('[data-record=in-review] [data-in-review-item=d2]')).toBeVisible();
+    await expect(control).toBeFocused();
+    await shoryo.op({ op: "stop_review", decision: "d2" });
+    await expect(panel.locator('[data-record=in-review] [data-in-review-item=d2]')).toHaveCount(0);
+    await expect(control).toBeFocused();
+  }
+});
+
+test("choosing_a_tab_keeps_focus_on_the_retained_tab_control", async ({ page }) => {
+  for (const id of ["past", "map", "decisions", "current"]) {
+    const selector = `[data-tab="${id}"]`;
+    await keyboardTo(page, selector);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(selector)).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(selector)).toBeFocused();
+  }
 });

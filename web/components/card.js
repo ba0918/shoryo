@@ -64,6 +64,7 @@ export class Card extends Component {
       {
         class: `card${this.open ? " open" : ""}${question.landed ? " landed" : ""}${this.past ? " past" : ""}`,
         "data-card": question.id,
+        "data-focus-scope": `question-${question.id}`,
         "data-past-question": this.past ? question.id : undefined,
         "data-landed": question.landed,
       },

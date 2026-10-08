@@ -58,7 +58,7 @@ function exchanges(asks, local, onLocal, t) {
 function exchange(ask, local, onLocal, t) {
   return h(
     "div",
-    { class: "exchange", "data-ask": ask.id },
+    { class: "exchange", "data-ask": ask.id, "data-focus-scope": `ask-${ask.id}` },
     ask.quote !== null
       ? h(
           "button",

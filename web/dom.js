@@ -38,6 +38,18 @@ const textField = (element) =>
   (element instanceof HTMLTextAreaElement ||
     (element instanceof HTMLInputElement && element.type === "text"));
 
+export function focusSelector(element, root = document) {
+  if (!root.contains?.(element)) return null;
+  const attribute = element.hasAttribute("data-focus") ? "data-focus" : element.hasAttribute("data-action") ? "data-action" : null;
+  if (!attribute) return null;
+  // An item/action can appear in several regions; an unqualified key would focus another copy.
+  const scopes = [];
+  for (let parent = element.parentElement; parent && parent !== root; parent = parent.parentElement) {
+    if (parent.hasAttribute("data-focus-scope")) scopes.unshift(`[data-focus-scope="${CSS.escape(parent.dataset.focusScope)}"]`);
+  }
+  return [...scopes, `[${attribute}="${CSS.escape(element.getAttribute(attribute))}"]`].join(" ");
+}
+
 function retainEditor(current, next, editor, replacement) {
   for (const attr of [...current.attributes]) if (!next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
   for (const attr of next.attributes) current.setAttribute(attr.name, attr.value);
@@ -90,14 +102,14 @@ export class Component {
 
   redraw() {
     const active = document.activeElement;
-    const focused = this.el.contains?.(active) ? active.dataset.focus : undefined;
+    const focused = focusSelector(active, this.el);
     const drafts = [...this.el.querySelectorAll?.('textarea[data-field="ask"]') ?? []];
     const next = this.draw(this.data);
     for (const field of drafts) {
-      const replacement = next.querySelector(`[data-focus="${CSS.escape(field.dataset.focus)}"]`);
+      const replacement = next.querySelector(focusSelector(field, this.el));
       if (replacement) replacement.value = field.value;
     }
-    const replacement = focused ? next.querySelector(`[data-focus="${CSS.escape(focused)}"]`) : null;
+    const replacement = focused ? next.querySelector(focused) : null;
     if (replacement && textField(active)) {
       // Replacing and refocusing the editor interrupts the browser's input-method conversion.
       retainEditor(this.el, next, active, replacement);
@@ -105,7 +117,7 @@ export class Component {
     }
     this.el.replaceWith(next);
     this.el = next;
-    if (focused) next.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus();
+    if (focused) next.querySelector(focused)?.focus({ preventScroll: true });
   }
 }
 

@@ -2,7 +2,7 @@
 // open dialog, the language and theme), turns them into each region's view data, and
 // carries the person's actions to the server. No region talks to another; everything
 // passes through here.
-import { h } from "./dom.js";
+import { h, focusSelector } from "./dom.js";
 import { knows, translator } from "./strings.js";
 import { CurrentRound } from "./components/current-round.js";
 import { DialogLayer } from "./components/dialog.js";
@@ -92,7 +92,7 @@ const dialogs = new DialogLayer(emit, {
 });
 const error = h("p", { class: "error", role: "alert", hidden: true });
 const panels = Object.fromEntries(
-  TABS.map((tab) => [tab.id, h("section", { class: "panel", role: "tabpanel", "data-panel": tab.id })]),
+  TABS.map((tab) => [tab.id, h("section", { class: "panel", role: "tabpanel", "data-panel": tab.id, "data-focus-scope": `tab-${tab.id}` })]),
 );
 panels.current.appendChild(current.el);
 panels.past.appendChild(past.el);
@@ -249,12 +249,7 @@ function holdFocusInDialog(open) {
 
 /// An element and a way to find its redrawn replacement.
 function focusKey(element) {
-  const { focus, action } = element?.dataset ?? {};
-  const selector = focus
-    ? `[data-focus="${CSS.escape(focus)}"]`
-    : action
-      ? `[data-action="${CSS.escape(action)}"]`
-      : null;
+  const selector = element ? focusSelector(element) : null;
   return { element: element ?? document.body, selector };
 }
 

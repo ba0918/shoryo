@@ -7,7 +7,7 @@ const bodies = {
   /// The full text of a decision and where it was decided.
   decision: (detail, emit) => ({
     label: translator(detail.lang)("dialog.decision"),
-    attrs: { "data-decision-detail": detail.id },
+    attrs: { "data-decision-detail": detail.id, "data-focus-scope": `decision-dialog-${detail.id}` },
     body: decisionItem(detail, emit),
   }),
   /// 見直す asks first: a mistaken press must not reach the LLM.
@@ -15,7 +15,7 @@ const bodies = {
     const t = translator(data.lang);
     return {
       label: t("review.title"),
-      attrs: { "data-review-confirmation": data.decision },
+      attrs: { "data-review-confirmation": data.decision, "data-focus-scope": `review-dialog-${data.decision}` },
       body: [
         h("h2", { class: "dialog-title" }, t("review.title")),
         h("p", { class: "review-target" }, data.name),
@@ -61,7 +61,7 @@ export class DialogLayer extends Component {
       { class: "dialog-layer", onclick: (event) => event.target === event.currentTarget && close() },
       h(
         "div",
-        { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": label, ...attrs },
+        { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": label, "data-focus-scope": `dialog-${dialog.kind}`, ...attrs },
         h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
         h("div", { class: "dialog-body" }, body),
       ),

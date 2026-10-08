@@ -44,7 +44,7 @@ export function decisionItem(item, emit) {
   const t = translator(item.lang);
   return h(
     "div",
-    { class: "decision-item", "data-decision-item": item.id },
+    { class: "decision-item", "data-decision-item": item.id, "data-focus-scope": `decision-${item.id}` },
     h("p", { class: "decision-name" }, item.name),
     h("p", { class: "decision-text" }, item.text),
     item.source

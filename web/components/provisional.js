@@ -58,6 +58,7 @@ export class ProvisionalRow extends Component {
       {
         class: `provisional-row${this.open ? " open" : ""}${question.landed ? " landed" : ""}${this.past ? " past" : ""}`,
         "data-provisional-row": question.id,
+        "data-focus-scope": `question-${question.id}`,
         "data-past-question": this.past ? question.id : undefined,
         "data-landed": question.landed,
       },

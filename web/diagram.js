@@ -199,6 +199,7 @@ export function drawDiagram(text, onExtent = () => {}) {
       group.setAttribute("tabindex", "0");
       group.setAttribute("role", "button");
       group.setAttribute("aria-label", node.label);
+      group.setAttribute("data-focus", `diagram-node-${id}`);
       group.setAttribute("aria-expanded", "false");
       const full = labelText(whole, c.x, c.y, "node-label whole");
       group.append(full);

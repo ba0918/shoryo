@@ -169,6 +169,7 @@ export class Tabs extends Component {
               role: "tab",
               "aria-selected": String(tab.id === state.current),
               "data-tab": tab.id,
+              "data-focus": `tab-${tab.id}`,
               onclick: () => this.emit({ type: "tab", tab: tab.id }),
             },
             t(`tab.${tab.id}`),

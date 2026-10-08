@@ -131,6 +131,30 @@ for (const surface of ["reply", "result", "dialog"]) {
   });
 }
 
+test("reply_redraw_keeps_focus_on_the_same_node_in_the_same_exchange", async ({ shoryo, page }) => {
+  const diagram = `a = ${keyboardLabel}\nb = 記録\n| a | b |`;
+  for (const text of ["Explain first", "Explain second"]) await shoryo.op({ op: "ask", question: "q2", text });
+  const asks = (await shoryo.wait()).filter(event => event.kind === "ask");
+  for (const ask of asks) await shoryo.reply(ask.ask, { text: "Diagram reply", diagram });
+  const second = card(page, "q2").locator(`[data-ask="${asks[1].ask}"]`);
+  const control = second.getByRole("button", { name: keyboardLabel, exact: true });
+  await keyboardTo(page, control);
+  await shoryo.op({ op: "ask", question: "q2", text: "Explain third" });
+  await expect(card(page, "q2").getByText("Explain third", { exact: true })).toBeVisible();
+  await expect(control).toBeFocused();
+});
+
+test("result_record_update_keeps_focus_on_the_retained_picture_node", async ({ shoryo, page }) => {
+  await shoryo.submit();
+  await shoryo.round({ subject: "Result", questions: [], finished_picture: `a = ${keyboardLabel}\n| a |` });
+  const result = page.locator('[data-panel=current] [data-result]');
+  const control = result.getByRole("button", { name: keyboardLabel, exact: true });
+  await keyboardTo(page, control);
+  await shoryo.op({ op: "request_review", decision: "d1" });
+  await expect(action(result.locator('[data-decision-item=d1]'), "stop-review")).toBeVisible();
+  await expect(control).toBeFocused();
+});
+
 test("reply_diagram_is_sized_to_its_content", async ({ shoryo, page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   const svg = await replyWith(shoryo, page, "a = File\nb = Disk\nc = Backup\n| a | b | c |\na -> b : lives on\nb -> c : copied to");

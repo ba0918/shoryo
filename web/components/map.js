@@ -1,7 +1,7 @@
 // 地図: the decisions and the current questions by round, drawn from the computed map
 // (docs/spec/screen.md, "地図"). The map zooms and moves inside its own area; details float
 // in a layer of their own above the page, so they are never clipped and never move the map.
-import { Component, h } from "../dom.js";
+import { Component, h, focusSelector } from "../dom.js";
 import { fitLines } from "../measure.js";
 import { PanZoom, clamp, wheelHintKey } from "../pan-zoom.js";
 import { translator } from "../strings.js";
@@ -49,7 +49,7 @@ export class MapTab extends Component {
   constructor(emit) {
     super(emit);
     this.hover = h("div", { class: "map-hover", "data-map-hover": true, role: "tooltip", hidden: true });
-    this.details = h("div", { class: "map-details", "data-map-selection": true, role: "dialog", hidden: true });
+    this.details = h("div", { class: "map-details", "data-map-selection": true, "data-focus-scope": "map-details", role: "dialog", hidden: true });
     document.body.append(this.hover, this.details);
     const follow = () => {
       this.hover.hidden = true;
@@ -243,7 +243,7 @@ export class MapTab extends Component {
   /// The selected point's details, with going to its path, to its question, and 見直す.
   fillDetails(map, t) {
     const active = document.activeElement;
-    const focused = this.details.contains(active) ? active.dataset.focus : undefined;
+    const focused = focusSelector(active, this.details);
     const node = map.columns.flatMap((column) => column.nodes).find((n) => n.key === map.selected);
     if (!node || !map.visible) {
       this.details.hidden = true;
@@ -275,7 +275,7 @@ export class MapTab extends Component {
     );
     this.details.hidden = false;
     this.placeDetails();
-    if (focused) this.details.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
+    if (focused) this.details.querySelector(focused)?.focus({ preventScroll: true });
   }
 
   placeDetails() {
