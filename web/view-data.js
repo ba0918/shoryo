@@ -100,12 +100,10 @@ export function currentRoundData(view, landed = null) {
 
 /// Whether the person proceeded with the result: it was sent without review requests, so the
 /// brainstorm is over on this screen and no next round is coming; with review requests, the
-/// LLM asks again.
+/// LLM asks again. The server records which it was when the result was sent.
 function proceeded(topic) {
   const round = topic.rounds[topic.rounds.length - 1];
-  return (
-    !topic.ended && round !== undefined && round.submitted && round.questions.length === 0 && topic.records.in_review.length === 0
-  );
+  return !topic.ended && round !== undefined && round.submitted && round.sent_as === "proceeded";
 }
 
 /// How long the agent may be silent, neither waiting nor sending a command, before the
@@ -186,10 +184,20 @@ export function reviewState(view, id) {
   };
 }
 
+/// Whether a decision carried the 代決 mark as of `round`: it came from an answer sent with
+/// the LLM's stamp and had not been revised by then. The server says it for today.
+function preApprovedAsOf(view, decision, round) {
+  if (round === Infinity) return view.pre_approved.includes(decision.id);
+  const origin = decision.origin.question !== undefined ? findQuestion(view.topic, decision.origin.question) : null;
+  const versions = decision.history.filter((version) => version.round <= round);
+  return origin?.question.answer.stamp === "pre_approved" && versions.length === 1;
+}
+
 /// A decision for a list. `asDecided` shows the content it had when it was decided, marked
-/// when it was revised later; otherwise its current content.
-export function decisionItemData(view, decision, { asDecided = false } = {}) {
-  const content = asDecided ? decision.history[0].content : decisionContent(decision);
+/// when it was revised later; `asOf` shows the content and the 代決 mark it had as of that
+/// round; otherwise its current content.
+export function decisionItemData(view, decision, { asDecided = false, asOf = Infinity } = {}) {
+  const content = asDecided ? decision.history[0].content : decisionContent(decision, asOf);
   return {
     lang: view.lang,
     id: decision.id,
@@ -197,7 +205,7 @@ export function decisionItemData(view, decision, { asDecided = false } = {}) {
     text: content.text,
     source: decisionSource(view, decision),
     revised: asDecided && decision.history.length > 1,
-    preApproved: view.pre_approved.includes(decision.id),
+    preApproved: preApprovedAsOf(view, decision, asOf),
     review: reviewState(view, decision.id),
     jump: decision.origin.question !== undefined ? questionTarget(view.topic, decision.origin.question) : null,
   };
@@ -295,12 +303,39 @@ export function pastRoundsData(view, selected, landed = null) {
       ? {
           number: chosen.number,
           subject: chosen.subject,
+          result: chosen.questions.length === 0 ? pastResultData(view, chosen) : null,
           fixes: fixesData(view, chosen),
           human: questions.filter((q) => q.cls === "human").map((q) => q.data),
           provisional: questions.filter((q) => q.cls === "provisional").map((q) => q.data),
         }
       : null,
   };
+}
+
+/// A sent result round as it was sent: its own finished picture and records, the decisions
+/// as they stood then, and how the person sent it.
+function pastResultData(view, round) {
+  const topic = view.topic;
+  return {
+    lang: view.lang,
+    picture: round.finished_picture,
+    decisions: topic.records.decisions
+      .filter((decision) => decisionContent(decision, round.number) !== null)
+      .map((decision) => decisionItemData(view, decision, { asOf: round.number })),
+    not_building: round.records.not_building,
+    rejected: rejectedData(topic, round.records.rejected),
+    undecided: round.records.undecided,
+    delegated: round.records.delegated,
+    sentAs: round.sent_as,
+  };
+}
+
+function rejectedData(topic, rejected) {
+  return rejected.map((entry) => ({
+    text: entry.text,
+    reason: entry.reason,
+    question: findQuestion(topic, entry.question)?.question.text ?? entry.question,
+  }));
 }
 
 export function decisionsTabData(view) {
@@ -314,11 +349,7 @@ export function decisionsTabData(view) {
     lang: view.lang,
     decisions: records.decisions.map((decision) => decisionItemData(view, decision)),
     not_building: records.not_building,
-    rejected: records.rejected.map((rejected) => ({
-      text: rejected.text,
-      reason: rejected.reason,
-      question: findQuestion(topic, rejected.question)?.question.text ?? rejected.question,
-    })),
+    rejected: rejectedData(topic, records.rejected),
     undecided: records.undecided,
     delegated: records.delegated,
     revisions: records.revisions.map((revision) => ({

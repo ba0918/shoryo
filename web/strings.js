@@ -115,6 +115,8 @@ const en = {
   "thread.quick.recommendation": "What does the recommendation mean?",
 
   "past.none": "No round has been sent yet.",
+  "past.sent-as.proceeded": "Proceeded with this result",
+  "past.sent-as.review_requested": "Asked for a review",
   "round.number": "Round {number}",
 
   "records.decisions": "Decisions",
@@ -277,6 +279,8 @@ const ja = {
   "thread.quick.recommendation": "推奨はどういう意味ですか？",
 
   "past.none": "送ったラウンドはまだありません。",
+  "past.sent-as.proceeded": "この結果で進めました",
+  "past.sent-as.review_requested": "見直しを頼みました",
   "round.number": "第 {number} ラウンド",
 
   "records.decisions": "決まったこと",

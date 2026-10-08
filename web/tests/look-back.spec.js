@@ -256,3 +256,37 @@ test("ended_topic_blocks_all_input", async ({ shoryo, page }) => {
   await tab(page, "decisions").click();
   await expect(action(page.locator("[data-panel=decisions]"), "review")).toHaveCount(0);
 });
+
+test("past_result_round_shows_its_picture_records_and_how_it_was_sent", async ({ shoryo, page }) => {
+  await sendAll(page);
+  await shoryo.round({
+    subject: "Result",
+    finished_picture: "a = Screen\nb = One file\n| a | b |\na -> b : saves",
+    records: {
+      decisions: [decision("d2", "Data in one file", "q2"), decision("d3", "Only the person deletes", "q4")],
+      undecided: [{ text: "Backup schedule", decider: "the person" }],
+    },
+  });
+  await expect(action(page, "send")).toHaveText("Proceed with this result");
+  await sendAll(page);
+  await shoryo.round({
+    subject: "After the result",
+    questions: [question("q5", "Who may read the file?", { premises: ["d2"] })],
+    finished_picture: "a = Screen\nc = Two files\n| a | c |",
+    records: { undecided: [] },
+  });
+
+  await tab(page, "past").click();
+  await action(page.locator('[data-round-choice="3"]'), "choose-round").click();
+
+  const round = pastRound(page, 3);
+  const result = round.locator("[data-result]");
+  await expect(result.locator('[data-node="b"]')).toContainText("One file");
+  await expect(result.locator('[data-node="c"]')).toHaveCount(0);
+  await expect(result).toContainText("Backup schedule");
+  await expect(result.locator("[data-sent-as]")).toHaveAttribute("data-sent-as", "proceeded");
+  for (const id of ["d2", "d3"]) {
+    await expect(action(decisionItem(result, id), "review")).toBeVisible();
+  }
+  await expect(action(page.locator("[data-panel=past]"), "send")).toHaveCount(0);
+});

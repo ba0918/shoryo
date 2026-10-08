@@ -5,6 +5,7 @@ import { translator } from "../strings.js";
 import { Card } from "./card.js";
 import { Fixes } from "./fixes.js";
 import { ProvisionalRow } from "./provisional.js";
+import { ResultView } from "./result.js";
 
 class RoundChoices extends Component {
   draw(data) {
@@ -40,6 +41,7 @@ export class PastRounds {
     this.choices = new RoundChoices(emit);
     this.title = h("h2", { class: "round-title" });
     this.fixes = new Fixes(emit);
+    this.result = new ResultView(emit);
     this.cardBox = h("div", { class: "cards" });
     this.rowBox = h("div", { class: "provisional-rows" });
     this.list = h(
@@ -50,7 +52,7 @@ export class PastRounds {
     );
     this.cards = new KeyedList(this.cardBox, () => new Card(emit, { past: true }));
     this.rows = new KeyedList(this.rowBox, () => new ProvisionalRow(emit, { past: true }));
-    this.section = h("section", { class: "past-round" }, this.title, this.fixes.el, this.cardBox, this.list);
+    this.section = h("section", { class: "past-round" }, this.title, this.fixes.el, this.result.el, this.cardBox, this.list);
     this.el = h("div", { class: "past-rounds" }, this.empty, this.choices.el, this.section);
   }
 
@@ -73,6 +75,7 @@ export class PastRounds {
     }
     this.list.hidden = round === null || round.provisional.length === 0;
     this.fixes.update({ fixes: round?.fixes ?? [], lang: data.lang });
+    this.result.update(round?.result ?? null);
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
   }
