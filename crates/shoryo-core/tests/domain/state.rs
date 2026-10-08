@@ -1,6 +1,6 @@
 use shoryo_core::{
     Answer, Choice, Class, Decision, DecisionContent, DecisionId, Origin, Question, QuestionId,
-    Records, Round, Timestamp, Topic,
+    Records, Round, RoundRecords, Timestamp, Topic,
 };
 
 fn question(id: &str) -> Question {
@@ -43,6 +43,11 @@ fn state_round_trips_through_json() {
         confirmed: vec![],
         asks: vec![],
         submitted: true,
+        finished_picture: Some("a = Store".into()),
+        records: RoundRecords {
+            not_building: vec!["A service".into()],
+            ..RoundRecords::default()
+        },
         sent_at: Some(Timestamp::new("2026-10-08T04:05:00.000Z")),
         sent_as: None,
     });

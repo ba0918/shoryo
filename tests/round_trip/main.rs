@@ -568,3 +568,33 @@ fn sent_round_keeps_its_sent_time_in_utc() {
     );
     assert_eq!(offset, 0);
 }
+
+#[test]
+fn past_result_round_reads_back_the_picture_and_records_it_was_sent_with() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    env.run(&["round", "store"], &first_round());
+    server.submit();
+    let result_round = json!({
+        "subject": "Result",
+        "finished_picture": "store = One JSON file",
+        "records": { "undecided": [{ "text": "Backups", "decider": "The person" }] },
+    });
+    env.run(&["round", "store"], &result_round.to_string());
+    server.submit();
+    let later = json!({
+        "subject": "After the result",
+        "finished_picture": "store = Two files",
+        "records": { "undecided": [] },
+    });
+    env.run(&["round", "store"], &later.to_string());
+
+    let output = env.run(&["result", "store"], "");
+
+    let result: Value = serde_json::from_slice(&output.stdout).expect("the result is JSON");
+    let sent = &result["rounds"][1];
+    assert_eq!(sent["finished_picture"], "store = One JSON file");
+    assert_eq!(sent["records"]["undecided"][0]["text"], "Backups");
+    assert_eq!(sent["sent_as"], "proceeded");
+    assert_eq!(result["finished_picture"], "store = Two files");
+}

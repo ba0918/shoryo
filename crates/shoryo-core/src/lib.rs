@@ -16,6 +16,7 @@ pub use round::{
 pub use state::{
     Answer, Ask, AskState, Choice, Class, Decision, DecisionChange, DecisionContent, Delegated,
     Fix, InReview, LoadError, NodeRef, Origin, Question, Records, Rejected, Reply,
-    ReviewConclusion, ReviewOutcome, Revision, Round, SentAs, Stamp, Timestamp, Topic, Undecided,
+    ReviewConclusion, ReviewOutcome, Revision, Round, RoundRecords, SentAs, Stamp, Timestamp,
+    Topic, Undecided,
 };
 pub use views::{ChainLink, Column, Map, MapEdge, MapNode, NodeKind};

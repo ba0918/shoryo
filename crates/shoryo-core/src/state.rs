@@ -35,10 +35,24 @@ pub struct Round {
     pub confirmed: Vec<NodeRef>,
     pub asks: Vec<Ask>,
     pub submitted: bool,
+    /// The finished picture as it stood once this round was applied.
+    pub finished_picture: Option<String>,
+    /// The records other than decisions as they stood once this round was applied.
+    pub records: RoundRecords,
     /// When the person sent the round.
     pub sent_at: Option<Timestamp>,
     /// For a sent result round: whether the person proceeded or asked for reviews.
     pub sent_as: Option<SentAs>,
+}
+
+/// The records a round showed besides decisions, kept so a past result can be drawn as it
+/// was sent. Decisions need no copy: their history gives the content as of any round.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoundRecords {
+    pub not_building: Vec<String>,
+    pub undecided: Vec<Undecided>,
+    pub delegated: Vec<Delegated>,
+    pub rejected: Vec<Rejected>,
 }
 
 /// How the person sent a result round.

@@ -300,3 +300,39 @@ fn unknown_field_in_a_nested_object_is_refused() {
         );
     }
 }
+
+#[test]
+fn round_keeps_the_picture_and_records_it_was_applied_with() {
+    let mut topic = topic_with_submitted_round();
+    topic
+        .apply_round(round(json!({
+            "subject": "Result",
+            "finished_picture": "a = One file",
+            "records": {
+                "not_building": ["A web service"],
+                "undecided": [{ "text": "Backups", "decider": "The person" }],
+                "delegated": [{ "text": "File name", "reason": "Any works" }],
+                "rejected": [{ "text": "SQLite", "reason": "Too much", "question": "q1" }],
+            },
+        })))
+        .unwrap();
+    topic.rounds[2].submitted = true;
+
+    topic
+        .apply_round(round(json!({
+            "subject": "After review",
+            "finished_picture": "b = Two files",
+            "records": { "undecided": [] },
+        })))
+        .unwrap();
+
+    let result = &topic.rounds[2];
+    assert_eq!(result.finished_picture.as_deref(), Some("a = One file"));
+    assert_eq!(result.records.undecided.len(), 1);
+    let next = &topic.rounds[3];
+    assert_eq!(next.finished_picture.as_deref(), Some("b = Two files"));
+    assert!(next.records.undecided.is_empty());
+    assert_eq!(next.records.not_building, ["A web service"]);
+    assert_eq!(next.records.delegated, result.records.delegated);
+    assert_eq!(next.records.rejected, result.records.rejected);
+}

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::ids::{DecisionId, QuestionId};
 use crate::state::{
     Answer, Choice, Class, Decision, DecisionChange, DecisionContent, Delegated, Fix, NodeRef,
-    Origin, Question, Rejected, ReviewConclusion, Revision, Round, Topic, Undecided,
+    Origin, Question, Rejected, ReviewConclusion, Revision, Round, RoundRecords, Topic, Undecided,
 };
 
 /// A round as the agent writes it.
@@ -201,6 +201,13 @@ impl Topic {
             confirmed: input.confirmed,
             asks: Vec::new(),
             submitted: false,
+            finished_picture: self.finished_picture.clone(),
+            records: RoundRecords {
+                not_building: self.records.not_building.clone(),
+                undecided: self.records.undecided.clone(),
+                delegated: self.records.delegated.clone(),
+                rejected: self.records.rejected.clone(),
+            },
             sent_at: None,
             sent_as: None,
         });
