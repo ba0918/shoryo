@@ -243,6 +243,89 @@ test("reply_after_sending_lands_in_its_past_round", async ({ shoryo, page }) => 
   await expect(page.locator(`[data-panel=past] [data-ask="${id}"] [data-reply]`)).toBeInViewport();
 });
 
+async function positionPendingReply(page, id, { submitted = true, exposed = false } = {}) {
+  await page.setViewportSize({ width: 900, height: 500 });
+  const panel = submitted ? "past" : "current";
+  const pending = page.locator(`[data-panel=${panel}] [data-ask="${id}"] [data-mark=writing]`);
+  await expect(pending).toBeAttached();
+  await pending.evaluate((element, { submitted, exposed }) => {
+    const edge = submitted ? document.querySelector('[data-wait-footer]').getBoundingClientRect().top : innerHeight;
+    window.scrollBy(0, element.getBoundingClientRect().top - (edge + (exposed ? -16 : 2)));
+  }, { submitted, exposed });
+}
+
+test("late_reply_fully_covered_by_the_wait_footer_is_announced_and_counted", async ({ shoryo, page }) => {
+  const id = await ask(shoryo, page, "Explain before submission", "q4");
+  await shoryo.submit();
+  await tab(page, "past").click();
+  await expect(page.locator('[data-wait-footer]')).toBeVisible();
+  await positionPendingReply(page, id);
+  await shoryo.reply(id, { text: "Reply behind the wait footer" });
+  const reply = page.locator(`[data-panel=past] [data-ask="${id}"] [data-reply]`);
+  await expect(reply).toBeAttached();
+  const box = await reply.boundingBox();
+  const footer = await page.locator('[data-wait-footer]').boundingBox();
+  expect(box.y).toBeGreaterThanOrEqual(footer.y);
+  expect(box.y).toBeLessThan(page.viewportSize().height);
+  expect(box.y + box.height).toBeLessThanOrEqual(footer.y + footer.height);
+  await page.clock.runFor(100);
+  await expect(toast(page)).toHaveAttribute('data-toast', `reply:${id}`);
+  await expect(badge(page)).toHaveText("1");
+  await action(toast(page), "view-arrival").click();
+  const revealed = await reply.boundingBox();
+  const bottom = (await page.locator('[data-wait-footer]').boundingBox()).y;
+  expect(revealed.y).toBeLessThan(bottom);
+  expect(revealed.y + revealed.height).toBeGreaterThan((await page.getByRole('banner').boundingBox()).height);
+});
+
+for (const submitted of [true, false]) {
+  test(`partly_exposed_reply_is_seen_${submitted ? "above_the_wait_footer" : "at_viewport_bottom_without_a_footer"}`, async ({ shoryo, page }) => {
+    const id = await ask(shoryo, page, "Explain near the bottom", "q4");
+    if (submitted) {
+      await shoryo.submit();
+      await tab(page, "past").click();
+      await expect(page.locator('[data-wait-footer]')).toBeVisible();
+    } else {
+      await expect(page.locator('[data-wait-footer]')).toHaveCount(0);
+    }
+    await positionPendingReply(page, id, { submitted, exposed: true });
+    await shoryo.reply(id, { text: "Partly exposed reply" });
+    const reply = page.locator(`[data-panel=${submitted ? "past" : "current"}] [data-ask="${id}"] [data-reply]`);
+    await expect(reply).toBeAttached();
+    const box = await reply.boundingBox();
+    const edge = submitted ? (await page.locator('[data-wait-footer]').boundingBox()).y : page.viewportSize().height;
+    expect(box.y).toBeLessThan(edge);
+    expect(box.y + box.height).toBeGreaterThan(edge);
+    await page.clock.runFor(100);
+    await expect(toast(page)).toHaveCount(0);
+    await expect(badge(page)).toHaveCount(0);
+  });
+}
+
+test("late_reply_partly_exposed_below_the_header_is_seen", async ({ shoryo, page }) => {
+  const id = await ask(shoryo, page, "Explain near the header", "q4");
+  await shoryo.submit();
+  await tab(page, "past").click();
+  await page.setViewportSize({ width: 900, height: 500 });
+  const pending = page.locator(`[data-panel=past] [data-ask="${id}"] [data-mark=writing]`);
+  await expect(pending).toBeAttached();
+  await pending.evaluate(element => {
+    const headerBottom = document.querySelector('header.topbar').getBoundingClientRect().bottom;
+    scrollBy(0, element.getBoundingClientRect().top - (headerBottom - 16));
+  });
+  await shoryo.reply(id, { text: "Reply at the header edge" });
+  const reply = page.locator(`[data-panel=past] [data-ask="${id}"] [data-reply]`);
+  await expect(reply).toBeAttached();
+  const box = await reply.boundingBox();
+  const header = await page.getByRole('banner').boundingBox();
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeLessThan(header.y + header.height);
+  expect(box.y + box.height).toBeGreaterThan(header.y + header.height);
+  await page.clock.runFor(100);
+  await expect(toast(page)).toHaveCount(0);
+  await expect(badge(page)).toHaveCount(0);
+});
+
 test("held_toasts_survive_overflow_until_the_oldest_is_released", async ({ shoryo, page }) => {
   const ids = [];
   for (let i = 0; i < 4; i++) ids.push(await ask(shoryo, page, `Ask ${i}`));

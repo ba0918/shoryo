@@ -179,7 +179,9 @@ function arrivalVisible(arrival) {
   const element = arrivalElement(arrival);
   if (!element) return false;
   const box = element.getBoundingClientRect();
-  return box.height > 0 && box.width > 0 && box.bottom > header.el.getBoundingClientRect().bottom && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
+  const footer = waitFooter.el.getBoundingClientRect();
+  const bottom = footer.height > 0 ? Math.min(innerHeight, footer.top) : innerHeight;
+  return box.height > 0 && box.width > 0 && box.bottom > header.el.getBoundingClientRect().bottom && box.top < bottom && box.right > 0 && box.left < innerWidth;
 }
 
 function announce(arrival) {
