@@ -104,3 +104,86 @@ test("flow_return_and_merge_keep_supplied_routes", async ({ shoryo, page }) => {
   await expect(scope.locator("[data-edge]").nth(1)).toHaveAttribute("d", "M 510 400 L 290 400");
   await expect(scope.locator("[data-edge]").nth(2)).toHaveAttribute("d", "M 110 400 L 40 400 L 40 100 L 110 100");
 });
+
+test("independent_boxes_and_labels_fail_on_overlap", async ({ shoryo, page }) => {
+  const crowded = flow({ nodes: [{ id: "a", kind: "process", label: "A", position: { x: 200, y: 100 } }, { id: "b", kind: "process", label: "B", position: { x: 240, y: 120 } }], edges: [] });
+  const labels = flow({ edges: [{ from: "a", to: "b", label: { text: "One", position: { x: 400, y: 200 } } }, { from: "a", to: "b", label: { text: "Two", position: { x: 400, y: 200 } } }] });
+  const scope = await show(shoryo, page, [crowded, labels, flow()]);
+  await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/a.*b|b.*a/);
+  await expect(scope.locator("[data-part=flow]").nth(1).locator("[data-layout-failure]")).toContainText(/label/i);
+  await expect(scope.locator("[data-part=flow]").nth(2).locator("svg")).toBeVisible();
+});
+
+test("owned_labels_ports_self_calls_and_frame_enclosure_are_legal", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [sequence({ events: [{ type: "loop", condition: "A readable condition that needs several lines but keeps its words ".repeat(3), messages: [message("a", "a", "Self")] }] }), flow({ nodes: [{ id: "a", kind: "start", label: "Same" }, { id: "b", kind: "end", label: "Same" }], edges: [{ from: "a", to: "b" }] }), flow({ edges: [{ from: "a", to: "b", label: { text: "First\nSecond" } }] })]);
+  await expect(scope.locator("svg")).toHaveCount(3);
+  await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
+});
+
+test("arrows_entering_unrelated_shapes_fail_but_crossings_are_legal", async ({ shoryo, page }) => {
+  const nodes = [{ id: "a", kind: "process", label: "A", position: { x: 150, y: 200 } }, { id: "b", kind: "process", label: "B", position: { x: 650, y: 200 } }, { id: "c", kind: "process", label: "C", position: { x: 400, y: 200 } }];
+  const through = flow({ nodes, edges: [{ from: "a", to: "b", from_port: "east", to_port: "west", via: [] }] });
+  const clear = flow({ nodes, edges: [{ from: "a", to: "b", from_port: "south", to_port: "south", via: [{ x: 150, y: 350 }, { x: 650, y: 350 }] }, { from: "a", to: "b", from_port: "south", to_port: "south", via: [{ x: 200, y: 400 }, { x: 600, y: 250 }] }] });
+  const scope = await show(shoryo, page, [through, clear]);
+  await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/arrow.*c/i);
+  await expect(scope.locator("[data-part=flow]").nth(1).locator("svg")).toBeVisible();
+});
+
+test("diamond_and_capsule_containment_use_actual_shapes", async ({ shoryo, page }) => {
+  const smallDiamond = flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 120, height: 32 }], edges: [] });
+  const smallTerminal = flow({ nodes: [{ id: "a", kind: "start", label: "Same", height: 32 }], edges: [] });
+  const scope = await show(shoryo, page, [smallDiamond, smallTerminal, flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 220 }], edges: [] })]);
+  for (const i of [0, 1]) await expect(scope.locator("[data-part=flow]").nth(i).locator("[data-layout-failure]")).toContainText(/contain|outside/i);
+  await expect(scope.locator("[data-part=flow]").nth(2).locator("svg")).toBeVisible();
+});
+
+test("canvas_and_text_clipping_fail_only_the_affected_part", async ({ shoryo, page }) => {
+  const clipped = flow({ canvas: { width: 100, height: 100 } });
+  const negative = flow({ nodes: [{ id: "a", kind: "process", label: '<script>window.executed=true</script>', position: { x: 20, y: 100 } }], edges: [] });
+  const overflow = sequence({ participants: [{ id: "a", label: "A", x: 8192 }], events: [message("a", "a")] });
+  const scope = await show(shoryo, page, [{ type: "text", body: "Still readable" }, clipped, negative, overflow, flow()]);
+  await expect(scope.locator("[data-layout-failure]")).toHaveCount(3);
+  await expect(scope.locator("svg")).toHaveCount(1);
+  await expect(scope.getByText("Still readable")).toBeVisible();
+  expect(JSON.parse(await scope.locator(".explanation-failure").nth(1).textContent())).toEqual(negative);
+  expect(await page.evaluate(() => window.executed)).toBeUndefined();
+});
+
+test("font_and_theme_changes_revalidate_lossless_labels", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "Fits at baseline", height: 40 }], edges: [] })]);
+  await expect(scope.locator("svg")).toBeVisible();
+  await page.addStyleTag({ content: ":root { font-size: 32px; }" });
+  await expect(scope.locator("[data-layout-failure]")).toBeVisible();
+  await page.addStyleTag({ content: ":root { font-size: 16px; }" });
+  await expect(scope.locator("svg")).toBeVisible();
+  await page.locator('[data-action="theme"]').click();
+  await expect(scope.locator("[data-node-label]")).toHaveText("Fits at baseline");
+});
+
+test("malformed_view_is_bounded_before_geometry_measurement", async ({ shoryo, page }) => {
+  await show(shoryo, page, [flow()]);
+  await page.evaluate(async () => {
+    const { explanationDiagram } = await import("./components/explanation-diagram.js");
+    const bad = { type: "flow", title: "Malformed", role: "example", nodes: Array.from({ length: 33 }, (_, i) => ({ id: `n${i}`, kind: "process", label: "Node" })), edges: [] };
+    const host = explanationDiagram(bad, "en");
+    host.id = "malformed-view";
+    document.body.append(host);
+  });
+  await expect(page.locator("#malformed-view [data-layout-failure]")).toContainText(/nodes.*32/i);
+  await expect(page.locator("#malformed-view svg")).toHaveCount(0);
+});
+
+test("boundary_contact_is_legal_but_connected_routes_cannot_enter_nodes", async ({ shoryo, page }) => {
+  const nodes = [{ id: "a", kind: "process", label: "A", position: { x: 200, y: 100 } }, { id: "b", kind: "process", label: "B", position: { x: 380, y: 100 } }];
+  const contact = flow({ nodes, edges: [] });
+  const backwards = flow({ edges: [{ from: "a", to: "b", from_port: "north", to_port: "north", via: [] }] });
+  const scope = await show(shoryo, page, [contact, backwards]);
+  await expect(scope.locator("[data-part=flow]").nth(0).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(1).locator("[data-layout-failure]")).toContainText(/arrow.*a/i);
+});
+
+test("circular_terminal_capsules_do_not_overlap_at_a_distance", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "start", label: "A", position: { x: 150, y: 100 }, width: 80, height: 80 }, { id: "b", kind: "end", label: "B", position: { x: 150, y: 300 }, width: 80, height: 80 }], edges: [] })]);
+  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
+});
