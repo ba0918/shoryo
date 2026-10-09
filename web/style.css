@@ -908,7 +908,7 @@ textarea:disabled {
 .explanation-viewer-surface.failed { user-select: text; overflow: auto; }
 .explanation-viewer { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .explanation-viewer .explanation-block-header { padding-right: 48px; }
-.dialog:has([data-explanation-viewer]) { width: min(92vw, 76rem); height: calc(100vh - 2rem); height: calc(100dvh - 2rem); max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); display: flex; flex-direction: column; overflow: visible; }
+.dialog:has([data-explanation-viewer]) { position: relative; width: min(92vw, 76rem); height: calc(100vh - 2rem); height: calc(100dvh - 2rem); max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); display: flex; flex-direction: column; overflow: visible; }
 .dialog:has([data-explanation-viewer]) .dialog-body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: visible; }
 .dialog:has([data-explanation-viewer]) .close { position: absolute; top: 12px; right: 12px; }
 .diagram-zoom-group { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--sheet-sunk); }

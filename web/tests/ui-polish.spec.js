@@ -335,6 +335,9 @@ test('ui_polish_dialog_menu_and_close_keep_keyboard_scope_and_opener', async ({ 
   await expect(dialog).toBeVisible();
   const close = dialog.getByRole('button', { name: 'Close', exact: true });
   await expect(close).toHaveAttribute('title', 'Close');
+  const closeBox = await close.boundingBox(), dialogBox = await dialog.boundingBox();
+  expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width);
+  expect(closeBox.y).toBeGreaterThanOrEqual(dialogBox.y);
   await close.focus(); await close.press('Space'); await expect(opener).toBeFocused();
 });
 
