@@ -4,6 +4,7 @@ import { action, card } from "./screen.js";
 
 const message = (from, to, label = "Send", extra = {}) => ({ type: "message", from, to, label, kind: "call", ...extra });
 const sequence = (extra = {}) => ({ type: "sequence", title: "Exchange", role: "example", participants: [{ id: "a", label: "First" }, { id: "b", label: "Second" }], events: [message("a", "b")], ...extra });
+const flow = (extra = {}) => ({ type: "flow", title: "Path", role: "proposal", nodes: [{ id: "a", kind: "process", label: "First" }, { id: "b", kind: "process", label: "Second" }], edges: [{ from: "a", to: "b" }], ...extra });
 
 async function show(shoryo, page, parts) {
   const q = question("q1", "Read this explanation?");
@@ -63,4 +64,43 @@ test("sequence_labels_wrap_without_loss", async ({ shoryo, page }) => {
   expect(await text.locator("tspan").count()).toBeGreaterThan(4);
   expect(await text.getAttribute("data-original")).toBe(label);
   expect(await text.textContent()).not.toContain("…");
+});
+
+test("flow_shapes_and_conditions_preserve_connections", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "start", label: "Same" }, { id: "b", kind: "decision", label: "Choose" }, { id: "c", kind: "process", label: "Work" }, { id: "d", kind: "end", label: "Same" }], edges: [{ from: "a", to: "b" }, { from: "b", to: "c", label: { text: "Yes" } }, { from: "c", to: "d" }] })]);
+  await expect(scope.locator("[data-node]")).toHaveCount(4);
+  expect(await scope.locator("[data-node]").evaluateAll(nodes => nodes.map(n => [n.tagName, n.dataset.kind]))).toEqual([["rect", "start"], ["polygon", "decision"], ["rect", "process"], ["rect", "end"]]);
+  await expect(scope.locator("[data-terminal-marker]")).toHaveText(["Start", "End"]);
+  await expect(scope.locator("[data-node-label]")).toHaveText(["Same", "Choose", "Work", "Same"]);
+  expect(await scope.locator('[data-node="a"]').getAttribute("height")).toBe("68");
+  await page.locator('[data-language="ja"]').click();
+  await expect(scope.locator("[data-terminal-marker]")).toHaveText(["開始", "終了"]);
+  await expect(scope.locator("[data-node-label]").first()).toHaveText("Same");
+});
+
+test("flow_explicit_positions_ports_and_routes_are_preserved", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "A", position: { x: 200, y: 150 }, width: 200, height: 100 }, { id: "b", kind: "decision", label: "B", position: { x: 600, y: 350 }, width: 240, height: 120 }], edges: [{ from: "a", to: "b", from_port: "east", to_port: "west", via: [{ x: 400, y: 150 }, { x: 400, y: 350 }], label: { text: "Route", position: { x: 360, y: 100 } } }] })]);
+  await expect(scope.locator("[data-edge]")).toHaveAttribute("d", "M 300 150 L 400 150 L 400 350 L 480 350");
+  const label = await box(scope.locator("[data-edge-label]"));
+  expect(label.x + label.width / 2).toBeCloseTo(360, 0);
+  const before = await scope.locator("[data-edge]").getAttribute("d");
+  await page.setViewportSize({ width: 390, height: 700 });
+  await expect(scope.locator("[data-edge]")).toHaveAttribute("d", before);
+});
+
+test("flow_defaults_and_label_ties_are_deterministic", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ edges: [{ from: "a", to: "b", label: { text: "First\nSecond" } }] }), flow({ nodes: [{ id: "a", kind: "decision", label: "Pick" }, { id: "b", kind: "process", label: "Do" }], edges: [{ from: "a", to: "b", label: { text: "Yes" } }] })]);
+  const edges = scope.locator("[data-edge]");
+  await expect(edges.nth(0)).toHaveAttribute("d", "M 160 132 L 160 180 L 160 228");
+  await expect(edges.nth(1)).toHaveAttribute("d", "M 160 148 L 160 188 L 160 228");
+  const label = scope.locator("[data-edge-label]").first();
+  await expect(label).toHaveAttribute("x", "168");
+  await expect(label).toHaveAttribute("y", "138");
+  await expect(label.locator("tspan").nth(1)).toHaveAttribute("y", "156");
+});
+
+test("flow_return_and_merge_keep_supplied_routes", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "A", position: { x: 200, y: 100 } }, { id: "b", kind: "process", label: "B", position: { x: 200, y: 400 } }, { id: "c", kind: "process", label: "C", position: { x: 600, y: 400 } }], edges: [{ from: "a", to: "b" }, { from: "c", to: "b", from_port: "west", to_port: "east", via: [] }, { from: "b", to: "a", from_port: "west", to_port: "west", via: [{ x: 40, y: 400 }, { x: 40, y: 100 }], label: { text: "Repeat", position: { x: 70, y: 250 } } }] })]);
+  await expect(scope.locator("[data-edge]").nth(1)).toHaveAttribute("d", "M 510 400 L 290 400");
+  await expect(scope.locator("[data-edge]").nth(2)).toHaveAttribute("d", "M 110 400 L 40 400 L 40 100 L 110 100");
 });

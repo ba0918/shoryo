@@ -2,6 +2,8 @@
 // uses the glossary's words (CONTEXT.md). Text the LLM wrote never passes through here.
 
 const en = {
+  "part.node.start": "Start",
+  "part.node.end": "End",
   "part.role.proposal": "Proposal",
   "part.role.example": "Example",
   "part.role.confirmed": "Confirmed current state",
@@ -196,6 +198,8 @@ const en = {
 };
 
 const ja = {
+  "part.node.start": "開始",
+  "part.node.end": "終了",
   "part.role.proposal": "案",
   "part.role.example": "説明用の例",
   "part.role.confirmed": "確認済みの現状",

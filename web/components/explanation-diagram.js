@@ -1,8 +1,10 @@
 import { h } from "../dom.js";
 import { svgElement, textMetrics, drawing } from "../explanation-svg.js";
 import { sequenceDrawing } from "../explanation-sequence.js";
+import { flowDrawing } from "../explanation-flow.js";
+import { translator } from "../strings.js";
 
-export function explanationDiagram(part) {
+export function explanationDiagram(part, lang) {
   const host = h("div", { class: "explanation-diagram-region" });
   const svg = svgElement("svg", { class: "explanation-diagram", role: "img", "aria-label": part.title });
   async function render() {
@@ -11,7 +13,9 @@ export function explanationDiagram(part) {
     host.replaceChildren(svg);
     svg.replaceChildren();
     try {
-      sequenceDrawing(part, drawing(svg, textMetrics(svg)));
+      const draw = drawing(svg, textMetrics(svg));
+      if (part.type === "flow") flowDrawing(part, draw, translator(lang));
+      else sequenceDrawing(part, draw);
     } catch (error) {
       host.replaceChildren(h("p", { role: "status" }, error.message), h("pre", { class: "explanation-failure" }, JSON.stringify(part, null, 2)));
     }

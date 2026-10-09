@@ -883,6 +883,7 @@ textarea:disabled {
 .explanation-diagram text { fill: var(--ink); stroke: none; white-space: pre; }
 .explanation-diagram rect, .explanation-diagram path, .explanation-diagram line { stroke: var(--ink); fill: none; stroke-width: 1.5; }
 .explanation-diagram .explanation-arrowhead { fill: var(--ink); stroke: none; }
+.explanation-diagram .explanation-node { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .explanation-diagram .explanation-lifeline { stroke-dasharray: 4 4; }
 .explanation-failure { white-space: pre; overflow: auto; max-height: min(20rem, 50vh); }
 .option-description .explanation { margin-top: 0.5rem; }

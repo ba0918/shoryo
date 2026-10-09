@@ -15,7 +15,8 @@ export function explanation(parts, lang, key) {
       case "diagram":
         return h("section", { "data-part": "diagram" }, metadata(part, t), h("div", { class: "diagram-box" }, renderDiagram(part.source)));
       case "sequence":
-        return h("section", { "data-part": part.type }, metadata(part, t), explanationDiagram(part));
+      case "flow":
+        return h("section", { "data-part": part.type }, metadata(part, t), explanationDiagram(part, lang));
       default:
         return null;
     }
