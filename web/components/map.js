@@ -4,6 +4,7 @@
 import { Component, h, focusSelector } from "../dom.js";
 import { fitLines } from "../measure.js";
 import { PanZoom, clamp, wheelHintKey } from "../pan-zoom.js";
+import { zoomControls } from './diagram-controls.js';
 import { translator } from "../strings.js";
 import { reviewControls } from "./decision-item.js";
 
@@ -68,6 +69,8 @@ export class MapTab extends Component {
     const wrap = h("div", { class: "map-wrap", "data-map": true }, svg);
     this.wrap = wrap;
     this.zoom = new PanZoom(wrap, view, (next, commit) => this.apply(next, commit), { hint: t(wheelHintKey()) });
+    this.controls = zoomControls({ lang: map.lang, scale: view.k, out: () => this.zoom.zoomBy(1 / 1.25), whole: () => this.zoom.fit(this.size, FIT_MAX_ZOOM), into: () => this.zoom.zoomBy(1.25), prefix: 'map' });
+    this.controls.el.classList.add('map-zoom');
     requestAnimationFrame(() => this.fillDetails(map, t));
     return h(
       "div",
@@ -93,13 +96,7 @@ export class MapTab extends Component {
             ),
           ),
         ),
-        h(
-          "div",
-          { class: "map-zoom seg-group", role: "group", "aria-label": t("map.zoom") },
-          h("button", { type: "button", class: "seg", "data-action": "map-zoom-out", "data-focus": "map-zoom-out", "aria-label": t("map.zoom-out"), onclick: () => this.zoom.zoomBy(1 / 1.25) }, "−"),
-          h("button", { type: "button", class: "seg", "data-action": "map-fit", "data-focus": "map-fit", onclick: () => this.zoom.fit(this.size, FIT_MAX_ZOOM) }, t("map.fit")),
-          h("button", { type: "button", class: "seg", "data-action": "map-zoom-in", "data-focus": "map-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => this.zoom.zoomBy(1.25) }, "+"),
-        ),
+        this.controls.el,
         h("span", { class: "map-hint" }, map.range === "path" && !map.root ? t("map.pick-for-path") : t("map.how-to-move")),
       ),
       wrap,
@@ -291,6 +288,7 @@ export class MapTab extends Component {
   /// Shows a view while a gesture goes on; `commit` hands it up once the gesture ends, which
   /// is what "Back" returns to.
   apply(view, commit) {
+    this.controls?.setScale(view.k);
     this.content.setAttribute("transform", transform(view));
     this.content.ownerSVGElement.classList.toggle("far", view.k < FAR_ZOOM);
     this.hover.hidden = true;

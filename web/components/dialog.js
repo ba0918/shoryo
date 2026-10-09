@@ -79,7 +79,7 @@ export class DialogLayer extends Component {
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
           },
         },
-        dialog.kind === 'explanation' ? operationButton('close', t('dialog.close'), { class: 'operation-button close', 'data-action': 'close', onclick: close }) : h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
+        ['explanation', 'finished-picture'].includes(dialog.kind) ? operationButton('close', t('dialog.close'), { class: 'operation-button close', 'data-action': 'close', onclick: close }) : h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
         h("div", { class: "dialog-body" }, content),
       ),
     );

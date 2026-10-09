@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { question } from './rounds.js';
+import { question, decision } from './rounds.js';
 import { action, card } from './screen.js';
 
 const codeBody = '  first();  \n\tsecond();\n';
@@ -384,4 +384,77 @@ test('ui_polish_dialog_inline_whole_fits_large_canvas_and_move_closes_on_outside
   await action(card(page, 'q1'), 'open').focus();
   await page.locator('[data-language="en"]').click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
+const picture = 'a = Screen\nb = File\n| a | b |\na -> b : saves';
+async function sharedViews(shoryo, page) {
+  await shoryo.round({ subject: 'Start', questions: [question('q1', 'Who reads?')], finished_picture: picture });
+  await shoryo.submit();
+  await shoryo.round({ subject: 'Result', questions: [], records: { decisions: [decision('d1', 'Read locally', 'q1')] }, finished_picture: picture });
+  await page.goto(shoryo.url);
+}
+const drawnScale = region => region.locator('svg [data-node]').first().evaluate(n => n.getScreenCTM().a);
+async function checkShared(region) {
+  const group = region.getByRole('group', { name: 'Zoom', exact: true });
+  for (const name of ['Zoom out', 'Whole', 'Zoom in']) {
+    const button = group.getByRole('button', { name, exact: true });
+    await expect(button).toHaveAttribute('title', name); await expect(button.locator('svg[aria-hidden=true]')).toHaveCount(1);
+  }
+  expect(await group.textContent()).toMatch(/\d+(\.\d+)?%/);
+  await expect(region.getByRole('button', { name: 'Move diagram', exact: true })).toHaveCount(0);
+}
+
+test('ui_polish_shared_roles_and_scale_readout_follow_each_existing_view', async ({ shoryo, page }) => {
+  await sharedViews(shoryo, page);
+  const current = page.locator('[data-panel=current]'); await checkShared(current);
+  const scale = await drawnScale(current);
+  await current.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  expect(await drawnScale(current)).toBeCloseTo(scale * 1.25, 5);
+  expect(await current.getByRole('group', { name: 'Zoom', exact: true }).textContent()).toContain(`${Math.round(scale * 1.25 * 1000) / 10}%`);
+  await action(page, 'finished-picture').click();
+  const dialog = page.locator('[data-finished-picture]'); await checkShared(dialog);
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toHaveAttribute('title', 'Close');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await shoryo.submit(); await shoryo.round({ subject: 'More', questions: [question('q2', 'More?')] });
+  await page.getByRole('tab', { name: 'Past rounds', exact: true }).click();
+  await checkShared(page.locator('[data-panel=past]'));
+  await page.getByRole('tab', { name: 'Map', exact: true }).click();
+  await checkShared(page.locator('[data-panel=map]'));
+});
+
+test('ui_polish_shared_visuals_preserve_map_fit_selection_and_keys', async ({ shoryo, page }) => {
+  await sharedViews(shoryo, page); await page.getByRole('tab', { name: 'Map', exact: true }).click();
+  const map = page.locator('[data-panel=map]'); await checkShared(map);
+  const node = page.locator('[data-map-node="d:d1"]');
+  const before = await node.evaluate(n => n.getScreenCTM().a);
+  expect(before).toBe(1);
+  await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  expect(await node.evaluate(n => n.getScreenCTM().a)).toBeCloseTo(before * 1.25);
+  await node.focus(); await node.press('Enter'); await expect(page.locator('[data-map-selection]')).toBeVisible();
+  await expect(page.locator('[data-map-selection]')).toContainText('Read locally');
+  const view = await node.evaluate(n => { const m = n.getScreenCTM(); return { x: m.e, y: m.f, k: m.a }; });
+  await node.press('ArrowLeft'); await node.press('0');
+  expect(await node.evaluate(n => { const m = n.getScreenCTM(); return { x: m.e, y: m.f, k: m.a }; })).toEqual(view);
+  await map.getByRole('button', { name: 'Whole', exact: true }).click();
+  expect(await node.evaluate(n => n.getScreenCTM().a)).toBeLessThanOrEqual(1.5);
+  await page.locator('[data-map]').evaluate(n => { n.style.width = '1px'; n.style.height = '1px'; });
+  await map.getByRole('button', { name: 'Whole', exact: true }).click();
+  expect(await node.evaluate(n => n.getScreenCTM().a)).toBeCloseTo(.01, 7);
+});
+
+test('ui_polish_shared_finished_picture_keeps_initial_fit_wheel_and_touch_policy', async ({ shoryo, page, context }) => {
+  await sharedViews(shoryo, page);
+  const current = page.locator('[data-panel=current]'), wrap = current.locator('[data-diagram-view]');
+  await checkShared(current);
+  const scale = await drawnScale(current); expect(scale).toBeLessThanOrEqual(1);
+  expect(await wrap.evaluate(n => getComputedStyle(n).touchAction)).toBe('pan-y');
+  const rect = await wrap.boundingBox(), cdp = await context.newCDPSession(page);
+  await page.mouse.move(rect.x + 100, rect.y + 100); await page.mouse.wheel(0, 100);
+  expect(await drawnScale(current)).toBe(scale);
+  await wrap.scrollIntoViewIfNeeded(); const box = await wrap.boundingBox();
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: box.x + 100, y: box.y + 100, deltaX: 0, deltaY: -100, modifiers: 2 });
+  await expect.poll(() => drawnScale(current)).toBeGreaterThan(scale);
+  await wrap.evaluate(n => { n.style.width = '1px'; n.style.height = '1px'; });
+  await current.getByRole('button', { name: 'Whole', exact: true }).click();
+  expect(await drawnScale(current)).toBeCloseTo(.01, 7);
 });
