@@ -32,10 +32,21 @@ impl StoredTopic {
 /// Reads the topic's state, or starts a new one when there is none yet.
 pub fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
     match fs::read_to_string(location.state_file()) {
-        Ok(json) => serde_json::from_str(&json).map_err(|error| ServerError::CorruptState {
-            path: location.state_file(),
-            reason: error.to_string(),
-        }),
+        Ok(json) => {
+            let state: StoredTopic =
+                serde_json::from_str(&json).map_err(|error| ServerError::CorruptState {
+                    path: location.state_file(),
+                    reason: error.to_string(),
+                })?;
+            state
+                .topic
+                .validate_explanations()
+                .map_err(|error| ServerError::CorruptState {
+                    path: location.state_file(),
+                    reason: error.to_string(),
+                })?;
+            Ok(state)
+        }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(StoredTopic {
             repository: location.repository.display().to_string(),
             name: location.name.to_string(),

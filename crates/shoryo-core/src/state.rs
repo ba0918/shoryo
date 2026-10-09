@@ -347,7 +347,14 @@ impl Topic {
 
     pub fn from_json(json: &str) -> Result<Self, LoadError> {
         let topic: Self = serde_json::from_str(json).map_err(LoadError::Json)?;
-        for round in &topic.rounds {
+        topic
+            .validate_explanations()
+            .map_err(LoadError::Explanation)?;
+        Ok(topic)
+    }
+
+    pub fn validate_explanations(&self) -> Result<(), crate::ExplanationError> {
+        for round in &self.rounds {
             let mut budget = 0;
             for question in &round.questions {
                 crate::explanation_validation::validate_parts(
@@ -355,8 +362,7 @@ impl Topic {
                     &format!("round {} question {} background", round.number, question.id),
                     0,
                     &mut budget,
-                )
-                .map_err(LoadError::Explanation)?;
+                )?;
                 for (i, option) in question.options.iter().enumerate() {
                     crate::explanation_validation::validate_parts(
                         &option.description,
@@ -366,8 +372,7 @@ impl Topic {
                         ),
                         0,
                         &mut budget,
-                    )
-                    .map_err(LoadError::Explanation)?;
+                    )?;
                 }
             }
             for ask in &round.asks {
@@ -377,12 +382,11 @@ impl Topic {
                         &format!("round {} ask {} reply", round.number, ask.id),
                         1,
                         &mut 0,
-                    )
-                    .map_err(LoadError::Explanation)?;
+                    )?;
                 }
             }
         }
-        Ok(topic)
+        Ok(())
     }
 
     pub fn allocate_ask_id(&mut self) -> AskId {

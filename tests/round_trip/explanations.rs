@@ -50,6 +50,127 @@ fn post(server: &Server, route: &str, body: Value) -> u16 {
         .as_u16()
 }
 
+fn full_text_budget(character: char) -> Value {
+    let mut parts = vec![json!({"type":"text","body":character.to_string().repeat(16384)}); 32];
+    parts[31]["body"] = json!(character.to_string().repeat(16256));
+    json!(parts)
+}
+
+#[test]
+fn invalid_historical_explanations_refuse_restart_without_overwrite() {
+    use std::process::Stdio;
+    use std::time::Duration;
+
+    for (reply, aggregate) in [(false, false), (false, true), (true, false), (true, true)] {
+        let env = Env::new();
+        let server = env.start("store", &[]);
+        assert!(env.run(&["round", "store"], &round()).status.success());
+        let id = ask(&server, None);
+        assert!(
+            env.run(
+                &["reply", "store", &id.to_string()],
+                &json!({"parts":parts()}).to_string()
+            )
+            .status
+            .success()
+        );
+        assert_eq!(server.submit(), 200);
+        assert!(
+            env.run(&["round", "store"], r#"{"subject":"Next","questions":[]}"#)
+                .status
+                .success()
+        );
+        assert!(env.run(&["stop", "store"], "").status.success());
+        server.finish();
+        let path = state(&env);
+        let mut value: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let invalid = if aggregate {
+            json!(vec![json!({"type":"text","body":"x".repeat(16384)}); 32])
+        } else {
+            json!([{"type":"text","body":"x".repeat(16385)}])
+        };
+        if reply {
+            value["rounds"][0]["asks"][0]["state"]["parts"] = invalid;
+        } else {
+            value["rounds"][0]["questions"][0]["background"] = invalid;
+        }
+        let bytes = value.to_string();
+        std::fs::write(&path, &bytes).unwrap();
+        let mut child = env
+            .command(&["start", "store"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut exited = false;
+        for _ in 0..30 {
+            if child.try_wait().unwrap().is_some() {
+                exited = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        if !exited {
+            child.kill().unwrap();
+        }
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
+        assert!(
+            exited,
+            "invalid historical explanation started serving: reply={reply}, aggregate={aggregate}"
+        );
+        assert_eq!(output.status.code(), Some(1));
+        assert!(
+            text(&output).contains("cannot be read"),
+            "{}",
+            text(&output)
+        );
+    }
+}
+
+#[test]
+fn restart_validates_each_round_and_reply_budget_independently() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    for index in 0..2 {
+        let mut input: Value = serde_json::from_str(&first_round()).unwrap();
+        input["questions"][0]["id"] = json!(format!("q{index}"));
+        input["questions"][0]["background"] = full_text_budget('x');
+        for option in input["questions"][0]["options"].as_array_mut().unwrap() {
+            option["description"] = json!([]);
+        }
+        assert!(
+            env.run(&["round", "store"], &input.to_string())
+                .status
+                .success()
+        );
+        assert_eq!(
+            server.operate(json!({"op":"ask","question":format!("q{index}"),"text":"Why?"})),
+            200
+        );
+        let id = server.view()["topic"]["rounds"][index]["asks"][0]["id"]
+            .as_u64()
+            .unwrap();
+        assert!(
+            env.run(
+                &["reply", "store", &id.to_string()],
+                &json!({"parts":full_text_budget('x')}).to_string()
+            )
+            .status
+            .success()
+        );
+        assert_eq!(server.submit(), 200);
+    }
+    let before = server.view()["topic"].clone();
+    assert!(env.run(&["stop", "store"], "").status.success());
+    server.finish();
+    let path = state(&env);
+    let bytes = std::fs::read(&path).unwrap();
+    let again = env.start("store", &[]);
+    assert_eq!(again.view()["topic"], before);
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+}
+
 #[test]
 fn parts_survive_restart_and_result() {
     let env = Env::new();
