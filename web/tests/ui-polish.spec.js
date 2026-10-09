@@ -142,6 +142,10 @@ test('ui_polish_inline_plain_wheel_reads_page_and_modified_wheel_keeps_pointer_a
   await page.mouse.wheel(0, 120);
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(scroll);
   expect((await matrix(svg)).k).toBe(before.k);
+  const surfaceBottom = (await surface.boundingBox()).y + (await surface.boundingBox()).height;
+  for (const hint of await scope.getByText(/wheel.*zoom/i).all()) {
+    expect((await hint.boundingBox()).y).toBeGreaterThanOrEqual(surfaceBottom);
+  }
   expect(await surface.evaluate(n => n.scrollTop + n.scrollLeft)).toBe(0);
   await surface.scrollIntoViewIfNeeded();
   const bb = await surface.boundingBox(), px = bb.x + 90, py = bb.y + 80;

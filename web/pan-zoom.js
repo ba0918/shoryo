@@ -77,6 +77,7 @@ export class PanZoom {
       (event) => {
         if (this.mode === "inline" && wrap.classList.contains("failed")) return;
         if (!event.ctrlKey && !event.metaKey) {
+          if (this.mode === "inline") return;
           let hint = wrap.querySelector("[data-wheel-hint]");
           if (!hint) {
             hint = document.createElement("span");
