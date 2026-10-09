@@ -98,6 +98,25 @@ replace or delete their files. Keep the previous binary to reopen those topics, 
 unchanged JSON with offline `shoryo result <topic>`. Use a new topic name for new-format work.
 Do not delete old data as an upgrade step. Any individual conversion needs separate approval.
 
+## Landing page preview
+
+The [landing page](docs/site/index.html) is a self-contained static page, separate from the
+browser screen embedded in the binary. Open that file directly, or serve it locally from the
+repository root:
+
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1 --directory docs/site
+```
+
+Open `http://127.0.0.1:8000/`. There is no build step or external runtime dependency.
+The four-stage demo uses fixed replies and does not connect to a model or send input.
+English is the initial language; the EN / 日本語 controls preserve the choice in
+`ba0918-language` on the same origin. Reloading resets the demo, not the language.
+
+Run its browser checks with `npm ci`, `npx playwright install chromium`, then
+`npx playwright test web/tests/site.spec.js`. The existing browser CI includes these checks.
+This preview command serves local files; it does not publish the page.
+
 ## Specification
 
 - [The screen](docs/spec/screen.md)
