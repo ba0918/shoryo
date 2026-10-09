@@ -21,6 +21,18 @@ const box = locator => locator.evaluate(element => {
   return { x: b.x, y: b.y, width: b.width, height: b.height };
 });
 
+test("hidden_tab_reply_redraw_recovers_visible_diagram", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "A" }], edges: [] })]);
+  await expect(scope.locator("svg")).toBeVisible();
+  await page.getByRole("tab", { name: "Map", exact: true }).click();
+  await shoryo.op({ op: "ask", question: "q1", text: "Update" });
+  await shoryo.reply(1, { parts: [{ type: "text", body: "Arrived" }] });
+  await expect(card(page, "q1").getByText("Arrived", { exact: true })).toHaveCount(1);
+  await page.getByRole("tab", { name: "Current round", exact: true }).click();
+  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
+});
+
 test("sequence_order_and_explicit_spacing_are_preserved", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [sequence({ participants: [{ id: "a", label: "First", x: 150 }, { id: "b", label: "Second", x: 450 }], events: [message("a", "b", "One", { gap_after: 100 }), message("b", "a", "Two")], layout: { event_gap: 80 } })]);
   const svg = scope.locator("svg");

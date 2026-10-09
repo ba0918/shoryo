@@ -16,7 +16,7 @@ export function explanationDiagram(part, lang, options = {}) {
   function conditions() {
     const style = getComputedStyle(host);
     const root = getComputedStyle(document.documentElement);
-    return [root.fontSize, style.fontFamily, style.fontSize, style.fontWeight, style.fontStyle, style.letterSpacing, style.lineHeight, window.devicePixelRatio, document.documentElement.dataset.theme].join("|");
+    return [host.getClientRects().length > 0, root.fontSize, style.fontFamily, style.fontSize, style.fontWeight, style.fontStyle, style.letterSpacing, style.lineHeight, window.devicePixelRatio, document.documentElement.dataset.theme].join("|");
   }
   async function render() {
     await document.fonts.ready;
