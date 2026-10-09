@@ -499,15 +499,18 @@ fn skill_examples_are_accepted() {
         }
         seen.extend(events(&env.run(&args, "")));
     }
+    let reply_server = env.start("reply-examples", &[]);
+    let output = env.run(&["round", "reply-examples"], &first_round());
+    assert!(output.status.success(), "{}", text(&output));
     for reply in &replies {
-        let id = fresh_example_ask(&server);
-        let output = env.run(&["reply", "examples", &id.to_string()], reply);
+        let id = fresh_example_ask(&reply_server);
+        let output = env.run(&["reply", "reply-examples", &id.to_string()], reply);
         assert!(output.status.success(), "reply example: {}", text(&output));
     }
     for diagram in &diagrams {
-        let id = fresh_example_ask(&server);
+        let id = fresh_example_ask(&reply_server);
         let reply = json!({ "parts": [{"type":"diagram","title":"Diagram example","role":"example","source":diagram}] }).to_string();
-        let output = env.run(&["reply", "examples", &id.to_string()], &reply);
+        let output = env.run(&["reply", "reply-examples", &id.to_string()], &reply);
         assert!(
             output.status.success(),
             "diagram example: {}",
