@@ -881,8 +881,8 @@ textarea:disabled {
 .explanation-code code { font-size: inherit; }
 .explanation-block { border: 1px solid var(--line); border-radius: 8px; margin-block: 12px; min-width: 0; background: var(--sheet); }
 .explanation-block-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; background: var(--sheet-sunk); border-radius: 8px 8px 0 0; border-bottom: 1px solid var(--line); }
-.explanation-block-header .part-metadata { flex: 1; min-width: 0; color: var(--muted); }
-.explanation-block-header strong { color: var(--ink); overflow-wrap: anywhere; }
+.explanation-block-header .part-metadata { flex: 1; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.explanation-block-header strong { color: var(--ink); }
 .operation-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-small); color: var(--muted); background: var(--sheet-sunk); cursor: pointer; }
 .operation-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .code-block .explanation-code { padding: 12px 16px; margin: 0; background: var(--sheet-sunk); color: var(--ink); border-radius: 0 0 8px 8px; }

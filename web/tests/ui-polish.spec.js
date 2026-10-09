@@ -345,6 +345,46 @@ test('ui_polish_dialog_menu_and_close_keep_keyboard_scope_and_opener', async ({ 
   await close.focus(); await close.press('Space'); await expect(opener).toBeFocused();
 });
 
+test('ui_polish_dialog_long_unbroken_title_wraps_losslessly_with_readable_controls', async ({ shoryo, page }) => {
+  const title = 'RepositoryConfigurationDependencyGraph'.repeat(3);
+  const scope = await show(shoryo, page, [{ ...shortFlow, title }]);
+  await scope.getByRole('button', { name: 'Enlarge diagram', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const heading = dialog.getByRole('heading', { name: title, exact: true });
+  for (const width of [320, 390]) for (const font of [16, 20]) {
+    await page.setViewportSize({ width, height: 400 });
+    await page.addStyleTag({ content: `:root { font-size: ${font}px; }` });
+    await expect(heading).toHaveText(title);
+    const geometry = await heading.evaluate(n => {
+      const range = document.createRange(); range.selectNodeContents(n);
+      const dialog = n.closest('[role="dialog"]');
+      const bounds = dialog.getBoundingClientRect();
+      const close = dialog.querySelector('button[data-action="close"]').getBoundingClientRect();
+      return { bounds: { left: bounds.left, right: bounds.right, bottom: bounds.bottom }, closeLeft: close.left,
+        fragments: [...range.getClientRects()].map(r => ({ left: r.left, right: r.right, bottom: r.bottom, top: r.top })) };
+    });
+    expect(new Set(geometry.fragments.map(r => r.top)).size).toBeGreaterThan(1);
+    for (const fragment of geometry.fragments) {
+      expect(fragment.left).toBeGreaterThanOrEqual(geometry.bounds.left);
+      expect(fragment.right).toBeLessThanOrEqual(geometry.closeLeft);
+    }
+    const titleBottom = Math.max(...geometry.fragments.map(r => r.bottom));
+    for (const name of ['Close', 'Zoom out', 'Whole', 'Zoom in', 'Move diagram']) {
+      const control = dialog.getByRole('button', { name, exact: true });
+      await expect(control).toBeVisible();
+      const box = await control.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(geometry.bounds.left);
+      expect(box.x + box.width).toBeLessThanOrEqual(geometry.bounds.right);
+      expect(box.y + box.height).toBeLessThanOrEqual(geometry.bounds.bottom);
+      if (name !== 'Close') expect(box.y).toBeGreaterThanOrEqual(titleBottom);
+    }
+    const surface = dialog.locator('[data-explanation-viewer]');
+    expect((await surface.boundingBox()).height).toBeGreaterThan(0);
+    await expect(surface.locator('svg[role="img"]')).toBeVisible();
+    await expect(dialog.getByText('Example', { exact: true })).toBeVisible();
+  }
+});
+
 for (const modal of [false, true]) for (const key of ['Enter', 'Space']) {
   test(`ui_polish_dialog_move_dismisses_outside_keyboard_activation_${modal ? 'dialog' : 'inline'}_${key}`, async ({ shoryo, page }) => {
     const scope = await show(shoryo, page, [shortFlow, codePart]);
