@@ -71,7 +71,7 @@ export function optionList(question, emit, open) {
           ),
         ),
         ),
-        open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`)) : null,
+        open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`, emit)) : null,
       );
     }),
   );
@@ -116,7 +116,7 @@ export function consequence(question) {
 }
 
 /// The prerequisites' full text and the background, shown once the card is open.
-export function details(question) {
+export function details(question, emit) {
   const t = translator(question.lang);
   const parts = [
     question.premises.length > 0
@@ -132,7 +132,7 @@ export function details(question) {
         )
       : null,
     question.background.length > 0
-      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), explanation(question.background, question.lang, `${question.round}-${question.id}-background`))
+      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), explanation(question.background, question.lang, `${question.round}-${question.id}-background`, emit))
       : null,
   ].filter(Boolean);
   return parts.length > 0 ? h("div", { class: "context" }, parts) : null;

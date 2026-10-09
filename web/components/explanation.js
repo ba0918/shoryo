@@ -3,7 +3,7 @@ import { renderDiagram } from "../diagram.js";
 import { translator } from "../strings.js";
 import { explanationDiagram } from "./explanation-diagram.js";
 
-export function explanation(parts, lang, key) {
+export function explanation(parts, lang, key, emit) {
   const t = translator(lang);
   return h("div", { class: "explanation", "data-explanation": key }, parts.map((part, index) => {
     const identity = `${key}-${index}`;
@@ -16,7 +16,7 @@ export function explanation(parts, lang, key) {
         return h("section", { "data-part": "diagram" }, metadata(part, t), h("div", { class: "diagram-box" }, renderDiagram(part.source)));
       case "sequence":
       case "flow":
-        return h("section", { "data-part": part.type }, metadata(part, t), explanationDiagram(part, lang));
+        return h("section", { "data-part": part.type }, metadata(part, t), explanationDiagram(part, lang, { identity, emit }));
       default:
         return null;
     }

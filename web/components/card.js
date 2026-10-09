@@ -87,7 +87,7 @@ export class Card extends Component {
         { type: "button", class: "link details-toggle", "data-action": "open", "data-focus": `details-${question.id}`, "aria-expanded": String(this.open), onclick: () => this.toggle() },
         this.open ? t("card.hide-details") : t("card.show-details"),
       ),
-      this.open ? details(question) : null,
+      this.open ? details(question, this.emit) : null,
       h(
         "div",
         { class: "card-body" },

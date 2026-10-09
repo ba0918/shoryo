@@ -87,7 +87,7 @@ export class ProvisionalRow extends Component {
               deferSwitch(question, this.emit),
             ),
             chainLine(question, this.emit),
-            details(question),
+            details(question, this.emit),
             optionList(question, this.emit, true),
             consequence(question),
             noteField(question, this.emit),

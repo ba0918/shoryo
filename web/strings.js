@@ -2,6 +2,13 @@
 // uses the glossary's words (CONTEXT.md). Text the LLM wrote never passes through here.
 
 const en = {
+  "part.enlarge": "Enlarge diagram",
+  "part.viewer": "Diagram viewer",
+  "part.left": "Move left",
+  "part.right": "Move right",
+  "part.up": "Move up",
+  "part.down": "Move down",
+  "part.reset": "Reset",
   "part.node.start": "Start",
   "part.node.end": "End",
   "part.role.proposal": "Proposal",
@@ -198,6 +205,13 @@ const en = {
 };
 
 const ja = {
+  "part.enlarge": "図を大きく見る",
+  "part.viewer": "図の拡大表示",
+  "part.left": "左へ移動",
+  "part.right": "右へ移動",
+  "part.up": "上へ移動",
+  "part.down": "下へ移動",
+  "part.reset": "初期表示に戻す",
   "part.node.start": "開始",
   "part.node.end": "終了",
   "part.role.proposal": "案",

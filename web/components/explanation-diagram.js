@@ -6,8 +6,10 @@ import { translator } from "../strings.js";
 import { validateDrawing } from "../explanation-layout-validation.js";
 import { guardDiagram } from "../explanation-bounds.js";
 
-export function explanationDiagram(part, lang) {
+export function explanationDiagram(part, lang, options = {}) {
+  const t = translator(lang);
   const host = h("div", { class: "explanation-diagram-region" });
+  const enlarge = options.emit ? h("button", { type: "button", hidden: true, "data-focus": `enlarge-${options.identity}`, onclick: () => options.emit({ type: "show-explanation", identity: options.identity, part }) }, t("part.enlarge")) : null;
   const svg = svgElement("svg", { class: "explanation-diagram", role: "img", "aria-label": part.title });
   let queued = false;
   let signature = "";
@@ -27,7 +29,13 @@ export function explanationDiagram(part, lang) {
       const draw = drawing(svg, textMetrics(svg));
       const result = part.type === "flow" ? flowDrawing(part, draw, translator(lang)) : sequenceDrawing(part, draw);
       validateDrawing(result);
+      if (enlarge) {
+        enlarge.hidden = false;
+        options.emit({ type: "explanation-ready", identity: options.identity });
+      }
+      options.onSvg?.(svg);
     } catch (error) {
+      if (enlarge) enlarge.hidden = true;
       host.replaceChildren(h("p", { role: "status", "data-layout-failure": true }, error.message), h("pre", { class: "explanation-failure" }, JSON.stringify(part, null, 2)));
     }
   }
@@ -50,5 +58,5 @@ export function explanationDiagram(part, lang) {
     document.fonts.addEventListener("loadingdone", schedule);
     render();
   });
-  return host;
+  return enlarge ? h("div", { class: "explanation-drawing" }, host, enlarge) : host;
 }

@@ -874,6 +874,7 @@ textarea:disabled {
 
 .option-choice { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); align-items: start; gap: 0.6rem; cursor: pointer; }
 .explanation { display: grid; gap: 0.75rem; min-width: 0; }
+.explanation > section, .explanation-drawing { min-width: 0; }
 .explanation-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .part-metadata, .code-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .explanation-code { font-size: 0.875rem; white-space: pre; overflow: auto; max-height: min(20rem, 50vh); margin: 0.5rem 0; user-select: text; }
@@ -886,6 +887,10 @@ textarea:disabled {
 .explanation-diagram .explanation-node { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .explanation-diagram .explanation-lifeline { stroke-dasharray: 4 4; }
 .explanation-failure { white-space: pre; overflow: auto; max-height: min(20rem, 50vh); }
+.explanation-viewer-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.explanation-viewer-surface { position: relative; overflow: hidden; height: 65vh; width: 100%; touch-action: none; }
+.explanation-viewer-surface > svg { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.dialog:has([data-explanation-viewer]) { width: min(90vw, 76rem); }
 .option-description .explanation { margin-top: 0.5rem; }
 
 .option:hover {

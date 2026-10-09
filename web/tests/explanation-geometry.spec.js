@@ -187,3 +187,145 @@ test("circular_terminal_capsules_do_not_overlap_at_a_distance", async ({ shoryo,
   await expect(scope.locator("svg")).toBeVisible();
   await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
 });
+
+test("code_and_diagram_regions_obey_both_height_caps", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [{ type: "code", language: "text", role: "example", body: "short" }, { type: "code", language: "text", role: "example", body: "line\n".repeat(100) }, sequence({ events: Array.from({ length: 10 }, () => message("a", "b")) })]);
+  const heights = await scope.locator("pre").evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().height));
+  expect(heights[0]).toBeLessThan(60);
+  expect(heights[1]).toBeLessThanOrEqual(320);
+  const region = scope.locator(".explanation-diagram-region");
+  expect(await region.evaluate(n => n.clientHeight)).toBeLessThanOrEqual(360);
+  await page.setViewportSize({ width: 600, height: 400 });
+  expect(await region.evaluate(n => n.clientHeight)).toBeLessThanOrEqual(200);
+  expect(await scope.locator("pre").nth(1).evaluate(n => n.clientHeight)).toBeLessThanOrEqual(200);
+});
+
+test("wide_parts_scroll_without_text_shrinking", async ({ shoryo, page }) => {
+  await page.setViewportSize({ width: 400, height: 700 });
+  const scope = await show(shoryo, page, [sequence({ participants: [{ id: "a", label: "First" }, { id: "b", label: "Second", x: 1000 }] }), { type: "code", language: "text", role: "example", body: "wide ".repeat(200) }]);
+  const region = scope.locator(".explanation-diagram-region");
+  await expect(scope.locator("svg")).toBeVisible();
+  expect(await region.evaluate(n => n.scrollWidth > n.clientWidth)).toBe(true);
+  expect(await scope.locator("pre").evaluate(n => n.scrollWidth > n.clientWidth)).toBe(true);
+  expect(await scope.locator("svg text").first().evaluate(n => getComputedStyle(n).fontSize)).toBe("14px");
+});
+
+test("viewer_keyboard_pan_zoom_reset_and_close_restore_opener", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow()]);
+  const opener = scope.getByRole("button", { name: "Enlarge diagram" });
+  await opener.click();
+  const dialog = page.getByRole("dialog");
+  const surface = dialog.locator("[data-explanation-viewer]");
+  await expect(surface).toBeFocused();
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await surface.press("ArrowRight");
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 24)");
+  await surface.press("+");
+  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBeCloseTo(1.2);
+  await surface.press("0");
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await dialog.getByRole("button", { name: "Move up", exact: true }).click();
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, -16)");
+  const close = dialog.locator("[data-action=close]");
+  await close.focus();
+  await close.press("Shift+Tab");
+  expect(await page.evaluate(() => Boolean(document.activeElement.closest('[role="dialog"]')))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(opener).toBeFocused();
+});
+
+test("viewer_focus_survives_live_redraw_with_equal_titles", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow(), flow()]);
+  const openers = scope.getByRole("button", { name: "Enlarge diagram" });
+  await openers.nth(1).click();
+  const surface = page.locator("[data-explanation-viewer]");
+  await expect(surface).toBeFocused();
+  await surface.press("ArrowLeft");
+  await shoryo.op({ op: "ask", question: "q1", text: "Update" });
+  await shoryo.reply(1, { parts: [{ type: "text", body: "Arrived" }] });
+  await expect(surface).toBeFocused();
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -16, 24)");
+  await page.keyboard.press("Escape");
+  await expect(openers.nth(1)).toBeFocused();
+  await expect(openers.nth(0)).not.toBeFocused();
+});
+
+test("viewer_modifier_wheel_zooms_but_plain_wheel_does_not", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow()]);
+  await scope.getByRole("button", { name: "Enlarge diagram" }).click();
+  const surface = page.locator("[data-explanation-viewer]");
+  await expect(surface.locator("svg")).toBeVisible();
+  const wheel = modifier => surface.evaluate((n, modifier) => {
+    const box = n.getBoundingClientRect();
+    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -100, clientX: box.x + 100, clientY: box.y + 100, ctrlKey: modifier });
+    n.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, modifier);
+  expect(await wheel(false)).toBe(false);
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  expect(await wheel(true)).toBe(true);
+  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBeCloseTo(Math.exp(0.15));
+});
+
+test("viewer_zoom_is_clamped_and_button_pan_preserves_scale", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow()]);
+  await scope.getByRole("button", { name: "Enlarge diagram" }).click();
+  const surface = page.locator("[data-explanation-viewer]");
+  for (let i = 0; i < 10; i++) await surface.press("+");
+  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBe(3);
+  for (let i = 0; i < 30; i++) await surface.press("-");
+  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBe(0.2);
+  const before = await surface.locator("svg").evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f }; });
+  await page.getByRole("dialog").getByRole("button", { name: "Move down", exact: true }).click();
+  const after = await surface.locator("svg").evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f, k: m.a }; });
+  expect(after.x).toBeCloseTo(before.x);
+  expect(after.y).toBeCloseTo(before.y + 40);
+  expect(after.k).toBe(0.2);
+});
+
+test("option_enlargement_does_not_change_answers_and_remains_readable_in_history", async ({ shoryo, page }) => {
+  const q = question("q1", "Choose a path?");
+  q.options[0].description = [flow()];
+  await shoryo.round({ subject: "Option diagram", questions: [q] });
+  await page.goto(shoryo.url);
+  const scope = card(page, "q1");
+  await action(scope, "open").click();
+  await shoryo.op({ op: "choose", question: "q1", option: 1 });
+  await shoryo.op({ op: "stamp", question: "q1", stamped: true });
+  await scope.getByRole("button", { name: "Enlarge diagram" }).click();
+  await expect(page.locator("[data-explanation-viewer]")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(scope.getByRole("radio").nth(1)).toBeChecked();
+  await expect(scope.locator("[data-stamp=person]")).toHaveCount(1);
+  await shoryo.submit();
+  await expect(scope.getByRole("button", { name: "Enlarge diagram" })).toBeEnabled();
+  await shoryo.round({ subject: "Next", questions: [question("q2", "Next?")] });
+  await page.getByRole("tab", { name: "Past rounds" }).click();
+  await action(page.locator("[data-past-question=q1]"), "open").click();
+  await page.locator("[data-past-question=q1]").getByRole("button", { name: "Enlarge diagram" }).click();
+  await expect(page.locator("[data-explanation-viewer]")).toBeFocused();
+});
+
+test("equal_title_reply_enlargement_keeps_original_ask_identity", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, []);
+  await shoryo.op({ op: "ask", question: "q1", text: "First?" });
+  await shoryo.op({ op: "ask", question: "q1", text: "Second?" });
+  await shoryo.reply(1, { parts: [flow()] });
+  await shoryo.reply(2, { parts: [flow()] });
+  const replies = card(page, "q1");
+  const opener = replies.locator('[data-ask="2"]').getByRole("button", { name: "Enlarge diagram" });
+  await opener.click();
+  await expect(page.locator("[data-explanation-viewer]")).toHaveAttribute("data-explanation-viewer", "1-q1-ask-2-0");
+  await page.keyboard.press("Escape");
+  await expect(opener).toBeFocused();
+});
+
+test("focused_enlargement_control_survives_async_remeasurement", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow()]);
+  const opener = scope.getByRole("button", { name: "Enlarge diagram" });
+  await expect(opener).toBeVisible();
+  await opener.focus();
+  await shoryo.op({ op: "ask", question: "q1", text: "A live update" });
+  await expect(card(page, "q1").locator("[data-ask]")).toHaveCount(1);
+  await expect(opener).toBeFocused();
+});
