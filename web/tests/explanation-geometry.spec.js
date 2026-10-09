@@ -191,6 +191,17 @@ test("font_and_theme_changes_revalidate_lossless_labels", async ({ shoryo, page 
   await expect(scope.locator("[data-node-label]")).toHaveText("Fits at baseline");
 });
 
+test("diagram_font_changes_reject_overflow_and_recover", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "Fits at baseline", height: 40 }], edges: [] })]);
+  await expect(scope.locator("svg")).toBeVisible();
+  await page.addStyleTag({ content: ".explanation-diagram { font-size: 2rem; }" });
+  await expect(scope.locator("[data-layout-failure]")).toContainText(/contain|outside/i);
+  await expect(scope.locator("svg")).toHaveCount(0);
+  await page.addStyleTag({ content: ".explanation-diagram { font-size: 0.875rem; }" });
+  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-node-label]")).toHaveText("Fits at baseline");
+});
+
 test("malformed_view_is_bounded_before_geometry_measurement", async ({ shoryo, page }) => {
   await show(shoryo, page, [flow()]);
   await page.evaluate(async () => {

@@ -14,14 +14,24 @@ export function explanationDiagram(part, lang, options = {}) {
   let queued = false;
   let signature = "";
   function conditions() {
-    const style = getComputedStyle(host);
-    const root = getComputedStyle(document.documentElement);
-    return [host.getClientRects().length > 0, root.fontSize, style.fontFamily, style.fontSize, style.fontWeight, style.fontStyle, style.letterSpacing, style.lineHeight, window.devicePixelRatio, document.documentElement.dataset.theme].join("|");
+    const sample = svg.isConnected ? svg : svg.cloneNode(true);
+    if (sample !== svg) host.append(sample);
+    const probe = svgElement("text");
+    sample.append(probe);
+    try {
+      const fonts = [sample, ...sample.querySelectorAll("text")].map(element => {
+        const style = getComputedStyle(element);
+        return [style.fontFamily, style.fontSize, style.fontWeight, style.fontStyle, style.letterSpacing, style.wordSpacing, style.lineHeight].join("|");
+      });
+      return [host.getClientRects().length > 0, ...new Set(fonts), window.devicePixelRatio, document.documentElement.dataset.theme].join("|");
+    } finally {
+      probe.remove();
+      if (sample !== svg) sample.remove();
+    }
   }
   async function render() {
     await document.fonts.ready;
     if (!host.isConnected) return;
-    signature = conditions();
     host.replaceChildren(svg);
     svg.replaceChildren();
     try {
@@ -29,12 +39,14 @@ export function explanationDiagram(part, lang, options = {}) {
       const draw = drawing(svg, textMetrics(svg));
       const result = part.type === "flow" ? flowDrawing(part, draw, translator(lang)) : sequenceDrawing(part, draw);
       validateDrawing(result);
+      signature = conditions();
       if (enlarge) {
         enlarge.hidden = false;
         options.emit({ type: "explanation-ready", identity: options.identity });
       }
       options.onSvg?.(svg);
     } catch (error) {
+      signature = conditions();
       if (enlarge) enlarge.hidden = true;
       host.replaceChildren(h("p", { role: "status", "data-layout-failure": true }, error.message), h("pre", { class: "explanation-failure" }, JSON.stringify(part, null, 2)));
     }
