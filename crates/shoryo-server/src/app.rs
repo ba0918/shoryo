@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{DefaultBodyLimit, Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -210,9 +210,15 @@ pub fn router(shared: Arc<Shared>, secret: &str) -> Router {
             &format!("{base}/api/config"),
             get(config).post(change_config),
         )
-        .route(&format!("{base}/api/round"), post(round))
+        .route(
+            &format!("{base}/api/round"),
+            post(round).layer(DefaultBodyLimit::max(EXPLANATION_REQUEST_BYTES)),
+        )
         .route(&format!("{base}/api/wait"), post(wait))
-        .route(&format!("{base}/api/reply"), post(reply))
+        .route(
+            &format!("{base}/api/reply"),
+            post(reply).layer(DefaultBodyLimit::max(EXPLANATION_REQUEST_BYTES)),
+        )
         .route(&format!("{base}/api/end"), post(end))
         .route(&format!("{base}/api/result"), get(result))
         .route(&format!("{base}/api/stop"), post(stop))
@@ -222,6 +228,10 @@ pub fn router(shared: Arc<Shared>, secret: &str) -> Router {
         )
         .with_state(shared)
 }
+
+// The decoded budget alone is too small for six-byte JSON escapes. Keep transport bounded
+// while allowing that expansion plus 1 MiB for structure and unrelated round metadata.
+const EXPLANATION_REQUEST_BYTES: usize = 6 * 524_288 + 1_048_576;
 
 fn asset(path: &str) -> Response {
     match shoryo_webview::file(path) {

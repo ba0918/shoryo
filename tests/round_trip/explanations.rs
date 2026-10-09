@@ -57,6 +57,54 @@ fn full_text_budget(character: char) -> Value {
 }
 
 #[test]
+fn escaped_text_budget_is_accepted_through_round_cli_and_http() {
+    for cli in [false, true] {
+        let env = Env::new();
+        let server = env.start("store", &[]);
+        let parts = full_text_budget('\u{1}');
+        let mut input: Value = serde_json::from_str(&first_round()).unwrap();
+        input["questions"][0]["background"] = parts.clone();
+        for option in input["questions"][0]["options"].as_array_mut().unwrap() {
+            option["description"] = json!([]);
+        }
+        if cli {
+            let output = env.run(&["round", "store"], &input.to_string());
+            assert!(output.status.success(), "{}", text(&output));
+        } else {
+            assert_eq!(post(&server, "round", input), 200);
+        }
+        assert_eq!(
+            server.view()["topic"]["rounds"][0]["questions"][0]["background"],
+            parts
+        );
+    }
+}
+
+#[test]
+fn escaped_text_budget_is_accepted_through_reply_cli_and_http() {
+    for cli in [false, true] {
+        let env = Env::new();
+        let server = env.start("store", &[]);
+        assert!(env.run(&["round", "store"], &round()).status.success());
+        let id = ask(&server, None);
+        let parts = full_text_budget('\u{1}');
+        if cli {
+            let output = env.run(
+                &["reply", "store", &id.to_string()],
+                &json!({"parts":parts}).to_string(),
+            );
+            assert!(output.status.success(), "{}", text(&output));
+        } else {
+            assert_eq!(post(&server, "reply", json!({"ask":id,"parts":parts})), 200);
+        }
+        assert_eq!(
+            server.view()["topic"]["rounds"][0]["asks"][0]["state"]["parts"],
+            parts
+        );
+    }
+}
+
+#[test]
 fn invalid_historical_explanations_refuse_restart_without_overwrite() {
     use std::process::Stdio;
     use std::time::Duration;
