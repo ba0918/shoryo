@@ -238,3 +238,150 @@ test('ui_polish_inline_view_and_opener_survive_reply_and_font_revalidation', asy
   await expect(opener).toBeVisible();
   expect((await matrix(svg)).k).toBe(before.k);
 });
+
+async function expectWhole(surface) {
+  const geometry = await surface.locator('svg[role=img]').evaluate(n => {
+    const box = n.getBoundingClientRect(), area = n.closest('[tabindex="0"]').getBoundingClientRect();
+    return { left: box.left - area.left, top: box.top - area.top, right: box.right - area.right, bottom: box.bottom - area.bottom, dx: (box.left + box.right - area.left - area.right) / 2, dy: (box.top + box.bottom - area.top - area.bottom) / 2, k: n.getScreenCTM().a };
+  });
+  expect(geometry.left).toBeGreaterThanOrEqual(-2); expect(geometry.top).toBeGreaterThanOrEqual(-2);
+  expect(geometry.right).toBeLessThanOrEqual(2); expect(geometry.bottom).toBeLessThanOrEqual(2);
+  expect(Math.abs(geometry.dx)).toBeLessThanOrEqual(2); expect(Math.abs(geometry.dy)).toBeLessThanOrEqual(2);
+  return geometry;
+}
+
+test('ui_polish_dialog_opens_whole_and_centred_after_measurement', async ({ shoryo, page }) => {
+  const huge = { ...shortFlow, canvas: { width: 8192, height: 8192 } };
+  const scope = await show(shoryo, page, [huge]);
+  const opener = scope.getByRole('button', { name: 'Enlarge diagram' });
+  await opener.focus(); await opener.press('Enter');
+  const surface = page.locator('[data-explanation-viewer]');
+  await expect(surface).toBeFocused(); await expect(surface.locator('svg[role=img]')).toBeVisible();
+  await expectWhole(surface);
+  await page.setViewportSize({ width: 390, height: 220 });
+  await expect.poll(async () => (await matrix(surface.locator('svg[role=img]'))).k).toBeLessThan(.01);
+  await expectWhole(surface);
+  const initial = (await matrix(surface.locator('svg[role=img]'))).k;
+  await surface.press('+'); expect((await matrix(surface.locator('svg[role=img]'))).k).toBeCloseTo(initial * 1.2, 5);
+  await surface.press('-'); expect((await matrix(surface.locator('svg[role=img]'))).k).toBeCloseTo(initial * 1.2, 5);
+});
+
+test('ui_polish_dialog_whole_and_zero_fit_without_moving_focus', async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [wideFlow]);
+  const inlineSurface = inline(scope);
+  await inlineSurface.focus(); await inlineSurface.press('ArrowLeft'); await inlineSurface.press('+');
+  await inlineSurface.press('0'); await expect(inlineSurface).toBeFocused(); await expectWhole(inlineSurface);
+  const inlineState = await matrix(inlineSurface.locator('svg[role=img]'));
+  await scope.getByRole('button', { name: 'Enlarge diagram' }).click();
+  const surface = page.locator('[data-explanation-viewer]');
+  await expect(surface.locator('svg[role=img]')).toBeVisible();
+  await surface.press('ArrowRight'); await surface.press('+'); await surface.press('0');
+  await expectWhole(surface); await expect(surface).toBeFocused();
+  await surface.press('ArrowDown');
+  await page.getByRole('dialog').getByRole('button', { name: 'Whole', exact: true }).click();
+  await expectWhole(surface);
+  await page.keyboard.press('Escape');
+  expect(await matrix(inlineSurface.locator('svg[role=img]'))).toEqual(inlineState);
+});
+
+test('ui_polish_dialog_menu_and_close_keep_keyboard_scope_and_opener', async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [wideFlow, wideFlow]);
+  const opener = scope.getByRole('button', { name: 'Enlarge diagram' }).nth(1);
+  await opener.focus(); await opener.press('Enter');
+  const dialog = page.getByRole('dialog'), trigger = dialog.getByRole('button', { name: 'Move diagram', exact: true });
+  await trigger.focus(); await trigger.press('Enter'); await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await trigger.press('Tab');
+  const left = dialog.getByRole('button', { name: 'Move left', exact: true });
+  await expect(left).toBeFocused();
+  const before = await matrix(dialog.locator('svg[role=img]'));
+  await left.press('Enter'); expect((await matrix(dialog.locator('svg[role=img]'))).x).toBeCloseTo(before.x - 40, 0);
+  await left.press('Escape'); await expect(trigger).toBeFocused(); await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(dialog).toBeVisible();
+  const close = dialog.getByRole('button', { name: 'Close', exact: true });
+  await expect(close).toHaveAttribute('title', 'Close');
+  await close.focus(); await close.press('Space'); await expect(opener).toBeFocused();
+});
+
+test('ui_polish_dialog_remaining_viewport_keeps_controls_visible_in_short_windows', async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [wideFlow]);
+  await scope.getByRole('button', { name: 'Enlarge diagram' }).click();
+  for (const size of [{ width: 390, height: 400 }, { width: 320, height: 400 }]) {
+    await page.setViewportSize(size);
+    const dialog = page.getByRole('dialog');
+    for (const name of ['Close', 'Zoom out', 'Whole', 'Zoom in', 'Move diagram']) {
+      const button = dialog.getByRole('button', { name, exact: true }); await expect(button).toBeVisible();
+      const b = await button.boundingBox(); expect(b.x).toBeGreaterThanOrEqual(0); expect(b.y).toBeGreaterThanOrEqual(0); expect(b.y + b.height).toBeLessThanOrEqual(size.height);
+    }
+    expect(await dialog.evaluate(n => n.scrollHeight <= n.clientHeight + 2)).toBe(true);
+    await expectWhole(page.locator('[data-explanation-viewer]'));
+    await expect(dialog.getByRole('button', { name: /Reset|100%|Undo/ })).toHaveCount(0);
+  }
+});
+
+test('ui_polish_dialog_live_redraw_and_failure_keep_identity_and_source_readable', async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [shortFlow, shortFlow]);
+  const opener = scope.getByRole('button', { name: 'Enlarge diagram' }).nth(1);
+  await opener.click(); const surface = page.locator('[data-explanation-viewer]');
+  await expect(page.getByRole('dialog').getByText('Example', { exact: true })).toBeVisible();
+  await expect(surface.locator('svg[role=img]')).toBeVisible(); await surface.press('ArrowLeft');
+  const before = await matrix(surface.locator('svg[role=img]'));
+  await shoryo.op({ op: 'ask', question: 'q1', text: 'Update' }); await shoryo.reply(1, { parts: [{ type: 'text', body: 'Arrived' }] });
+  await expect(card(page, 'q1').locator('[data-reply]')).toContainText('Arrived'); await expect(surface).toBeFocused();
+  expect(await matrix(surface.locator('svg[role=img]'))).toEqual(before);
+  await page.addStyleTag({ content: '.explanation-diagram { font-size: 3rem; }' });
+  const source = page.getByRole('dialog').locator('pre'); await expect(source).toContainText('First');
+  expect(await source.evaluate(n => getComputedStyle(n).userSelect)).not.toBe('none');
+  await page.addStyleTag({ content: '.explanation-diagram { font-size: .875rem; }' });
+  await expect(surface.locator('svg[role=img]')).toBeVisible();
+  expect((await matrix(surface.locator('svg[role=img]'))).k).toBe(before.k);
+  await page.keyboard.press('Escape'); await expect(opener).toBeFocused();
+});
+
+test('ui_polish_dialog_positive_tiny_and_hidden_surfaces_defer_fit_until_measured', async ({ shoryo, page }) => {
+  const huge = { ...shortFlow, canvas: { width: 8192, height: 8192 } };
+  await show(shoryo, page, [huge]);
+  await page.evaluate(async part => {
+    const { ExplanationViewer } = await import('./components/explanation-viewer.js');
+    const view = new ExplanationViewer().update({ part, identity: 'component-example', lang: 'en' });
+    const holder = document.createElement('div'); holder.id = 'component-example';
+    holder.append(view.el); document.body.append(holder);
+    const surface = view.el.querySelector('[tabindex="0"]');
+    surface.style.cssText = 'flex:none;width:0px;height:0px';
+  }, huge);
+  const holder = page.locator('#component-example'), surface = holder.getByRole('group', { name: 'Diagram viewer', includeHidden: true, exact: true });
+  const svg = surface.locator('svg[role=img]');
+  await expect(svg).toHaveCount(1);
+  expect(await svg.evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBe(1);
+  await surface.evaluate(n => { n.style.width = '10px'; n.style.height = '10px'; });
+  await expect.poll(async () => (await matrix(svg)).k).toBeLessThan(.01);
+  expect((await surface.boundingBox()).width).toBe(10);
+  expect((await surface.boundingBox()).height).toBe(10);
+  await expectWhole(surface);
+  const before = await svg.evaluate(n => getComputedStyle(n).transform);
+  await surface.evaluate(n => { n.style.width = '0px'; n.style.height = '0px'; });
+  await holder.getByRole('button', { name: 'Whole', exact: true, includeHidden: true }).evaluate(n => n.click());
+  expect(await svg.evaluate(n => getComputedStyle(n).transform)).toBe(before);
+  await holder.evaluate(n => { n.hidden = true; n.querySelector('[tabindex="0"]').style.height = '20px'; n.querySelector('[tabindex="0"]').style.width = '20px'; });
+  await holder.evaluate(n => { n.hidden = false; });
+  await expect.poll(async () => (await matrix(svg)).k).toBeGreaterThan(Number(before.match(/matrix\(([^,]+)/)[1]));
+  await expectWhole(surface);
+});
+
+test('ui_polish_dialog_inline_whole_fits_large_canvas_and_move_closes_on_outside_activation', async ({ shoryo, page }) => {
+  const huge = { ...shortFlow, canvas: { width: 8192, height: 8192 } };
+  const scope = await show(shoryo, page, [huge, codePart]);
+  await page.setViewportSize({ width: 390, height: 128 });
+  const surface = inline(scope), svg = surface.locator('svg[role=img]');
+  await expect(svg).toBeVisible(); expect((await matrix(svg)).k).toBe(1);
+  await surface.focus(); await surface.press('0');
+  const fitted = await expectWhole(surface); expect(fitted.k).toBeLessThan(.01);
+  expect((await surface.boundingBox()).height).toBeLessThanOrEqual(64);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await expect.poll(async () => (await matrix(svg)).k).toBeGreaterThan(fitted.k);
+  await expectWhole(surface);
+  const trigger = scope.getByRole('button', { name: 'Move diagram', exact: true });
+  await trigger.click(); await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await action(card(page, 'q1'), 'open').focus();
+  await page.locator('[data-language="en"]').click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});

@@ -4,6 +4,8 @@
 const en = {
   "part.enlarge": "Enlarge diagram",
   "part.viewer": "Diagram viewer",
+  "part.whole": "Whole",
+  "part.move": "Move diagram",
   "part.inline-viewport": "Diagram viewport",
   "part.left": "Move left",
   "part.right": "Move right",
@@ -209,6 +211,8 @@ const en = {
 const ja = {
   "part.enlarge": "図を大きく見る",
   "part.viewer": "図の拡大表示",
+  "part.whole": "全体",
+  "part.move": "図を移動",
   "part.inline-viewport": "本文内の図",
   "part.left": "左へ移動",
   "part.right": "右へ移動",

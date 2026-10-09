@@ -902,9 +902,24 @@ textarea:disabled {
 .explanation-diagram .explanation-lifeline { stroke-dasharray: 4 4; }
 .explanation-failure { white-space: pre; overflow: auto; max-height: min(20rem, 50vh); }
 .explanation-viewer-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-.explanation-viewer-surface { position: relative; overflow: hidden; height: 65vh; width: 100%; touch-action: none; }
-.explanation-viewer-surface > svg { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.dialog:has([data-explanation-viewer]) { width: min(90vw, 76rem); }
+.explanation-viewer-surface { position: relative; overflow: hidden; flex: 1; min-height: 0; min-width: 0; width: 100%; touch-action: none; user-select: none; }
+.explanation-viewer-surface .explanation-diagram-region { overflow: visible; max-height: none; }
+.explanation-viewer-surface svg { transform-origin: 0 0; }
+.explanation-viewer-surface.failed { user-select: text; overflow: auto; }
+.explanation-viewer { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.explanation-viewer .explanation-block-header { padding-right: 48px; }
+.dialog:has([data-explanation-viewer]) { width: min(92vw, 76rem); height: calc(100vh - 2rem); height: calc(100dvh - 2rem); max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); display: flex; flex-direction: column; overflow: visible; }
+.dialog:has([data-explanation-viewer]) .dialog-body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: visible; }
+.dialog:has([data-explanation-viewer]) .close { position: absolute; top: 12px; right: 12px; }
+.diagram-zoom-group { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--sheet-sunk); }
+.diagram-percentage { min-width: 4.5em; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
+.diagram-move-controls { position: relative; }
+.diagram-move-popover { position: absolute; top: calc(100% + 8px); left: 0; z-index: 2; display: flex; flex-direction: column; padding: 8px; background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); min-width: max-content; }
+.diagram-move-popover[hidden] { display: none; }
+.explanation-viewer-controls { align-items: center; padding: 8px 12px; margin: 0; }
+@media (max-width: 480px), (max-height: 480px) {
+  .dialog:has([data-explanation-viewer]) { width: calc(100vw - 16px); height: calc(100vh - 16px); height: calc(100dvh - 16px); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
+}
 .option-description .explanation { margin-top: 0.5rem; }
 
 .option:hover {

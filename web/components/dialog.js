@@ -2,6 +2,8 @@
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import { decisionItem } from "./decision-item.js";
+import { ExplanationViewer } from './explanation-viewer.js';
+import { operationButton } from './diagram-controls.js';
 
 const bodies = {
   /// The full text of a decision and where it was decided.
@@ -52,8 +54,15 @@ export class DialogLayer extends Component {
   }
 
   draw(dialog) {
+    if (dialog?.kind !== 'explanation') { this.viewer?.dispose(); this.viewer = null; this.viewerIdentity = null; }
     if (!dialog) return h("div", { class: "dialog-layer", hidden: true });
     const { label, attrs, body } = this.bodies[dialog.kind](dialog.data, this.emit);
+    let content = body;
+    if (dialog.kind === 'explanation') {
+      const identity = JSON.stringify([dialog.data.identity, dialog.data.part]);
+      if (identity !== this.viewerIdentity) { this.viewer?.dispose(); this.viewer = new ExplanationViewer(); this.viewerIdentity = identity; }
+      content = this.viewer.update(dialog.data).el;
+    }
     const t = translator(dialog.lang);
     const close = () => this.emit({ type: "close-dialog" });
     return h(
@@ -70,8 +79,8 @@ export class DialogLayer extends Component {
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
           },
         },
-        h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
-        h("div", { class: "dialog-body" }, body),
+        dialog.kind === 'explanation' ? operationButton('close', t('dialog.close'), { class: 'operation-button close', 'data-action': 'close', onclick: close }) : h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
+        h("div", { class: "dialog-body" }, content),
       ),
     );
   }

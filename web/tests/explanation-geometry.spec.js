@@ -263,22 +263,25 @@ test("wide_diagrams_clip_and_code_scrolls_without_text_shrinking", async ({ shor
   expect(await scope.locator("svg text").first().evaluate(n => getComputedStyle(n).fontSize)).toBe("14px");
 });
 
-test("viewer_keyboard_pan_zoom_reset_and_close_restore_opener", async ({ shoryo, page }) => {
+test("viewer_keyboard_pan_zoom_whole_and_close_restore_opener", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow()]);
   const opener = scope.getByRole("button", { name: "Enlarge diagram" });
   await opener.click();
   const dialog = page.getByRole("dialog");
   const surface = dialog.locator("[data-explanation-viewer]");
   await expect(surface).toBeFocused();
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await expect(surface.locator("svg")).toBeVisible();
+  const initial = await surface.locator("svg").evaluate(n => getComputedStyle(n).transform);
   await surface.press("ArrowRight");
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 24)");
+  const beforeZoom = await surface.locator("svg").evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f, k: m.a }; });
   await surface.press("+");
-  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBeCloseTo(1.2);
+  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBeCloseTo(beforeZoom.k * 1.2);
   await surface.press("0");
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await expect(surface.locator("svg")).toHaveCSS("transform", initial);
+  const beforeMove = await surface.locator('svg').evaluate(n => new DOMMatrix(getComputedStyle(n).transform).f);
+  await dialog.getByRole('button', { name: 'Move diagram', exact: true }).click();
   await dialog.getByRole("button", { name: "Move up", exact: true }).click();
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, -16)");
+  expect(await surface.locator('svg').evaluate(n => new DOMMatrix(getComputedStyle(n).transform).f)).toBeCloseTo(beforeMove - 40);
   const close = dialog.locator("[data-action=close]");
   await close.focus();
   await close.press("Shift+Tab");
@@ -294,10 +297,11 @@ test("viewer_focus_survives_live_redraw_with_equal_titles", async ({ shoryo, pag
   const surface = page.locator("[data-explanation-viewer]");
   await expect(surface).toBeFocused();
   await surface.press("ArrowLeft");
+  const moved = await surface.locator('svg').evaluate(n => getComputedStyle(n).transform);
   await shoryo.op({ op: "ask", question: "q1", text: "Update" });
   await shoryo.reply(1, { parts: [{ type: "text", body: "Arrived" }] });
   await expect(surface).toBeFocused();
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -16, 24)");
+  await expect(surface.locator("svg")).toHaveCSS("transform", moved);
   await page.keyboard.press("Escape");
   await expect(openers.nth(1)).toBeFocused();
   await expect(openers.nth(0)).not.toBeFocused();
@@ -308,6 +312,7 @@ test("viewer_modifier_wheel_zooms_but_plain_wheel_does_not", async ({ shoryo, pa
   await scope.getByRole("button", { name: "Enlarge diagram" }).click();
   const surface = page.locator("[data-explanation-viewer]");
   await expect(surface.locator("svg")).toBeVisible();
+  const before = await surface.locator('svg').evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { transform: getComputedStyle(n).transform, k: m.a }; });
   const wheel = modifier => surface.evaluate((n, modifier) => {
     const box = n.getBoundingClientRect();
     const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -100, clientX: box.x + 100, clientY: box.y + 100, ctrlKey: modifier });
@@ -315,9 +320,9 @@ test("viewer_modifier_wheel_zooms_but_plain_wheel_does_not", async ({ shoryo, pa
     return event.defaultPrevented;
   }, modifier);
   expect(await wheel(false)).toBe(false);
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await expect(surface.locator("svg")).toHaveCSS("transform", before.transform);
   expect(await wheel(true)).toBe(true);
-  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBeCloseTo(Math.exp(0.15));
+  expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBeCloseTo(before.k * Math.exp(0.15));
 });
 
 test("viewer_zoom_is_clamped_and_button_pan_preserves_scale", async ({ shoryo, page }) => {
@@ -329,6 +334,7 @@ test("viewer_zoom_is_clamped_and_button_pan_preserves_scale", async ({ shoryo, p
   for (let i = 0; i < 30; i++) await surface.press("-");
   expect(await surface.locator("svg").evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBe(0.2);
   const before = await surface.locator("svg").evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f }; });
+  await page.getByRole('dialog').getByRole('button', { name: 'Move diagram', exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Move down", exact: true }).click();
   const after = await surface.locator("svg").evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f, k: m.a }; });
   expect(after.x).toBeCloseTo(before.x);
@@ -389,18 +395,21 @@ test("viewer_mouse_movement_and_outside_wheel_keep_their_own_boundaries", async 
   const surface = page.locator("[data-explanation-viewer]");
   await expect(surface.locator("svg")).toBeVisible();
   const bounds = await surface.boundingBox();
+  const before = await surface.locator('svg').evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f, k: m.a }; });
   await page.mouse.move(bounds.x + 80, bounds.y + 80);
   await page.mouse.down();
   await page.mouse.move(bounds.x + 120, bounds.y + 100);
   await page.mouse.up();
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 44)");
+  const moved = await surface.locator('svg').evaluate(n => { const m = new DOMMatrix(getComputedStyle(n).transform); return { x: m.e, y: m.f, k: m.a }; });
+  expect(moved.x).toBeCloseTo(before.x + 40); expect(moved.y).toBeCloseTo(before.y + 20); expect(moved.k).toBe(before.k);
+  const transform = await surface.locator('svg').evaluate(n => getComputedStyle(n).transform);
   const outside = page.getByRole("dialog").locator("h2");
   expect(await outside.evaluate(n => {
     const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -100 });
     n.dispatchEvent(event);
     return event.defaultPrevented;
   })).toBe(false);
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 44)");
+  await expect(surface.locator("svg")).toHaveCSS("transform", transform);
 });
 
 test("sequence_header_overlap_fails_without_moving_centers", async ({ shoryo, page }) => {
@@ -422,12 +431,13 @@ test("viewer_does_not_intercept_keys_outside_its_declared_shortcuts", async ({ s
   await scope.getByRole("button", { name: "Enlarge diagram" }).click();
   const surface = page.locator("[data-explanation-viewer]");
   await expect(surface.locator("svg")).toBeVisible();
+  const initial = await surface.locator('svg').evaluate(n => getComputedStyle(n).transform);
   await surface.press("=");
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await expect(surface.locator("svg")).toHaveCSS("transform", initial);
   expect(await surface.evaluate(n => {
     const event = new KeyboardEvent("keydown", { key: "+", ctrlKey: true, bubbles: true, cancelable: true });
     n.dispatchEvent(event);
     return event.defaultPrevented;
   })).toBe(false);
-  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  await expect(surface.locator("svg")).toHaveCSS("transform", initial);
 });
