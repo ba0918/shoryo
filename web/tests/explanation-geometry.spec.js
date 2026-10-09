@@ -130,11 +130,30 @@ test("arrows_entering_unrelated_shapes_fail_but_crossings_are_legal", async ({ s
 });
 
 test("diamond_and_capsule_containment_use_actual_shapes", async ({ shoryo, page }) => {
-  const smallDiamond = flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 120, height: 32 }], edges: [] });
-  const smallTerminal = flow({ nodes: [{ id: "a", kind: "start", label: "Same", height: 32 }], edges: [] });
-  const scope = await show(shoryo, page, [smallDiamond, smallTerminal, flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 220 }], edges: [] })]);
+  const smallDiamond = flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 120, height: 40 }], edges: [] });
+  const smallTerminal = flow({ nodes: [{ id: "a", kind: "start", label: "MMMMMMMMMMMM", width: 80, height: 80 }], edges: [] });
+  const scope = await show(shoryo, page, [smallDiamond, smallTerminal, flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 220 }], edges: [] }), flow({ nodes: [{ id: "a", kind: "start", label: "MMMMMMMMMMMM", width: 80, height: 96 }], edges: [] })]);
   for (const i of [0, 1]) await expect(scope.locator("[data-part=flow]").nth(i).locator("[data-layout-failure]")).toContainText(/contain|outside/i);
   await expect(scope.locator("[data-part=flow]").nth(2).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(3).locator("svg")).toBeVisible();
+  const insideBoundingBoxes = await page.evaluate(async parts => {
+    const { svgElement, textMetrics, drawing } = await import("./explanation-svg.js");
+    const { flowDrawing } = await import("./explanation-flow.js");
+    const { translator } = await import("./strings.js");
+    return parts.map(part => {
+      const svg = svgElement("svg", { class: "explanation-diagram" });
+      document.body.append(svg);
+      const result = flowDrawing(part, drawing(svg, textMetrics(svg)), translator("en"));
+      const shape = result.shapes[0];
+      const inside = result.labels.every(label => {
+        const b = label.element.getBBox();
+        return b.x >= shape.x-shape.width/2 && b.y >= shape.y-shape.height/2 && b.x+b.width <= shape.x+shape.width/2 && b.y+b.height <= shape.y+shape.height/2;
+      });
+      svg.remove();
+      return inside;
+    });
+  }, [smallDiamond, smallTerminal]);
+  expect(insideBoundingBoxes).toEqual([true, true]);
 });
 
 test("canvas_and_text_clipping_fail_only_the_affected_part", async ({ shoryo, page }) => {
@@ -348,4 +367,18 @@ test("viewer_mouse_movement_and_outside_wheel_keep_their_own_boundaries", async 
     return event.defaultPrevented;
   })).toBe(false);
   await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 44)");
+});
+
+test("sequence_header_overlap_fails_without_moving_centers", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [sequence({ layout: { participant_gap: 16 }, events: [message("a", "a")] }), sequence()]);
+  await expect(scope.locator("[data-part=sequence]").nth(0).locator("[data-layout-failure]")).toContainText(/a.*b.*overlap/i);
+  await expect(scope.locator("[data-part=sequence]").nth(1).locator("svg")).toBeVisible();
+});
+
+test("edge_label_cannot_occupy_an_unrelated_node", async ({ shoryo, page }) => {
+  const nodes = [{ id: "a", kind: "process", label: "A", position: { x: 200, y: 100 } }, { id: "b", kind: "process", label: "B", position: { x: 200, y: 400 } }, { id: "c", kind: "process", label: "C", position: { x: 600, y: 250 } }];
+  const part = position => flow({ nodes, edges: [{ from: "a", to: "b", label: { text: "Condition", position } }] });
+  const scope = await show(shoryo, page, [part({ x: 600, y: 228 }), part({ x: 450, y: 228 })]);
+  await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/label.*unrelated shape c/i);
+  await expect(scope.locator("[data-part=flow]").nth(1).locator("svg")).toBeVisible();
 });
