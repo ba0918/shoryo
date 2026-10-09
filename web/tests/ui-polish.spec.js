@@ -347,8 +347,9 @@ test('ui_polish_dialog_positive_tiny_and_hidden_surfaces_defer_fit_until_measure
     holder.append(view.el); document.body.append(holder);
     const surface = view.el.querySelector('[tabindex="0"]');
     surface.style.cssText = 'flex:none;width:0px;height:0px';
+    window.componentExample = view;
   }, huge);
-  const holder = page.locator('#component-example'), surface = holder.getByRole('group', { name: 'Diagram viewer', includeHidden: true, exact: true });
+  const holder = page.locator('#component-example'), surface = holder.locator('[data-explanation-viewer]');
   const svg = surface.locator('svg[role=img]');
   await expect(svg).toHaveCount(1);
   expect(await svg.evaluate(n => new DOMMatrix(getComputedStyle(n).transform).a)).toBe(1);
@@ -361,6 +362,12 @@ test('ui_polish_dialog_positive_tiny_and_hidden_surfaces_defer_fit_until_measure
   await surface.evaluate(n => { n.style.width = '0px'; n.style.height = '0px'; });
   await holder.getByRole('button', { name: 'Whole', exact: true, includeHidden: true }).evaluate(n => n.click());
   expect(await svg.evaluate(n => getComputedStyle(n).transform)).toBe(before);
+  await page.evaluate(part => {
+    window.componentExample.update({ part, identity: 'component-example', lang: 'ja' });
+    window.componentExample.el.querySelector('[tabindex="0"]').style.cssText = 'flex:none;width:0px;height:0px';
+  }, huge);
+  await expect(svg).toHaveCount(1);
+  await expect.poll(() => svg.evaluate(n => getComputedStyle(n).transform)).toBe(before);
   await holder.evaluate(n => { n.hidden = true; n.querySelector('[tabindex="0"]').style.height = '20px'; n.querySelector('[tabindex="0"]').style.width = '20px'; });
   await holder.evaluate(n => { n.hidden = false; });
   await expect.poll(async () => (await matrix(svg)).k).toBeGreaterThan(Number(before.match(/matrix\(([^,]+)/)[1]));

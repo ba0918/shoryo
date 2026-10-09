@@ -55,7 +55,8 @@ export class ExplanationViewport extends Component {
         size = { width: Number(result.getAttribute('width')), height: Number(result.getAttribute('height')) };
         if (!this.modal) surface.style.height = `min(${size.height}px, 22.5rem, 50vh)`;
         surface.classList.remove('failed');
-        if (this.fitted) fit(); else transform();
+        transform();
+        if (this.fitted) fit();
         enlarge.hidden = false;
         this.emit?.({ type: 'explanation-ready', identity });
       },
