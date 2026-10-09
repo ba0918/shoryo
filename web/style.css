@@ -878,6 +878,13 @@ textarea:disabled {
 .part-metadata, .code-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .explanation-code { font-size: 0.875rem; white-space: pre; overflow: auto; max-height: min(20rem, 50vh); margin: 0.5rem 0; user-select: text; }
 .explanation-code code { font-size: inherit; }
+.explanation-diagram-region { overflow: auto; max-height: min(22.5rem, 50vh); min-width: 0; }
+.explanation-diagram { display: block; max-width: none; flex: none; font-size: 0.875rem; line-height: 1.125rem; }
+.explanation-diagram text { fill: var(--ink); stroke: none; white-space: pre; }
+.explanation-diagram rect, .explanation-diagram path, .explanation-diagram line { stroke: var(--ink); fill: none; stroke-width: 1.5; }
+.explanation-diagram .explanation-arrowhead { fill: var(--ink); stroke: none; }
+.explanation-diagram .explanation-lifeline { stroke-dasharray: 4 4; }
+.explanation-failure { white-space: pre; overflow: auto; max-height: min(20rem, 50vh); }
 .option-description .explanation { margin-top: 0.5rem; }
 
 .option:hover {

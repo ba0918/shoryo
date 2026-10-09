@@ -1,6 +1,7 @@
 import { h } from "../dom.js";
 import { renderDiagram } from "../diagram.js";
 import { translator } from "../strings.js";
+import { explanationDiagram } from "./explanation-diagram.js";
 
 export function explanation(parts, lang, key) {
   const t = translator(lang);
@@ -13,6 +14,8 @@ export function explanation(parts, lang, key) {
         return codePart(part, t, identity);
       case "diagram":
         return h("section", { "data-part": "diagram" }, metadata(part, t), h("div", { class: "diagram-box" }, renderDiagram(part.source)));
+      case "sequence":
+        return h("section", { "data-part": part.type }, metadata(part, t), explanationDiagram(part));
       default:
         return null;
     }
