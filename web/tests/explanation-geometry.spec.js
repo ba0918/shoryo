@@ -180,6 +180,16 @@ test("canvas_and_text_clipping_fail_only_the_affected_part", async ({ shoryo, pa
   expect(await page.evaluate(() => window.executed)).toBeUndefined();
 });
 
+test("sequence_frame_stroke_must_fit_fixed_canvas", async ({ shoryo, page }) => {
+  const framed = sequence({ events: [{ type: "loop", condition: "Again", messages: [message("b", "b", "Self")] }], layout: { self_loop_width: 100 } });
+  const scope = await show(shoryo, page, [{ ...framed, canvas: { width: 460, height: 1000 } }, { ...framed, canvas: { width: 461, height: 1000 } }]);
+  await expect(scope.locator("[data-part=sequence]").nth(0).locator("[data-layout-failure]")).toContainText(/frame.*canvas/i);
+  await expect(scope.locator("[data-part=sequence]").nth(0).locator("svg")).toHaveCount(0);
+  await expect(scope.locator("[data-part=sequence]").nth(1).locator("svg")).toBeVisible();
+  const frame = await box(scope.locator("[data-frame]"));
+  expect(frame.x + frame.width).toBe(460);
+});
+
 test("font_and_theme_changes_revalidate_lossless_labels", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "Fits at baseline", height: 40 }], edges: [] })]);
   await expect(scope.locator("svg")).toBeVisible();
