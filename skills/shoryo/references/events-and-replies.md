@@ -41,8 +41,10 @@ reference). Unknown fields are refused.
 
 ```json reply
 {
-  "text": "A JSON file can be opened with any editor, so the records stay readable without shoryo.",
-  "diagram": "file = One JSON file\neditor = Any editor\nshoryo = shoryo\n| shoryo | file | editor |\nshoryo -> file : writes\neditor -> file : opens"
+  "parts": [
+    {"type":"text","body":"A JSON file can be opened with any editor, so the records stay readable without shoryo."},
+    {"type":"diagram","title":"Reading the file","role":"example","source":"file = One JSON file\neditor = Any editor\nshoryo = shoryo\n| shoryo | file | editor |\nshoryo -> file : writes\neditor -> file : opens"}
+  ]
 }
 ```
 

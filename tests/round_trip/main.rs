@@ -504,7 +504,7 @@ fn skill_examples_are_accepted() {
         assert!(output.status.success(), "reply example: {}", text(&output));
     }
     for diagram in &diagrams {
-        let reply = json!({ "text": "The diagram example.", "diagram": diagram }).to_string();
+        let reply = json!({ "parts": [{"type":"diagram","title":"Diagram example","role":"example","source":diagram}] }).to_string();
         let output = env.run(&["reply", "examples", "2"], &reply);
         assert!(
             output.status.success(),

@@ -76,17 +76,17 @@ A first round:
       "class": "human",
       "why_now": "Every later question about reading and deleting rests on it.",
       "premises": [],
-      "background": "A topic is one brainstorm. Its data is the rounds, the answers and the records.",
+      "background": [{"type":"text","body":"A topic is one brainstorm. Its data is the rounds, the answers and the records."}],
       "options": [
         {
           "text": "One JSON file per topic",
-          "description": "A plain file in the per-user data directory.",
+          "description": [{"type":"text","body":"A plain file in the per-user data directory."}],
           "recommended": true,
           "consequence": "The data can be read and copied with ordinary tools."
         },
         {
           "text": "An embedded database",
-          "description": "A small database file managed by a library.",
+          "description": [{"type":"text","body":"A small database file managed by a library."}],
           "recommended": false,
           "consequence": "Reading the data needs that library or its tools."
         }
@@ -98,17 +98,17 @@ A first round:
       "class": "provisional",
       "why_now": "The file is created when the first round is sent.",
       "premises": [],
-      "background": "",
+      "background": [],
       "options": [
         {
           "text": "state.json",
-          "description": "Says what it holds.",
+          "description": [{"type":"text","body":"Says what it holds."}],
           "recommended": true,
           "consequence": "The file is state.json in the topic's directory."
         },
         {
           "text": "topic.json",
-          "description": "Names the unit.",
+          "description": [{"type":"text","body":"Names the unit."}],
           "recommended": false,
           "consequence": "The file is topic.json in the topic's directory."
         }
@@ -132,17 +132,17 @@ question rests on a decision made from them.
       "class": "human",
       "why_now": "Deleting cannot be undone, and the file now exists.",
       "premises": ["d1"],
-      "background": "The data stays after the topic ends unless someone deletes it.",
+      "background": [{"type":"text","body":"The data stays after the topic ends unless someone deletes it."}],
       "options": [
         {
           "text": "Only the person, by hand",
-          "description": "shoryo never deletes anything.",
+          "description": [{"type":"text","body":"shoryo never deletes anything."}],
           "recommended": true,
           "consequence": "Old topics stay until the person removes them."
         },
         {
           "text": "shoryo, after a month",
-          "description": "Old topics are cleaned up automatically.",
+          "description": [{"type":"text","body":"Old topics are cleaned up automatically."}],
           "recommended": false,
           "consequence": "A topic not opened for a month is gone."
         }
@@ -180,10 +180,10 @@ changed a decision, the review changed `d2`, and a point resting on `d1` is conf
       "class": "human",
       "why_now": "The specification is written from these records next.",
       "premises": ["d1", "d3"],
-      "background": "",
+      "background": [],
       "options": [
-        { "text": "Yes", "description": "Nothing else to change.", "recommended": true, "consequence": "The workflow writes the specification." },
-        { "text": "No", "description": "Something is still wrong.", "recommended": false, "consequence": "Another review round follows." }
+        { "text": "Yes", "description": [{"type":"text","body":"Nothing else to change."}], "recommended": true, "consequence": "The workflow writes the specification." },
+        { "text": "No", "description": [{"type":"text","body":"Something is still wrong."}], "recommended": false, "consequence": "Another review round follows." }
       ]
     }
   ],
