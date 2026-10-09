@@ -388,7 +388,7 @@ fn legacy(source: &str, path: &str) -> Checked {
                 }
                 references.push(value);
             }
-            text(&format!("{lpath}.label"), label.trim(), 0, 512, false)?;
+            legacy_label(label.trim(), &format!("{lpath}.label"))?;
             edges += 1;
         } else if let Some((name, label)) = legacy_definition(line) {
             let name = name.trim();
@@ -400,12 +400,9 @@ fn legacy(source: &str, path: &str) -> Checked {
                 return Err(fail(&lpath, ExplanationRule::Duplicate));
             }
             let label = label.trim();
-            text(
-                &format!("{lpath}.label"),
+            legacy_label(
                 label.strip_prefix('?').unwrap_or(label).trim_start(),
-                0,
-                512,
-                false,
+                &format!("{lpath}.label"),
             )?;
         } else {
             return Err(fail(&lpath, ExplanationRule::LegacySyntax));
@@ -418,6 +415,14 @@ fn legacy(source: &str, path: &str) -> Checked {
         return Err(fail(path, ExplanationRule::Reference));
     }
     Ok(())
+}
+
+fn legacy_label(label: &str, path: &str) -> Checked {
+    // The unchanged browser grammar uses non-dotAll labels; accepting these would lose lines.
+    if label.contains(['\r', '\u{2028}', '\u{2029}']) {
+        return Err(fail(path, ExplanationRule::LegacySyntax));
+    }
+    text(path, label, 0, 512, false)
 }
 
 fn token(value: &str) -> bool {

@@ -392,6 +392,78 @@ fn old_reply_input_is_refused() {
 }
 
 #[test]
+fn legacy_labels_outside_the_existing_line_grammar_are_refused_atomically() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    assert!(env.run(&["round", "store"], &round()).status.success());
+    let id = ask(&server, None);
+    assert_eq!(server.submit(), 200);
+    let path = state(&env);
+    let bytes = std::fs::read(&path).unwrap();
+    let before = server.view()["topic"].clone();
+    for separator in ['\r', '\u{2028}', '\u{2029}'] {
+        for source in [
+            format!("a = X{separator}Y"),
+            format!("a = ? X{separator}Y"),
+            format!("a = A\nb = B\na -> b : X{separator}Y"),
+        ] {
+            let parts =
+                json!([{"type":"diagram","title":"Legacy","role":"example","source":source}]);
+            assert_eq!(post(&server, "reply", json!({"ask":id,"parts":parts})), 409);
+            assert_eq!(
+                env.run(
+                    &["reply", "store", &id.to_string()],
+                    &json!({"parts":parts}).to_string()
+                )
+                .status
+                .code(),
+                Some(1)
+            );
+            for description in [false, true] {
+                let mut next: Value = serde_json::from_str(&first_round()).unwrap();
+                next["questions"][0]["id"] = json!("q2");
+                if description {
+                    next["questions"][0]["options"][0]["description"] = parts.clone();
+                } else {
+                    next["questions"][0]["background"] = parts.clone();
+                }
+                assert_eq!(post(&server, "round", next.clone()), 409);
+                assert_eq!(
+                    env.run(&["round", "store"], &next.to_string())
+                        .status
+                        .code(),
+                    Some(1)
+                );
+            }
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+            assert_eq!(server.view()["topic"], before);
+        }
+    }
+}
+
+#[test]
+fn legacy_punctuation_and_newline_separated_lines_remain_accepted() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    let source =
+        "a! = First: X -> Y\r\nb? = ? Second = Y\n| a! | b? |\na! -> b? : Next: X = Y -> Z";
+    let parts = json!([{"type":"diagram","title":"Legacy","role":"example","source":source}]);
+    let mut input: Value = serde_json::from_str(&first_round()).unwrap();
+    input["questions"][0]["background"] = parts.clone();
+    assert!(
+        env.run(&["round", "store"], &input.to_string())
+            .status
+            .success()
+    );
+    let id = ask(&server, None);
+    assert_eq!(post(&server, "reply", json!({"ask":id,"parts":parts})), 200);
+    assert_eq!(
+        server.view()["topic"]["rounds"][0]["asks"][0]["state"]["parts"],
+        parts
+    );
+}
+
+#[test]
 fn every_explanation_limit_refuses_real_cli_and_http_requests_atomically() {
     let env = Env::new();
     let server = env.start("store", &[]);
