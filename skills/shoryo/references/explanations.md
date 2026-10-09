@@ -124,9 +124,15 @@ interiors fail. Contact alone and line crossings are legal. Positions never move
 
 - Structural refusal: the CLI exits 1, explaining the field/rule. The whole request is refused;
   correct the input before resending. Schema failures are HTTP 422; domain refusals are 409.
+  When a limit is exceeded, split the explanation into smaller explanations that fit the
+  per-part, part-count and whole-request limits. Never silently omit excess text, conditions,
+  branches or routes. Splitting a body across parts does not increase the round/reply byte budget.
 - Browser layout failure: only that part shows its reason and original pretty JSON, with no
   incomplete diagram or enlarge control. Check IDs, labels, positions, sizes, gaps and canvas;
   revise the explanation, not an already sent question. Keep the intended meaning unchanged.
+  Depending on the cause, use smaller diagram parts or a simpler text/code explanation instead
+  of only adjusting geometry. Preserve the decision-relevant conditions, order, connections and
+  role; do not remove content merely to make the layout pass.
 - Unseen rendering: report it as unverified. Input acceptance is not visual or semantic proof.
 
 New diagrams scroll at natural text size and can open separately with movement, zoom and reset
