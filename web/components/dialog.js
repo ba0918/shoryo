@@ -61,7 +61,15 @@ export class DialogLayer extends Component {
       { class: "dialog-layer", onclick: (event) => event.target === event.currentTarget && close() },
       h(
         "div",
-        { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": label, "data-focus-scope": `dialog-${dialog.kind}`, ...attrs },
+        { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": label, "data-focus-scope": `dialog-${dialog.kind}`, ...attrs,
+          onkeydown: event => {
+            if (dialog.kind !== "explanation" || event.key !== "Tab") return;
+            const controls = [...event.currentTarget.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')].filter(element => !element.hidden);
+            const first = controls[0], last = controls.at(-1);
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+          },
+        },
         h("button", { type: "button", class: "btn quiet small close", "data-action": "close", onclick: close }, t("dialog.close")),
         h("div", { class: "dialog-body" }, body),
       ),

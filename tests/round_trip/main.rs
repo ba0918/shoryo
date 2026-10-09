@@ -2,6 +2,7 @@
 //! the built binary (`docs/spec/server.md`, "起動", "往復", "状態データ", "記録の置き場所と寿命").
 
 mod config;
+mod explanations;
 mod harness;
 
 use std::io::{BufRead, BufReader};
@@ -274,7 +275,7 @@ fn reply_reaches_open_page_without_reload() {
         std::thread::sleep(std::time::Duration::from_millis(500));
         let reply = env.run(
             &["reply", "store", &ask],
-            &json!({ "text": "It is one file on disk." }).to_string(),
+            &json!({ "parts": [{"type":"text","body":"It is one file on disk."}] }).to_string(),
         );
         assert!(reply.status.success(), "{}", text(&reply));
         assert!(page.join().expect("the page reader finishes"));
@@ -384,7 +385,10 @@ fn wait_and_reply_are_refused_after_end() {
     env.run(&["end", "store"], "");
 
     let wait = env.run(&["wait", "store", "--timeout", "1"], "");
-    let reply = env.run(&["reply", "store", "1"], r#"{ "text": "Too late." }"#);
+    let reply = env.run(
+        &["reply", "store", "1"],
+        r#"{ "parts": [{"type":"text","body":"Too late."}] }"#,
+    );
 
     assert!(!wait.status.success());
     assert!(!reply.status.success());
@@ -495,13 +499,18 @@ fn skill_examples_are_accepted() {
         }
         seen.extend(events(&env.run(&args, "")));
     }
+    let reply_server = env.start("reply-examples", &[]);
+    let output = env.run(&["round", "reply-examples"], &first_round());
+    assert!(output.status.success(), "{}", text(&output));
     for reply in &replies {
-        let output = env.run(&["reply", "examples", "1"], reply);
+        let id = fresh_example_ask(&reply_server);
+        let output = env.run(&["reply", "reply-examples", &id.to_string()], reply);
         assert!(output.status.success(), "reply example: {}", text(&output));
     }
     for diagram in &diagrams {
-        let reply = json!({ "text": "The diagram example.", "diagram": diagram }).to_string();
-        let output = env.run(&["reply", "examples", "2"], &reply);
+        let id = fresh_example_ask(&reply_server);
+        let reply = json!({ "parts": [{"type":"diagram","title":"Diagram example","role":"example","source":diagram}] }).to_string();
+        let output = env.run(&["reply", "reply-examples", &id.to_string()], &reply);
         assert!(
             output.status.success(),
             "diagram example: {}",
@@ -518,6 +527,21 @@ fn skill_examples_are_accepted() {
             "the documented events differ from what wait prints"
         );
     }
+}
+
+fn fresh_example_ask(server: &Server) -> u64 {
+    assert_eq!(
+        server.operate(json!({"op":"ask","question":"q1","text":"Explain this example"})),
+        200
+    );
+    server.view()["topic"]["rounds"]
+        .as_array()
+        .expect("the view contains rounds")
+        .iter()
+        .flat_map(|round| round["asks"].as_array().expect("each round contains asks"))
+        .map(|ask| ask["id"].as_u64().expect("ask IDs are unsigned integers"))
+        .max()
+        .expect("the fresh example ask exists")
 }
 
 fn first_answer(server: &Server) -> Value {
@@ -645,7 +669,10 @@ fn counted_commands_restart_the_quiet_time_and_result_does_not() {
     after.push(("round", quiet_ms()));
     server.operate(json!({ "op": "ask", "question": "q1", "text": "Why one file?" }));
     pause();
-    env.run(&["reply", "store", "1"], r#"{ "text": "It is simple." }"#);
+    env.run(
+        &["reply", "store", "1"],
+        r#"{ "parts": [{"type":"text","body":"It is simple."}] }"#,
+    );
     after.push(("reply", quiet_ms()));
     pause();
     let before_result = quiet_ms();

@@ -227,7 +227,7 @@ pub fn text(output: &Output) -> String {
 pub fn option(text: &str, recommended: bool) -> Value {
     json!({
         "text": text,
-        "description": format!("What {text} means."),
+        "description": [{"type":"text", "body":format!("What {text} means.")}],
         "recommended": recommended,
         "consequence": format!("Choosing {text} leads here."),
     })
@@ -245,7 +245,7 @@ pub fn first_round() -> String {
             "class": "human",
             "why_now": "Everything else reads it.",
             "premises": [],
-            "background": "A store is where the state lives.",
+            "background": [{"type":"text", "body":"A store is where the state lives."}],
             "options": [option("A single JSON file", true), option("An embedded database", false)],
         }],
     })

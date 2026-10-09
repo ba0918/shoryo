@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::explanation::Part;
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
 use crate::operations::Event;
 
@@ -97,7 +98,8 @@ pub struct Question {
     pub why_now: String,
     pub premises: Vec<DecisionId>,
     /// 前提知識: terms and background needed to read the question.
-    pub background: String,
+    #[serde(default)]
+    pub background: Vec<Part>,
     pub options: Vec<Choice>,
     /// The deferred question this one asks again.
     pub reasks: Option<QuestionId>,
@@ -109,7 +111,7 @@ pub struct Question {
 #[serde(deny_unknown_fields)]
 pub struct Choice {
     pub text: String,
-    pub description: String,
+    pub description: Vec<Part>,
     pub recommended: bool,
     /// この答えだと: what follows from choosing this option.
     pub consequence: String,
@@ -208,10 +210,9 @@ pub enum AskState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Reply {
-    pub text: String,
-    /// A diagram as diagram text.
-    pub diagram: Option<String>,
+    pub parts: Vec<Part>,
 }
 
 /// The six records and the decisions in review.
@@ -307,11 +308,18 @@ struct Version {
 
 /// The stored state could not be read.
 #[derive(Debug)]
-pub struct LoadError(serde_json::Error);
+pub enum LoadError {
+    Json(serde_json::Error),
+    Explanation(crate::ExplanationError),
+}
 
 impl std::fmt::Display for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "the topic's state is not valid: {}", self.0)
+        write!(f, "the topic's state is not valid: ")?;
+        match self {
+            Self::Json(error) => error.fmt(f),
+            Self::Explanation(error) => error.fmt(f),
+        }
     }
 }
 
@@ -338,7 +346,47 @@ impl Topic {
     }
 
     pub fn from_json(json: &str) -> Result<Self, LoadError> {
-        serde_json::from_str(json).map_err(LoadError)
+        let topic: Self = serde_json::from_str(json).map_err(LoadError::Json)?;
+        topic
+            .validate_explanations()
+            .map_err(LoadError::Explanation)?;
+        Ok(topic)
+    }
+
+    pub fn validate_explanations(&self) -> Result<(), crate::ExplanationError> {
+        for round in &self.rounds {
+            let mut budget = 0;
+            for question in &round.questions {
+                crate::explanation_validation::validate_parts(
+                    &question.background,
+                    &format!("round {} question {} background", round.number, question.id),
+                    0,
+                    &mut budget,
+                )?;
+                for (i, option) in question.options.iter().enumerate() {
+                    crate::explanation_validation::validate_parts(
+                        &option.description,
+                        &format!(
+                            "round {} question {} option {i} description",
+                            round.number, question.id
+                        ),
+                        0,
+                        &mut budget,
+                    )?;
+                }
+            }
+            for ask in &round.asks {
+                if let AskState::Replied(reply) = &ask.state {
+                    crate::explanation_validation::validate_parts(
+                        &reply.parts,
+                        &format!("round {} ask {} reply", round.number, ask.id),
+                        1,
+                        &mut 0,
+                    )?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn allocate_ask_id(&mut self) -> AskId {

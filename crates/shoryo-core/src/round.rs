@@ -52,7 +52,7 @@ pub struct QuestionInput {
     #[serde(default)]
     pub premises: Vec<DecisionId>,
     #[serde(default)]
-    pub background: String,
+    pub background: Vec<crate::Part>,
     pub options: Vec<Choice>,
     pub reasks: Option<QuestionId>,
 }
@@ -111,6 +111,7 @@ impl RoundInput {
 /// Why a round was not accepted. Returned to the agent, never shown to the person.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoundRefusal {
+    Explanation(crate::ExplanationError),
     PreviousRoundNotSubmitted {
         round: u32,
     },
@@ -134,6 +135,7 @@ pub enum RoundRefusal {
 impl fmt::Display for RoundRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Explanation(error) => error.fmt(f),
             Self::PreviousRoundNotSubmitted { round } => {
                 write!(f, "round {round} has not been sent yet")
             }
@@ -234,6 +236,26 @@ impl Topic {
             .map(|decision| &decision.id)
             .chain(input.records.decisions.iter().map(|decision| &decision.id))
             .collect();
+
+        let mut budget = 0;
+        for question in &input.questions {
+            crate::explanation_validation::validate_parts(
+                &question.background,
+                &format!("question {} background", question.id),
+                0,
+                &mut budget,
+            )
+            .map_err(RoundRefusal::Explanation)?;
+            for (i, option) in question.options.iter().enumerate() {
+                crate::explanation_validation::validate_parts(
+                    &option.description,
+                    &format!("question {} option {i} description", question.id),
+                    0,
+                    &mut budget,
+                )
+                .map_err(RoundRefusal::Explanation)?;
+            }
+        }
 
         for question in &input.questions {
             if !used.insert(&question.id) {

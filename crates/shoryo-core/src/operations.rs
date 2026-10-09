@@ -104,6 +104,7 @@ pub struct SentAnswer {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum OperationRefusal {
+    Explanation(crate::ExplanationError),
     NoRound,
     RoundSubmitted,
     RoundUnsent {
@@ -145,6 +146,7 @@ pub enum OperationRefusal {
 impl fmt::Display for OperationRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Explanation(error) => error.fmt(f),
             Self::NoRound => write!(f, "no round has been sent yet"),
             Self::RoundSubmitted => write!(f, "the round has already been sent"),
             Self::RoundUnsent { round } => write!(f, "round {round} has not been sent yet"),
@@ -290,6 +292,8 @@ impl Topic {
         if self.ended {
             return Err(OperationRefusal::TopicEnded);
         }
+        crate::explanation_validation::validate_parts(&reply.parts, "reply", 1, &mut 0)
+            .map_err(OperationRefusal::Explanation)?;
         let found = self
             .rounds
             .iter_mut()

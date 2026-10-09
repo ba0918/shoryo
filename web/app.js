@@ -10,6 +10,7 @@ import { Header, Tabs } from "./components/header.js";
 import { DecisionsTab } from "./components/decisions.js";
 import { DEFAULT_VIEW, MapTab } from "./components/map.js";
 import { diagramView } from "./components/diagram-view.js";
+import { explanationViewer } from "./components/explanation-viewer.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { Toasts } from "./components/toasts.js";
 import { WaitFooter } from "./components/wait-footer.js";
@@ -64,6 +65,7 @@ let waitTimer = null;
 let view = null;
 /// Where the focus was when the open dialog opened, so closing it can return there.
 let dialogOpener = null;
+let pendingExplanationFocus = null;
 
 const emit = (event) => handle(event);
 
@@ -77,6 +79,7 @@ const decisions = new DecisionsTab(emit);
 const ended = h("p", { class: "ended", "data-ended": true, hidden: true });
 const map = new MapTab(emit);
 const dialogs = new DialogLayer(emit, {
+  explanation: data => ({ label: data.part.title, attrs: { "data-explanation-dialog": data.identity }, body: explanationViewer(data) }),
   "confirm-send": confirmSend,
   "finished-picture": ({ picture, lang }) => {
     const t = translator(lang);
@@ -104,6 +107,8 @@ document.body.append(header.el, page, waitFooter.el, toasts.el, dialogs.el);
 
 function render() {
   if (!view || !ui.config) return;
+  const active = document.activeElement;
+  const explanationFocus = active?.dataset.focus?.startsWith("enlarge-") ? focusKey(active) : null;
   const lang = ui.config.language;
   const t = translator(lang);
   const shown = { ...view, lang };
@@ -138,6 +143,7 @@ function render() {
   const dialog = dialogData(shown);
   dialogs.update(dialog);
   holdFocusInDialog(dialog !== null);
+  if (!dialog && explanationFocus && !explanationFocus.element.isConnected) restoreExplanationFocus(explanationFocus);
   toasts.update(ui.toasts.map(id => {
     const arrival = ui.arrivals.find(arrival => arrival.id === id);
     return { id, text: arrivalText(arrival, lang), lang };
@@ -250,13 +256,22 @@ function holdFocusInDialog(open) {
   for (const part of document.body.children) part.inert = open && part !== dialogs.el;
   if (open && !wasOpen) {
     dialogOpener = focusKey(document.activeElement);
-    dialogs.el.querySelector("button, [href], input, select, textarea, [tabindex]")?.focus();
+    (dialogs.el.querySelector("[data-explanation-viewer]") ?? dialogs.el.querySelector("button, [href], input, select, textarea, [tabindex]"))?.focus();
   } else if (!open && wasOpen) {
     const opener = dialogOpener;
     dialogOpener = null;
-    if (opener.element.isConnected) opener.element.focus();
+    if (opener.element.dataset?.focus?.startsWith("enlarge-")) restoreExplanationFocus(opener);
+    else if (opener.element.isConnected) opener.element.focus();
     else if (opener.selector) document.querySelector(opener.selector)?.focus();
   }
+}
+
+function restoreExplanationFocus(opener) {
+  const element = opener.element.isConnected ? opener.element : opener.selector ? document.querySelector(opener.selector) : null;
+  if (!element) { pendingExplanationFocus = null; return; }
+  if (element.hidden) { pendingExplanationFocus = opener; return; }
+  element.focus({ preventScroll: true });
+  pendingExplanationFocus = null;
 }
 
 /// An element and a way to find its redrawn replacement.
@@ -267,6 +282,7 @@ function focusKey(element) {
 
 function dialogData(shown) {
   const dialog = ui.dialog;
+  if (dialog?.kind === "explanation") return { kind: "explanation", data: { part: dialog.part, identity: dialog.identity, lang: shown.lang }, lang: shown.lang };
   if (dialog?.kind === "decision") {
     const detail = decisionDetail(shown, dialog.decision);
     return detail ? { kind: "decision", data: detail, lang: shown.lang } : null;
@@ -426,6 +442,13 @@ function goBack() {
 }
 
 function handle(event) {
+  if (event.type === "explanation-ready") {
+    if (!ui.dialog && pendingExplanationFocus) {
+      const element = pendingExplanationFocus.selector ? document.querySelector(pendingExplanationFocus.selector) : pendingExplanationFocus.element;
+      if (element?.dataset.focus === `enlarge-${event.identity}`) restoreExplanationFocus(pendingExplanationFocus);
+    }
+    return;
+  }
   switch (event.type) {
     case "toggle-arrivals":
       ui.arrivalsOpen = !ui.arrivalsOpen;
@@ -488,6 +511,9 @@ function handle(event) {
       break;
     case "show-finished-picture":
       ui.dialog = { kind: "finished-picture" };
+      break;
+    case "show-explanation":
+      ui.dialog = { kind: "explanation", identity: event.identity, part: event.part };
       break;
     case "config":
       changeConfig(event.change);

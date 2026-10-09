@@ -86,7 +86,13 @@ export const test = base.extend({
         await start();
       },
       round: (body) => run(dirs, ["round", "topic"], JSON.stringify(body)),
-      reply: (ask, body) => run(dirs, ["reply", "topic", String(ask)], JSON.stringify(body)),
+      reply: (ask, body) => {
+        const parts = body.parts ?? [
+          ...(body.text === undefined ? [] : [{ type: "text", body: body.text }]),
+          ...(body.diagram ? [{ type: "diagram", source: body.diagram, title: "Reply diagram", role: "example" }] : []),
+        ];
+        return run(dirs, ["reply", "topic", String(ask)], JSON.stringify({ parts }));
+      },
       end: () => run(dirs, ["end", "topic"]),
       wait: async () => JSON.parse(await run(dirs, ["wait", "topic", "--timeout", "5"])).events,
       /// Waits as the agent does after acknowledging `ack`, for at most `timeout` seconds.

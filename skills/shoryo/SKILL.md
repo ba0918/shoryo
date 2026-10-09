@@ -71,6 +71,11 @@ The format, its fields and three complete examples are in `references/round.md`;
 writing the first round. `shoryo round` checks the round and refuses it with the reason if it
 breaks a rule; fix it and send it again.
 
+Before writing backgrounds, option descriptions or replies, read `references/explanations.md`.
+This changes the former string backgrounds/descriptions and text/diagram replies into ordered
+parts. That reference owns representation selection, role/meaning checks, bounded schema and
+repair. Successful acceptance or drawing alone does not establish meaning or agreement.
+
 ## The waiting loop
 
 After sending a round, keep running `shoryo wait <topic> --ack <ids received last time>` until
@@ -88,8 +93,8 @@ formats are in `references/events-and-replies.md`.
 
 ## Replying to an ask
 
-Answer the ask about its question with `shoryo reply <topic> <ask id>`. Add a diagram when it
-makes the point clearer; the diagram format is in `references/diagram.md`. Never rewrite the
+Answer the ask about its question with `shoryo reply <topic> <ask id>` using ordered parts from
+`references/explanations.md`; choose the smallest representation that clarifies the answer. Never rewrite the
 question in a round already sent: if the question was badly put, offer the rephrasing inside the
 reply. Asks may arrive after the round was sent; reply to them too.
 

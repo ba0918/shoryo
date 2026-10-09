@@ -3,6 +3,7 @@
 import { h } from "../dom.js";
 import { translator } from "../strings.js";
 import { decisionItem } from "./decision-item.js";
+import { explanation } from "./explanation.js";
 
 /// 前提の行: each direct prerequisite's chain of short names, side by side.
 export function chainLine(question, emit) {
@@ -39,22 +40,23 @@ export function chainLine(question, emit) {
 
 /// The options as bordered rows: the chosen row tinted, the recommendation tagged, and each
 /// option's description once the card is open.
-export function optionList(question, emit, open) {
+export function optionList(question, emit, open, codeParts) {
   const t = translator(question.lang);
   return h(
     "fieldset",
-    { class: "options", disabled: question.locked },
+    { class: "options" },
     h("legend", { class: "visually-hidden" }, t("card.options")),
     question.options.map((option) => {
       const chosen = option.index === question.selected;
       return h(
-        "label",
+        "div",
         { class: `option${chosen ? " chosen" : ""}` },
-        h("input", {
+        h("label", { class: "option-choice" }, h("input", {
           type: "radio",
           name: `option-${question.id}`,
           value: String(option.index),
           checked: chosen,
+          disabled: question.locked,
           "data-focus": `option-${question.id}-${option.index}`,
           onchange: () => emit({ type: "op", op: { op: "choose", question: question.id, option: option.index } }),
         }),
@@ -67,8 +69,9 @@ export function optionList(question, emit, open) {
             h("span", { class: "option-text" }, option.text),
             option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, t("card.recommended")) : null,
           ),
-          open ? h("span", { class: "option-description" }, option.description) : null,
         ),
+        ),
+        open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`, emit, codeParts)) : null,
       );
     }),
   );
@@ -113,7 +116,7 @@ export function consequence(question) {
 }
 
 /// The prerequisites' full text and the background, shown once the card is open.
-export function details(question) {
+export function details(question, emit, codeParts) {
   const t = translator(question.lang);
   const parts = [
     question.premises.length > 0
@@ -128,8 +131,8 @@ export function details(question) {
           ),
         )
       : null,
-    question.background
-      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), h("p", {}, question.background))
+    question.background.length > 0
+      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), explanation(question.background, question.lang, `${question.round}-${question.id}-background`, emit, codeParts))
       : null,
   ].filter(Boolean);
   return parts.length > 0 ? h("div", { class: "context" }, parts) : null;
