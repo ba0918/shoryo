@@ -168,7 +168,10 @@ fn invalid_historical_explanations_refuse_restart_without_overwrite() {
             "invalid historical explanation started serving: reply={reply}, aggregate={aggregate}"
         );
         assert_eq!(output.status.code(), Some(1));
-        assert!(!output.stderr.is_empty(), "startup refusal must explain why");
+        assert!(
+            !output.stderr.is_empty(),
+            "startup refusal must explain why"
+        );
     }
 }
 
