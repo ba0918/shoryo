@@ -1,5 +1,6 @@
 import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
+import { operationIcon } from "./operation-icon.js";
 
 export class CodeParts {
   constructor() {
@@ -60,13 +61,15 @@ class CodePart extends Component {
         selection.addRange(range);
       },
     }, t("part.select-code"));
-    return h("section", { "data-part": "code" },
-      h("div", { class: "part-metadata" },
-        part.title ? h("strong", {}, part.title) : null,
-        h("span", {}, part.language === "pseudocode" ? t("part.pseudocode") : part.language),
-        h("span", { class: "badge" }, t(`part.role.${part.role}`))),
-      pre, h("div", { class: "code-controls" },
-        h("button", { type: "button", "data-focus": `copy-code-${identity}`, onclick: () => this.copy() }, t("part.copy-code")),
-        select, h("span", { role: "status", "aria-live": "polite" }, this.feedback ? t(this.feedback) : "")));
+    return h("section", { "data-part": "code", class: "explanation-block code-block" },
+      h("header", { class: "explanation-block-header" },
+        h("div", { class: "part-metadata" },
+          part.title ? h("strong", {}, part.title) : null,
+          h("span", {}, part.language === "pseudocode" ? t("part.pseudocode") : part.language),
+          h("span", { class: "badge" }, t(`part.role.${part.role}`))),
+        h("div", { class: "code-controls" },
+          h("button", { type: "button", class: "operation-button", "aria-label": t("part.copy-code"), title: t("part.copy-code"), "data-focus": `copy-code-${identity}`, onclick: () => this.copy() }, operationIcon(this.feedback === "part.copied" ? "success" : "copy")),
+          select)),
+      pre, h("span", { class: "code-feedback", role: "status", "aria-live": "polite" }, this.feedback ? t(this.feedback) : ""));
   }
 }
