@@ -27,9 +27,12 @@ refused, so a misspelt field name fails loudly instead of being ignored.
 | `class` | `"human"` (人が決める) or `"provisional"` (仮決め). |
 | `why_now` | One line: why this is decided now. |
 | `premises` | Ids of the decisions this question rests on, most important first. Each must be in the records, or in this round's `records.decisions`. |
-| `background` | Terms and background needed to read the question. |
+| `background` | Ordered explanation parts with the terms/background needed to read the question; see `explanations.md`. |
 | `options` | The options, each `{ "text", "description", "recommended", "consequence" }`. Exactly one is `"recommended": true`; every `consequence` (この答えだと) is filled in. |
 | `reasks` | Optional: the id of the deferred question this one asks again. |
+
+Every option's `description` is also an explanation-part array, not a string. Its schema,
+representation choices, defaults, finite bounds and rendering repair are in `explanations.md`.
 
 ### Records
 

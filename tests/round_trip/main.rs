@@ -500,12 +500,14 @@ fn skill_examples_are_accepted() {
         seen.extend(events(&env.run(&args, "")));
     }
     for reply in &replies {
-        let output = env.run(&["reply", "examples", "1"], reply);
+        let id = fresh_example_ask(&server);
+        let output = env.run(&["reply", "examples", &id.to_string()], reply);
         assert!(output.status.success(), "reply example: {}", text(&output));
     }
     for diagram in &diagrams {
+        let id = fresh_example_ask(&server);
         let reply = json!({ "parts": [{"type":"diagram","title":"Diagram example","role":"example","source":diagram}] }).to_string();
-        let output = env.run(&["reply", "examples", "2"], &reply);
+        let output = env.run(&["reply", "examples", &id.to_string()], &reply);
         assert!(
             output.status.success(),
             "diagram example: {}",
@@ -522,6 +524,21 @@ fn skill_examples_are_accepted() {
             "the documented events differ from what wait prints"
         );
     }
+}
+
+fn fresh_example_ask(server: &Server) -> u64 {
+    assert_eq!(
+        server.operate(json!({"op":"ask","question":"q1","text":"Explain this example"})),
+        200
+    );
+    server.view()["topic"]["rounds"]
+        .as_array()
+        .expect("the view contains rounds")
+        .iter()
+        .flat_map(|round| round["asks"].as_array().expect("each round contains asks"))
+        .map(|ask| ask["id"].as_u64().expect("ask IDs are unsigned integers"))
+        .max()
+        .expect("the fresh example ask exists")
 }
 
 fn first_answer(server: &Server) -> Value {

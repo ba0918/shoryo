@@ -36,8 +36,9 @@ review request, and a send:
 
 ## A reply
 
-`{ "text": "...", "diagram": "..." }`. `diagram` is optional diagram text (see the diagram
-reference). Unknown fields are refused.
+`{ "parts": [...] }`. The ordered explanation schema, roles, bounds and representation choices
+are in `explanations.md`. The CLI ask argument identifies the reply; titles are not identity.
+Unknown fields and old `text`/`diagram` reply inputs are refused.
 
 ```json reply
 {
@@ -61,7 +62,7 @@ workflow reads to write a specification:
 | `rounds[].sent_at` | The server's UTC time when the round was sent; `null` before sending. A pre-approved stamp uses this date on the screen. |
 | `rounds[].sent_as` | For a sent result round: `"proceeded"` or `"review_requested"`, according to whether any decision was in review when sent. `null` for other rounds and before sending. |
 | `rounds[].finished_picture`, `rounds[].records` | The picture and the `not_building`, `undecided`, `delegated`, `rejected` lists as they stood after this round was applied; an omitted field keeps its preceding value. Past results use these snapshots and the decisions' history as of that round, not today's records. |
-| `rounds[].asks[]` | `id`, `question`, `text`, `follows`, `state` (`status`: `waiting`, `replied` with `text` and `diagram`, or `no_reply`). |
+| `rounds[].asks[]` | `id`, `question`, `text`, `follows`, `state` (`status`: `waiting`, `replied` with `parts`, or `no_reply`). |
 | `records.decisions[]` | `id`, `origin` (`{"question": id}` or `{"fix_round": n}`), `history[]` of `{round, content: {name, text}}`, oldest first; the last entry is the current content. |
 | `records.not_building`, `undecided`, `delegated`, `rejected` | As sent. |
 | `records.revisions[]` | 改めたこと: `decision`, `round`, `before`, `after`. |

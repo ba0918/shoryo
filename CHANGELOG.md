@@ -3,6 +3,24 @@
 All notable changes to shoryo are recorded here. The version follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING** Question `background` and option `description` are ordered explanation-part arrays,
+  and replies require `parts` instead of `text`/`diagram`. Update agent inputs using the shoryo
+  skill's explanation reference. Starting an old-format stored topic is explicitly refused,
+  without changing or deleting its bytes. Retain the previous binary to reopen it, read its JSON
+  with offline `shoryo result`, or start a new topic. No automatic migration is provided.
+
+### Added
+
+- Explanation parts support inert text, copyable readonly code, fixed sequence/flow diagrams and
+  existing grid diagrams in backgrounds, option details and replies. Code copies preserve original
+  whitespace. New diagrams wrap measured text losslessly, scroll without shrinking, report layout
+  failures per part and open in a separate keyboard-operated viewer. Their supplied geometry is
+  never automatically repaired; examples and proposals do not become separate agreements.
+
 ## [0.1.0] - 2026-10-08
 
 The first release.
