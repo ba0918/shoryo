@@ -5,6 +5,8 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-09
+
 ### Changed
 
 - **BREAKING** Question `background` and option `description` are ordered explanation-part arrays,
@@ -15,11 +17,22 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Added
 
-- Explanation parts support inert text, copyable readonly code, fixed sequence/flow diagrams and
-  existing grid diagrams in backgrounds, option details and replies. Code copies preserve original
-  whitespace. New diagrams wrap measured text losslessly, scroll without shrinking, report layout
-  failures per part and open in a separate keyboard-operated viewer. Their supplied geometry is
-  never automatically repaired; examples and proposals do not become separate agreements.
+- Explanation parts support inert text, readonly code, fixed sequence/flow diagrams and existing
+  grid diagrams in backgrounds, option details and replies. Code has a separate framed header and
+  keyboard-accessible copy icon; copying preserves the original whitespace, with manual selection
+  available if copying fails. Code and diagrams identify proposals, examples and confirmed current
+  state without turning examples or proposals into separate agreements.
+- New diagrams preserve supplied geometry, wrap measured labels without dropping content and
+  report layout failures with readable source data per part rather than silently repairing them.
+  Inline diagrams start at natural size; intentional drag or keyboard movement reaches content
+  outside the frame. A plain wheel scrolls the page; Ctrl/⌘ + wheel zooms the diagram inline or in
+  its separate viewer. Inline touch uses one finger to scroll the page (without inertial scrolling),
+  two fingers to pan, and pinch to zoom.
+- New diagrams open in a keyboard-operated viewer with the whole diagram fitted and centered.
+  The Whole control and focused diagram's 0 key fit and center the whole diagram both inline and
+  in the viewer, rather than resetting to 100% or restoring a previous position. Compact icon
+  controls group zoom, current scale and whole-diagram viewing consistently with the map and
+  finished picture; new diagrams also have a keyboard-accessible movement menu.
 
 ## [0.1.0] - 2026-10-08
 
@@ -67,4 +80,6 @@ The first release.
 - Releases carry a static Linux x86_64 binary that mise's github backend can install
   (`mise use -g github:ba0918/shoryo`).
 
+[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ba0918/shoryo/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ba0918/shoryo/releases/tag/v0.1.0

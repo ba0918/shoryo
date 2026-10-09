@@ -897,7 +897,7 @@ dependencies = [
 
 [[package]]
 name = "shoryo"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "serde_json",
@@ -907,7 +907,7 @@ dependencies = [
 
 [[package]]
 name = "shoryo-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -915,7 +915,7 @@ dependencies = [
 
 [[package]]
 name = "shoryo-server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "dirs",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "shoryo-webview"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rust-embed",
 ]

@@ -87,7 +87,7 @@ Topic data stays outside the repository in your per-user data directory. On Linu
 default location is `~/.local/share/shoryo/`. shoryo never deletes this data. Remove a topic's
 directory yourself when you no longer need it.
 
-### Explanation-format change (unreleased)
+### Explanation-format change (0.1.1)
 
 Question backgrounds and option descriptions now use ordered text, code, sequence, flow or
 existing-diagram parts. Replies use `parts`, not the former `text`/`diagram` fields. Update agent
