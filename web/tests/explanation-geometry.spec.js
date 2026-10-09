@@ -382,3 +382,18 @@ test("edge_label_cannot_occupy_an_unrelated_node", async ({ shoryo, page }) => {
   await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/label.*unrelated shape c/i);
   await expect(scope.locator("[data-part=flow]").nth(1).locator("svg")).toBeVisible();
 });
+
+test("viewer_does_not_intercept_keys_outside_its_declared_shortcuts", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow()]);
+  await scope.getByRole("button", { name: "Enlarge diagram" }).click();
+  const surface = page.locator("[data-explanation-viewer]");
+  await expect(surface.locator("svg")).toBeVisible();
+  await surface.press("=");
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+  expect(await surface.evaluate(n => {
+    const event = new KeyboardEvent("keydown", { key: "+", ctrlKey: true, bubbles: true, cancelable: true });
+    n.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(false);
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 24, 24)");
+});

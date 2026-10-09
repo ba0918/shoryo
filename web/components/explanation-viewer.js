@@ -25,7 +25,7 @@ export function explanationViewer({ part, identity, lang }) {
   const actions = {
     ArrowLeft: () => move(-40, 0), ArrowRight: () => move(40, 0),
     ArrowUp: () => move(0, -40), ArrowDown: () => move(0, 40),
-    "+": () => zoom.zoomBy(1.2), "=": () => zoom.zoomBy(1.2),
+    "+": () => zoom.zoomBy(1.2),
     "-": () => zoom.zoomBy(1 / 1.2), "0": reset,
   };
   surface.addEventListener("keydown", event => {
