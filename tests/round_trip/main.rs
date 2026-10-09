@@ -2,6 +2,7 @@
 //! the built binary (`docs/spec/server.md`, "起動", "往復", "状態データ", "記録の置き場所と寿命").
 
 mod config;
+mod explanations;
 mod harness;
 
 use std::io::{BufRead, BufReader};
@@ -274,7 +275,7 @@ fn reply_reaches_open_page_without_reload() {
         std::thread::sleep(std::time::Duration::from_millis(500));
         let reply = env.run(
             &["reply", "store", &ask],
-            &json!({ "text": "It is one file on disk." }).to_string(),
+            &json!({ "parts": [{"type":"text","body":"It is one file on disk."}] }).to_string(),
         );
         assert!(reply.status.success(), "{}", text(&reply));
         assert!(page.join().expect("the page reader finishes"));
@@ -384,7 +385,10 @@ fn wait_and_reply_are_refused_after_end() {
     env.run(&["end", "store"], "");
 
     let wait = env.run(&["wait", "store", "--timeout", "1"], "");
-    let reply = env.run(&["reply", "store", "1"], r#"{ "text": "Too late." }"#);
+    let reply = env.run(
+        &["reply", "store", "1"],
+        r#"{ "parts": [{"type":"text","body":"Too late."}] }"#,
+    );
 
     assert!(!wait.status.success());
     assert!(!reply.status.success());
@@ -645,7 +649,10 @@ fn counted_commands_restart_the_quiet_time_and_result_does_not() {
     after.push(("round", quiet_ms()));
     server.operate(json!({ "op": "ask", "question": "q1", "text": "Why one file?" }));
     pause();
-    env.run(&["reply", "store", "1"], r#"{ "text": "It is simple." }"#);
+    env.run(
+        &["reply", "store", "1"],
+        r#"{ "parts": [{"type":"text","body":"It is simple."}] }"#,
+    );
     after.push(("reply", quiet_ms()));
     pause();
     let before_result = quiet_ms();
