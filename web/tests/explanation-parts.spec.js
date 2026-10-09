@@ -118,3 +118,52 @@ test("part_content_does_not_execute_or_fetch", async ({ shoryo, page }) => {
   expect(requested).toEqual([]);
   await expect(scope.locator(".context img, .context script, .context a")).toHaveCount(0);
 });
+
+test("legacy_first_lists_remain_ordered_in_all_locations_and_history", async ({ shoryo, page }) => {
+  const content = [{ type: "diagram", title: "Existing grid", role: "example", source: "a = First\nb = Second\n| a | b |\na -> b : Next" }, ...parts];
+  const scope = await prepare(shoryo, page, content);
+  await shoryo.op({ op: "ask", question: "q1", text: "Keep that order" });
+  await shoryo.reply(1, { parts: content });
+  const checkOrder = async container => {
+    expect(await container.locator("[data-part]").evaluateAll(nodes => nodes.map(n => n.dataset.part))).toEqual(["diagram", "text", "code", "text"]);
+  };
+  await expect(scope.locator("[data-reply] [data-part]")).toHaveCount(4);
+  for (const container of [scope.locator(".context"), scope.locator(".option-description").first(), scope.locator("[data-reply]")]) await checkOrder(container);
+  await shoryo.submit();
+  await shoryo.round({ subject: "Next", questions: [question("q2", "Next?")] });
+  await page.getByRole("tab", { name: "Past rounds" }).click();
+  const past = page.locator("[data-past-question=q1]");
+  await action(past, "open").click();
+  for (const container of [past.locator(".context"), past.locator(".option-description").first(), past.locator("[data-reply]")]) await checkOrder(container);
+  await expect(past.locator(".option-description").first().getByRole("button", { name: "Copy code", exact: true })).toBeEnabled();
+});
+
+test("first_part_quotes_cover_every_kind_and_code_without_title", async ({ shoryo, page }) => {
+  const scope = await prepare(shoryo, page, []);
+  const text = "🦀".repeat(41);
+  const cases = [
+    [{ type: "text", body: text }, "🦀".repeat(40) + "…"],
+    [{ type: "code", body: "not the quote", language: "unknown-language", role: "example" }, "unknown-language — Example"],
+    [{ type: "diagram", title: "Legacy title", role: "proposal", source: "a = Label" }, "Legacy title"],
+    [{ type: "sequence", title: "Sequence title", role: "proposal", participants: [{ id: "a", label: "A" }], events: [{ type: "message", from: "a", to: "a", label: "Send", kind: "call" }] }, "Sequence title"],
+    [{ type: "flow", title: "Flow title", role: "confirmed", nodes: [{ id: "a", label: "A", kind: "process" }], edges: [] }, "Flow title"],
+  ];
+  for (const [index, [part, quote]] of cases.entries()) {
+    const id = index * 2 + 1;
+    await shoryo.op({ op: "ask", question: "q1", text: "Explain this part" });
+    await shoryo.reply(id, { parts: [part, { type: "text", body: "Must not be quoted" }] });
+    await action(scope.locator(`[data-ask="${id}"]`), "follow-up").click();
+    await expect(scope.locator(".following-text")).toHaveText(quote);
+    await shoryo.op({ op: "ask", question: "q1", text: "Continue", follows: id });
+    await expect(scope.locator(`[data-ask="${id+1}"] [data-quote]`)).toHaveText(quote);
+  }
+});
+
+test("part_roles_and_reserved_language_switch_without_changing_content", async ({ shoryo, page }) => {
+  const content = ["proposal", "example", "confirmed"].map(role => ({ type: "code", language: "pseudocode", role, body: "same literal body" }));
+  const scope = await prepare(shoryo, page, content);
+  await page.locator('[data-language="ja"]').click();
+  for (const role of ["案", "説明用の例", "確認済みの現状"]) await expect(scope.locator(".context").getByText(role, { exact: true })).toBeVisible();
+  await expect(scope.locator(".context").getByText("疑似コード", { exact: true })).toHaveCount(3);
+  await expect(scope.locator(".context pre code")).toHaveText(["same literal body", "same literal body", "same literal body"]);
+});
