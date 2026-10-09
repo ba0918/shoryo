@@ -1,7 +1,7 @@
 // 質問 under a card: the exchanges in the order they were asked, opened and closed under
 // one heading, and the ask box (docs/spec/screen.md, "質問").
 import { h } from "../dom.js";
-import { renderDiagram } from "../diagram.js";
+import { explanation } from "./explanation.js";
 import { translator } from "../strings.js";
 import { shownExchanges } from "../view-data.js";
 
@@ -33,17 +33,17 @@ export function thread(question, local, onLocal, emit) {
           t("thread.heading", { count: asks.length }),
         )
       : null,
-    open && asks.length > 0 ? exchanges(asks, local, onLocal, t) : null,
+    open && asks.length > 0 ? exchanges(asks, local, onLocal, t, question) : null,
     question.locked ? null : askBox(question, local, onLocal, emit, t),
   );
 }
 
-function exchanges(asks, local, onLocal, t) {
+function exchanges(asks, local, onLocal, t, question) {
   const { head, elided, tail } = shownExchanges(asks, local.expanded);
   return h(
     "div",
     { class: "exchanges", "data-exchanges": true },
-    head.map((ask) => exchange(ask, local, onLocal, t)),
+    head.map((ask) => exchange(ask, local, onLocal, t, question)),
     elided > 0
       ? h(
           "button",
@@ -51,11 +51,11 @@ function exchanges(asks, local, onLocal, t) {
           t("thread.elided", { count: elided }),
         )
       : null,
-    tail.map((ask) => exchange(ask, local, onLocal, t)),
+    tail.map((ask) => exchange(ask, local, onLocal, t, question)),
   );
 }
 
-function exchange(ask, local, onLocal, t) {
+function exchange(ask, local, onLocal, t, question) {
   return h(
     "div",
     { class: "exchange", "data-ask": ask.id, "data-focus-scope": `ask-${ask.id}` },
@@ -74,7 +74,7 @@ function exchange(ask, local, onLocal, t) {
         )
       : null,
     h("p", { class: "asked" }, h("span", { class: "speaker" }, t("thread.you")), h("span", { class: "asked-text" }, ask.text)),
-    reply(ask, local, onLocal, t),
+    reply(ask, local, onLocal, t, question),
   );
 }
 
@@ -95,7 +95,7 @@ function flash(element) {
   element.classList.add("flash");
 }
 
-function reply(ask, local, onLocal, t) {
+function reply(ask, local, onLocal, t, question) {
   switch (ask.status) {
     case "waiting":
       return h(
@@ -111,8 +111,7 @@ function reply(ask, local, onLocal, t) {
         "div",
         { class: "reply", "data-reply": true },
         h("span", { class: "speaker" }, t("thread.llm")),
-        h("p", {}, ask.reply.text),
-        ask.reply.diagram ? h("div", { class: "diagram-box" }, renderDiagram(ask.reply.diagram)) : null,
+        explanation(ask.reply.parts, question.lang, `${question.round}-${question.id}-ask-${ask.id}`),
         local.canAsk
           ? h(
               "button",

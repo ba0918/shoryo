@@ -2,6 +2,14 @@
 // uses the glossary's words (CONTEXT.md). Text the LLM wrote never passes through here.
 
 const en = {
+  "part.role.proposal": "Proposal",
+  "part.role.example": "Example",
+  "part.role.confirmed": "Confirmed current state",
+  "part.pseudocode": "Pseudocode",
+  "part.copy-code": "Copy code",
+  "part.select-code": "Select code",
+  "part.copied": "Copied",
+  "part.copy-failed": "Copy failed. Select the code to copy it manually.",
   "tab.current": "Current round",
   "tab.past": "Past rounds",
   "tab.map": "Map",
@@ -188,6 +196,14 @@ const en = {
 };
 
 const ja = {
+  "part.role.proposal": "案",
+  "part.role.example": "説明用の例",
+  "part.role.confirmed": "確認済みの現状",
+  "part.pseudocode": "疑似コード",
+  "part.copy-code": "コードをコピー",
+  "part.select-code": "コードを選択",
+  "part.copied": "コピーしました",
+  "part.copy-failed": "コピーできませんでした。コードを選択して手動でコピーしてください。",
   "tab.current": "今のラウンド",
   "tab.past": "過去のラウンド",
   "tab.map": "地図",

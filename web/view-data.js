@@ -47,6 +47,7 @@ export function questionData(view, round, question, locked, landed = null, asOf 
   const topic = view.topic;
   return {
     lang: view.lang,
+    round: round.number,
     id: question.id,
     text: question.text,
     why_now: question.why_now,
@@ -63,7 +64,7 @@ export function questionData(view, round, question, locked, landed = null, asOf 
     deferred: question.answer.deferred,
     stamp: question.answer.stamp,
     stampedAt: stampedAt(round, question.answer),
-    asks: questionAsks(round, question.id),
+    asks: questionAsks(round, question.id, view.lang),
     locked,
     landed: question.id === landed,
   };
@@ -228,22 +229,34 @@ function excerpt(text) {
   return chars.length > QUOTE_CHARS ? `${chars.slice(0, QUOTE_CHARS).join("")}…` : text;
 }
 
-function askData(ask) {
+function firstPartQuote(part, lang) {
+  const t = translator(lang);
+  switch (part.type) {
+    case "text": return excerpt(part.body);
+    case "code": return part.title ?? `${part.language === "pseudocode" ? t("part.pseudocode") : part.language} — ${t(`part.role.${part.role}`)}`;
+    case "diagram":
+    case "sequence":
+    case "flow": return part.title;
+    default: return "";
+  }
+}
+
+function askData(ask, lang) {
   const replied = ask.state.status === "replied";
   return {
     id: ask.id,
     text: ask.text,
     follows: ask.follows,
     status: ask.state.status,
-    reply: replied ? { text: ask.state.text, diagram: ask.state.diagram } : null,
-    excerpt: replied ? excerpt(ask.state.text) : null,
+    reply: replied ? { parts: ask.state.parts } : null,
+    excerpt: replied ? firstPartQuote(ask.state.parts[0], lang) : null,
   };
 }
 
 /// A question's exchanges in the order they were asked; a follow-up carries the quote of the
 /// reply it continues.
-function questionAsks(round, questionId) {
-  const asks = round.asks.filter((ask) => ask.question === questionId).map(askData);
+function questionAsks(round, questionId, lang) {
+  const asks = round.asks.filter((ask) => ask.question === questionId).map(ask => askData(ask, lang));
   const byId = new Map(asks.map((ask) => [ask.id, ask]));
   return asks.map((ask) => ({ ...ask, quote: byId.get(ask.follows)?.excerpt ?? null }));
 }

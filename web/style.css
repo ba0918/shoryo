@@ -863,10 +863,7 @@ textarea:disabled {
 }
 
 .option {
-  display: grid;
-  grid-template-columns: 1.1rem minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: start;
+  display: block;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
@@ -874,6 +871,14 @@ textarea:disabled {
   background: var(--sheet);
   transition: border-color 0.12s, background 0.12s;
 }
+
+.option-choice { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); align-items: start; gap: 0.6rem; cursor: pointer; }
+.explanation { display: grid; gap: 0.75rem; min-width: 0; }
+.explanation-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.part-metadata, .code-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.explanation-code { font-size: 0.875rem; white-space: pre; overflow: auto; max-height: min(20rem, 50vh); margin: 0.5rem 0; user-select: text; }
+.explanation-code code { font-size: inherit; }
+.option-description .explanation { margin-top: 0.5rem; }
 
 .option:hover {
   border-color: var(--line-strong);
@@ -889,7 +894,7 @@ textarea:disabled {
   accent-color: var(--accent);
 }
 
-.options:disabled .option {
+.option-choice:has(input:disabled) {
   cursor: default;
 }
 
