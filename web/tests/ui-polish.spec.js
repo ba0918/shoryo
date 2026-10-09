@@ -147,13 +147,41 @@ test('ui_polish_inline_plain_wheel_reads_page_and_modified_wheel_keeps_pointer_a
   const bb = await surface.boundingBox(), px = bb.x + 90, py = bb.y + 80;
   const anchor = await svg.evaluate((n, p) => new DOMPoint(p.x, p.y).matrixTransform(n.getScreenCTM().inverse()).toJSON(), { x: px, y: py });
   const cdp = await context.newCDPSession(page);
+  await surface.evaluate(n => n.addEventListener('wheel', e => { window.observedWheel = { trusted: e.isTrusted, ctrl: e.ctrlKey, meta: e.metaKey }; }, { once: true }));
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: px, y: py, deltaX: 0, deltaY: -100, modifiers: 2 });
   await expect.poll(async () => (await matrix(svg)).k).toBeGreaterThan(before.k);
   const moved = await svg.evaluate((n, p) => new DOMPoint(p.x, p.y).matrixTransform(n.getScreenCTM()).toJSON(), anchor);
   expect(moved.x).toBeCloseTo(px, 0); expect(moved.y).toBeCloseTo(py, 0);
+  expect(await page.evaluate(() => window.observedWheel)).toEqual({ trusted: true, ctrl: true, meta: false });
   await expect(scope.locator('pre').first()).toBeVisible();
   expect(await scope.locator('pre').first().evaluate(n => { const e = new WheelEvent('wheel', { ctrlKey: true, cancelable: true, bubbles: true }); n.dispatchEvent(e); return e.defaultPrevented; })).toBe(false);
 });
+
+for (const location of ['background', 'option', 'reply', 'provisional']) {
+  test(`ui_polish_inline_local_view_survives_unrelated_arrivals_in_${location}`, async ({ shoryo, page }) => {
+    const q = question('q1', 'Choose a path?', { cls: location === 'provisional' ? 'provisional' : 'human' });
+    q.background = [shortFlow]; q.options[0].description = [shortFlow];
+    await shoryo.round({ subject: 'Reading', questions: [q] }); await page.goto(shoryo.url);
+    const row = location === 'provisional' ? page.locator('[data-provisional-row=q1]') : card(page, 'q1');
+    await action(row, 'open').click();
+    await shoryo.op({ op: 'ask', question: 'q1', text: 'First' }); await shoryo.reply(1, { parts: [shortFlow] });
+    const container = location === 'option' ? row.locator('.option-description').first() : location === 'reply' ? row.locator('[data-ask="1"] [data-reply]') : row.locator('.context');
+    const surface = container.getByRole('group', { name: /Diagram viewport|本文内の図/ }), svg = surface.locator('svg[role=img]');
+    await expect(svg).toBeVisible(); await surface.focus(); await surface.press('ArrowRight'); await surface.press('+');
+    const initial = await svg.evaluate(n => getComputedStyle(n).transform);
+    await shoryo.op({ op: 'ask', question: 'q1', text: 'Another' }); await shoryo.reply(2, { parts: [{ type: 'text', body: 'Arrived' }] });
+    await expect(row.locator('[data-ask="2"] [data-reply]')).toContainText('Arrived');
+    await expect(surface).toBeFocused(); await expect(svg).toHaveCSS('transform', initial);
+    await page.locator('[data-language="ja"]').click();
+    await expect(svg).toHaveCSS('transform', initial);
+    const note = row.locator('[data-field=note] textarea'); await note.fill('note'); await note.press('0');
+    expect(await note.inputValue()).toBe('note0');
+    await expect.poll(async () => {
+      const view = await (await page.request.get(`${shoryo.url}api/view`)).json();
+      return view.topic.rounds[0].questions.find(q => q.id === 'q1').answer.note;
+    }).toBe('note0');
+  });
+}
 
 test('ui_polish_inline_drag_and_keys_reach_content_without_selecting_labels', async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [wideFlow]);
@@ -206,10 +234,18 @@ test.describe('inline trusted touch', () => {
     await send('touchStart', [p(1, 80, 100)]);
     await send('touchStart', [p(1, 80, 100), p(2, 160, 100)]);
     await send('touchMove', [p(1, 90, 100), p(2, 170, 100)]);
-    const pan = await matrix(svg), scroll = await page.evaluate(() => scrollY);
-    await send('touchEnd', [p(2, 170, 100)]);
+    const pan = await matrix(svg);
+    await send('touchStart', [p(1, 90, 100), p(2, 170, 100), p(3, 120, 110)]);
+    await send('touchMove', [p(1, 100, 100), p(2, 180, 100), p(3, 130, 110)]);
+    expect(await matrix(svg)).toEqual(pan);
+    await send('touchEnd', [p(3, 130, 110)]);
+    expect(await matrix(svg)).toEqual(pan);
+    await send('touchMove', [p(1, 110, 100), p(2, 190, 100)]);
+    await expect.poll(async () => (await matrix(svg)).x).toBeGreaterThan(pan.x);
+    const scroll = await page.evaluate(() => scrollY);
+    await send('touchEnd', [p(2, 190, 100)]);
     expect(await page.evaluate(() => scrollY)).toBe(scroll);
-    await send('touchMove', [p(1, 90, 80)]);
+    await send('touchMove', [p(1, 110, 80)]);
     await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(scroll);
     expect((await matrix(svg)).k).toBe(pan.k);
     await send('touchCancel', []);
@@ -437,6 +473,10 @@ test('ui_polish_shared_visuals_preserve_map_fit_selection_and_keys', async ({ sh
   expect(before).toBe(1);
   await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
   expect(await node.evaluate(n => n.getScreenCTM().a)).toBeCloseTo(before * 1.25);
+  const label = await node.locator('text').first().boundingBox();
+  await page.mouse.move(label.x + 5, label.y + 5); await page.mouse.down(); await page.mouse.move(label.x + 35, label.y + 15); await page.mouse.up();
+  expect(await page.evaluate(() => getSelection().toString())).toBe('');
+  await node.click(); await expect(page.locator('[data-map-selection]')).toBeVisible();
   await node.focus(); await node.press('Enter'); await expect(page.locator('[data-map-selection]')).toBeVisible();
   await expect(page.locator('[data-map-selection]')).toContainText('Read locally');
   const view = await node.evaluate(n => { const m = n.getScreenCTM(); return { x: m.e, y: m.f, k: m.a }; });
@@ -447,6 +487,25 @@ test('ui_polish_shared_visuals_preserve_map_fit_selection_and_keys', async ({ sh
   await page.locator('[data-map]').evaluate(n => { n.style.width = '1px'; n.style.height = '1px'; });
   await map.getByRole('button', { name: 'Whole', exact: true }).click();
   expect(await node.evaluate(n => n.getScreenCTM().a)).toBeCloseTo(.01, 7);
+});
+
+test('ui_polish_inline_reading_controls_preserve_saved_answer_stamp_and_unsent_question', async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [wideFlow]);
+  const row = card(page, 'q1');
+  await shoryo.op({ op: 'choose', question: 'q1', option: 1 }); await shoryo.op({ op: 'stamp', question: 'q1', stamped: true });
+  const draft = row.locator('[data-field=ask]'); await draft.fill('Unsent question');
+  const saved = async () => {
+    const view = await (await page.request.get(`${shoryo.url}api/view`)).json();
+    return view.topic.rounds[0].questions.find(q => q.id === 'q1').answer;
+  };
+  const before = await saved(), surface = inline(scope);
+  await surface.focus(); await surface.press('ArrowDown'); await surface.press('+'); await surface.press('0');
+  await scope.getByRole('button', { name: 'Move diagram', exact: true }).click();
+  await scope.getByRole('button', { name: 'Move left', exact: true }).click();
+  await scope.getByRole('button', { name: 'Enlarge diagram' }).click();
+  const viewer = page.locator('[data-explanation-viewer]'); await viewer.press('ArrowRight'); await viewer.press('0');
+  await page.keyboard.press('Escape');
+  expect(await saved()).toEqual(before); await expect(draft).toHaveValue('Unsent question');
 });
 
 test('ui_polish_shared_finished_picture_keeps_initial_fit_wheel_and_touch_policy', async ({ shoryo, page, context }) => {
