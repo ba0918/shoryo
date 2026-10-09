@@ -222,3 +222,188 @@ fn old_reply_input_is_refused() {
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(std::fs::read(&path).unwrap(), before);
 }
+
+#[test]
+fn every_explanation_limit_refuses_real_cli_and_http_requests_atomically() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    assert!(env.run(&["round", "store"], &round()).status.success());
+    let id = ask(&server, None);
+    assert_eq!(server.submit(), 200);
+    let file = state(&env);
+    let bytes = std::fs::read(&file).unwrap();
+    let content = server.view()["topic"].clone();
+    let message =
+        json!({"type":"message","from":"A","to":"B","kind":"call","label":"Send","gap_after":16});
+    let seq = json!({"type":"sequence","title":"Exchange","role":"example","participants":[{"id":"A","label":"Reader","x":124},{"id":"B","label":"Store","x":344}],"events":[message,{"type":"alt","gap_after":16,"branches":[{"condition":"Yes","messages":[message]},{"condition":"No","messages":[message]}]},{"type":"loop","condition":"Again","gap_after":16,"messages":[message]}],"layout":{"participant_gap":220,"event_gap":72,"self_loop_width":48},"canvas":{"width":64,"height":64}});
+    let path = json!({"type":"flow","title":"Path","role":"proposal","nodes":[{"id":"A","label":"Choose","kind":"decision","position":{"x":100,"y":100},"width":180,"height":96},{"id":"B","label":"Done","kind":"end"}],"edges":[{"from":"A","to":"B","label":{"text":"Yes","position":{"x":300,"y":200}},"via":[{"x":200,"y":100}]}],"canvas":{"width":64,"height":64}});
+    let legacy = |source: String| json!({"type":"diagram","title":"Legacy","role":"example","source":source});
+    let mut cases = vec![
+        (json!(vec![json!({"type":"text","body":""}); 33]), 409),
+        (json!([{"type":"text","body":"x".repeat(16385)}]), 409),
+        (
+            json!([{"type":"code","body":"x".repeat(32769),"language":"x","role":"example"}]),
+            409,
+        ),
+        (json!([legacy(format!("a =\n{}", " ".repeat(32765)))]), 409),
+        (
+            json!([legacy((0..65).map(|i| format!("n{i} =\n")).collect())]),
+            409,
+        ),
+        (
+            json!([legacy(format!("a =\n{}", "a -> a\n".repeat(129)))]),
+            409,
+        ),
+        (
+            json!([legacy(format!("a =\n{}", "| a |\n".repeat(65)))]),
+            409,
+        ),
+        (json!([legacy(format!("a =\n| {}", "a |".repeat(33)))]), 409),
+        (json!([legacy(format!("{} =", "!".repeat(65)))]), 409),
+        (json!([legacy(format!("a = {}", "x".repeat(513)))]), 409),
+        (
+            json!([legacy(format!("a =\na -> a : {}", "x".repeat(513)))]),
+            409,
+        ),
+        (
+            json!([{"type":"code","body":"","language":"x".repeat(65),"role":"example"}]),
+            409,
+        ),
+    ];
+    for (base, ptr, max) in [
+        (&seq, "/title", 120),
+        (&seq, "/participants/0/label", 512),
+        (&seq, "/events/0/label", 512),
+        (&seq, "/events/1/branches/0/condition", 512),
+        (&seq, "/events/2/condition", 512),
+        (&seq, "/events/1/branches/0/messages/0/label", 512),
+        (&seq, "/events/2/messages/0/label", 512),
+        (&path, "/nodes/0/label", 512),
+        (&path, "/edges/0/label/text", 512),
+    ] {
+        for value in ["x".repeat(max + 1), String::new()] {
+            let mut part = base.clone();
+            *part.pointer_mut(ptr).unwrap() = json!(value);
+            cases.push((json!([part]), 409));
+        }
+    }
+    for (base, ptr, min, max) in [
+        (&seq, "/layout/participant_gap", 16, 512),
+        (&seq, "/layout/event_gap", 16, 512),
+        (&seq, "/layout/self_loop_width", 16, 512),
+        (&seq, "/events/0/gap_after", 16, 512),
+        (&seq, "/events/1/gap_after", 16, 512),
+        (&seq, "/events/2/gap_after", 16, 512),
+        (&seq, "/events/1/branches/0/messages/0/gap_after", 16, 512),
+        (&seq, "/events/2/messages/0/gap_after", 16, 512),
+        (&seq, "/participants/1/x", 0, 8192),
+        (&seq, "/canvas/width", 64, 8192),
+        (&seq, "/canvas/height", 64, 8192),
+        (&path, "/nodes/0/position/x", 0, 8192),
+        (&path, "/nodes/0/position/y", 0, 8192),
+        (&path, "/nodes/0/width", 80, 640),
+        (&path, "/nodes/0/height", 32, 640),
+        (&path, "/edges/0/via/0/x", 0, 8192),
+        (&path, "/edges/0/via/0/y", 0, 8192),
+        (&path, "/edges/0/label/position/x", 0, 8192),
+        (&path, "/edges/0/label/position/y", 0, 8192),
+        (&path, "/canvas/width", 64, 8192),
+        (&path, "/canvas/height", 64, 8192),
+    ] {
+        for (value, status) in [(json!(max + 1), 409), (json!(-1), 422), (json!(0.5), 422)] {
+            let mut part = base.clone();
+            *part.pointer_mut(ptr).unwrap() = value;
+            cases.push((json!([part]), status));
+        }
+        if min > 0 {
+            let mut part = base.clone();
+            *part.pointer_mut(ptr).unwrap() = json!(min - 1);
+            cases.push((json!([part]), 409));
+        }
+    }
+    for (base, ptr, value) in [
+        (
+            &seq,
+            "/participants",
+            json!(
+                (0..13)
+                    .map(|i| json!({"id":format!("N{i}"),"label":"N"}))
+                    .collect::<Vec<_>>()
+            ),
+        ),
+        (&seq, "/events", json!([])),
+        (
+            &seq,
+            "/events",
+            json!([{"type":"loop","condition":"Again","messages":vec![message.clone();97]}]),
+        ),
+        (
+            &seq,
+            "/events",
+            json!(vec![
+                json!({"type":"loop","condition":"Again","messages":[message]});
+                13
+            ]),
+        ),
+        (
+            &seq,
+            "/events/1/branches",
+            json!(vec![json!({"condition":"Yes","messages":[message]}); 9]),
+        ),
+        (
+            &seq,
+            "/events/1/branches",
+            json!([{ "condition":"Only","messages":[message]}]),
+        ),
+        (&seq, "/events/2/messages", json!([])),
+        (
+            &path,
+            "/nodes",
+            json!(
+                (0..33)
+                    .map(|i| json!({"id":format!("N{i}"),"label":"N","kind":"process"}))
+                    .collect::<Vec<_>>()
+            ),
+        ),
+        (&path, "/nodes", json!([])),
+        (&path, "/edges", json!(vec![path["edges"][0].clone(); 65])),
+        (&path, "/edges/0/via", json!(vec![json!({"x":0,"y":0}); 13])),
+    ] {
+        let mut part = base.clone();
+        *part.pointer_mut(ptr).unwrap() = value;
+        cases.push((json!([part]), 409));
+    }
+    let mut budget = vec![json!({"type":"text","body":"a".repeat(16384)}); 32];
+    budget[31]["body"] = json!("a".repeat(16257));
+    cases.push((json!(budget), 409));
+    for (index, (parts, status)) in cases.into_iter().enumerate() {
+        let reply = json!({"ask":id,"parts":parts});
+        assert_eq!(post(&server, "reply", reply), status, "reply case {index}");
+        let out = env.run(
+            &["reply", "store", &id.to_string()],
+            &json!({"parts":parts}).to_string(),
+        );
+        assert_eq!(out.status.code(), Some(1), "CLI reply case {index}");
+        let mut next: Value = serde_json::from_str(&first_round()).unwrap();
+        next["questions"][0]["id"] = json!("next");
+        next["questions"][0]["background"] = parts;
+        assert_eq!(
+            post(&server, "round", next.clone()),
+            status,
+            "round case {index}"
+        );
+        assert_eq!(
+            env.run(&["round", "store"], &next.to_string())
+                .status
+                .code(),
+            Some(1),
+            "CLI round case {index}"
+        );
+        assert_eq!(
+            std::fs::read(&file).unwrap(),
+            bytes,
+            "saved bytes case {index}"
+        );
+        assert_eq!(server.view()["topic"], content, "topic case {index}");
+    }
+}

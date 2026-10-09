@@ -542,3 +542,268 @@ fn empty_events_frames_and_invalid_references_are_refused() {
     p["edges"][0]["via"] = json!([{"x":8193,"y":0}]);
     refused(json!([p]));
 }
+
+#[test]
+fn remaining_leaf_bounds_are_shared_by_rounds_and_replies() {
+    let message = sequence()["events"][0].clone();
+    let mut seq = sequence();
+    seq["canvas"] = json!({"width":64,"height":64});
+    seq["events"] = json!([
+        {"type":"alt","gap_after":16,"branches":[{"condition":"Yes","messages":[message]},{"condition":"No","messages":[message]}]},
+        {"type":"loop","condition":"Again","gap_after":16,"messages":[message]}]);
+    seq["events"][0]["branches"][0]["messages"][0]["gap_after"] = json!(16);
+    seq["events"][1]["messages"][0]["gap_after"] = json!(16);
+    let mut path = flow();
+    path["edges"][0]["via"] = json!([{"x":0,"y":0}]);
+    let mut cases = Vec::new();
+    for ptr in ["/canvas/width", "/canvas/height"] {
+        cases.push((seq.clone(), ptr, 64, 8192));
+    }
+    for ptr in [
+        "/events/0/gap_after",
+        "/events/1/gap_after",
+        "/events/0/branches/0/messages/0/gap_after",
+        "/events/1/messages/0/gap_after",
+    ] {
+        cases.push((seq.clone(), ptr, 16, 512));
+    }
+    for ptr in ["/edges/0/via/0/x", "/edges/0/via/0/y"] {
+        cases.push((path.clone(), ptr, 0, 8192));
+    }
+    let reply_checked = |parts: Value, valid: bool| {
+        let mut topic = accept(json!([]));
+        topic
+            .apply(
+                Operation::Ask {
+                    question: QuestionId::new("q1"),
+                    text: "Why?".into(),
+                    follows: None,
+                },
+                super::common::any_time(),
+            )
+            .unwrap();
+        let before = topic.clone();
+        let reply = serde_json::from_value::<Reply>(json!({"parts":parts}));
+        let accepted = reply.is_ok_and(|reply| topic.reply(AskId(1), reply).is_ok());
+        assert_eq!(accepted, valid);
+        if !valid {
+            assert_eq!(topic, before);
+        }
+    };
+    for (base, ptr, min, max) in cases {
+        for number in [
+            json!(min),
+            json!(max),
+            json!(max + 1),
+            json!(-1),
+            json!(0.5),
+            json!(min - 1),
+        ] {
+            let valid = number.as_i64().is_some_and(|n| n >= min && n <= max);
+            let mut p = base.clone();
+            *p.pointer_mut(ptr).unwrap() = number;
+            if valid {
+                accept(json!([p]));
+            } else {
+                refused(json!([p]));
+            }
+            reply_checked(json!([p]), valid);
+        }
+    }
+    for (base, ptr) in [
+        (seq.clone(), "/events/0/branches/0/condition"),
+        (seq.clone(), "/events/1/condition"),
+        (seq.clone(), "/events/0/branches/0/messages/0/label"),
+        (seq.clone(), "/events/1/messages/0/label"),
+        (path.clone(), "/title"),
+    ] {
+        let max = if ptr == "/title" { 120 } else { 512 };
+        for (label, valid) in [
+            ("界".into(), true),
+            ("界".repeat(max), true),
+            ("界".repeat(max + 1), false),
+            (String::new(), false),
+            (" \n".into(), false),
+        ] {
+            let mut p = base.clone();
+            *p.pointer_mut(ptr).unwrap() = json!(label);
+            if valid {
+                accept(json!([p]));
+            } else {
+                refused(json!([p]));
+            }
+            reply_checked(json!([p]), valid);
+        }
+    }
+    for count in [1, 96, 0, 97] {
+        let mut p = seq.clone();
+        p["events"] =
+            json!([{"type":"loop","condition":"Again","messages":vec![message.clone();count]}]);
+        let valid = (1..=96).contains(&count);
+        if valid {
+            accept(json!([p]));
+        } else {
+            refused(json!([p]));
+        }
+        reply_checked(json!([p]), valid);
+    }
+    for (ptr, max) in [("/nodes/0/id", 64), ("/nodes/1/id", 64)] {
+        for n in [1, max, max + 1] {
+            let mut p = path.clone();
+            let id = "X".repeat(n);
+            *p.pointer_mut(ptr).unwrap() = json!(id);
+            if ptr == "/nodes/0/id" {
+                p["edges"][0]["from"] = json!(id);
+            } else {
+                p["edges"][0]["to"] = json!(id);
+            }
+            if n <= max {
+                accept(json!([p]));
+            } else {
+                refused(json!([p]));
+            }
+            reply_checked(json!([p]), n <= max);
+        }
+    }
+}
+
+#[test]
+fn reply_and_historical_submission_budgets_are_not_cumulative() {
+    let mut topic = Topic::new("", "");
+    let mut parts = vec![json!({"type":"text","body":"a".repeat(16384)}); 32];
+    parts[31]["body"] = json!("a".repeat(16256));
+    for round in 0_u32..2 {
+        let mut value = input(json!(parts));
+        let id = format!("q{round}");
+        value["questions"][0]["id"] = json!(id);
+        topic
+            .apply_round(RoundInput::from_json(&value.to_string()).unwrap())
+            .unwrap();
+        topic
+            .apply(
+                Operation::Ask {
+                    question: QuestionId::new(&id),
+                    text: "Why?".into(),
+                    follows: None,
+                },
+                super::common::any_time(),
+            )
+            .unwrap();
+        let before = topic.clone();
+        let mut too_big = parts.clone();
+        too_big[31]["body"] = json!("a".repeat(16257));
+        assert!(
+            topic
+                .reply(
+                    AskId(u64::from(round + 1)),
+                    serde_json::from_value(json!({"parts":too_big})).unwrap()
+                )
+                .is_err()
+        );
+        assert_eq!(topic, before);
+        topic
+            .reply(
+                AskId(u64::from(round + 1)),
+                serde_json::from_value(json!({"parts":parts})).unwrap(),
+            )
+            .unwrap();
+        topic
+            .apply(
+                Operation::Stamp {
+                    question: QuestionId::new(&id),
+                    stamped: true,
+                },
+                super::common::any_time(),
+            )
+            .unwrap();
+        topic
+            .apply(
+                Operation::Submit { round: round + 1 },
+                super::common::any_time(),
+            )
+            .unwrap();
+    }
+    assert_eq!(Topic::from_json(&topic.to_json()).unwrap(), topic);
+    let mut stored: Value = serde_json::from_str(&topic.to_json()).unwrap();
+    stored["rounds"][0]["asks"][0]["state"]["parts"][0]["body"] = json!("x".repeat(16385));
+    assert!(Topic::from_json(&stored.to_string()).is_err());
+}
+
+#[test]
+fn required_nested_fields_and_optional_nulls_are_not_silently_defaulted() {
+    let message = sequence()["events"][0].clone();
+    let mut seq = sequence();
+    seq["events"] = json!([{ "type":"alt", "branches":[{"condition":"Yes","messages":[message]},{"condition":"No","messages":[message]}] },{"type":"loop","condition":"Again","messages":[message]}]);
+    let code = json!({"type":"code","body":"","language":"rust","role":"example"});
+    let legacy = json!({"type":"diagram","title":"Legacy","role":"example","source":"a ="});
+    let text = json!({"type":"text","body":""});
+    for (base, ptr, fields) in [
+        (text, "", vec!["type", "body"]),
+        (code, "", vec!["type", "body", "language", "role"]),
+        (legacy, "", vec!["type", "title", "role", "source"]),
+        (
+            sequence(),
+            "",
+            vec!["type", "title", "role", "participants", "events"],
+        ),
+        (sequence(), "/participants/0", vec!["id", "label"]),
+        (
+            sequence(),
+            "/events/0",
+            vec!["type", "from", "to", "label", "kind"],
+        ),
+        (seq.clone(), "/events/0", vec!["type", "branches"]),
+        (
+            seq.clone(),
+            "/events/0/branches/0",
+            vec!["condition", "messages"],
+        ),
+        (
+            seq.clone(),
+            "/events/1",
+            vec!["type", "condition", "messages"],
+        ),
+        (
+            seq.clone(),
+            "/events/1/messages/0",
+            vec!["type", "from", "to", "label", "kind"],
+        ),
+        (flow(), "", vec!["type", "title", "role", "nodes", "edges"]),
+        (flow(), "/nodes/0", vec!["id", "kind", "label"]),
+        (flow(), "/edges/0", vec!["from", "to"]),
+        (flow(), "/edges/0/label", vec!["text"]),
+    ] {
+        accept(json!([base]));
+        let mut unknown = base.clone();
+        unknown
+            .pointer_mut(ptr)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("unknown".into(), json!(true));
+        refused(json!([unknown]));
+        for field in fields {
+            let mut p = base.clone();
+            p.pointer_mut(ptr)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(
+                RoundInput::from_json(&input(json!([p])).to_string()).is_err(),
+                "missing {ptr}/{field}"
+            );
+        }
+    }
+    for ptr in ["/participants/0/x", "/events/0/gap_after"] {
+        let mut p = sequence();
+        let fields: Vec<_> = ptr.trim_start_matches('/').split('/').collect();
+        p[fields[0]][0][fields[2]] = Value::Null;
+        refused(json!([p]));
+    }
+    for path in ["/events/0/branches/0/messages", "/events/1/messages"] {
+        let mut p = seq.clone();
+        *p.pointer_mut(path).unwrap() = json!([]);
+        refused(json!([p]));
+    }
+}
