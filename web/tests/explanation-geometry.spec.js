@@ -329,3 +329,23 @@ test("focused_enlargement_control_survives_async_remeasurement", async ({ shoryo
   await expect(card(page, "q1").locator("[data-ask]")).toHaveCount(1);
   await expect(opener).toBeFocused();
 });
+
+test("viewer_mouse_movement_and_outside_wheel_keep_their_own_boundaries", async ({ shoryo, page }) => {
+  const scope = await show(shoryo, page, [flow()]);
+  await scope.getByRole("button", { name: "Enlarge diagram" }).click();
+  const surface = page.locator("[data-explanation-viewer]");
+  await expect(surface.locator("svg")).toBeVisible();
+  const bounds = await surface.boundingBox();
+  await page.mouse.move(bounds.x + 80, bounds.y + 80);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 120, bounds.y + 100);
+  await page.mouse.up();
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 44)");
+  const outside = page.getByRole("dialog").locator("h2");
+  expect(await outside.evaluate(n => {
+    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -100 });
+    n.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(false);
+  await expect(surface.locator("svg")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 64, 44)");
+});
