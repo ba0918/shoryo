@@ -4,6 +4,7 @@ import { h } from "../dom.js";
 import { drawDiagram } from "../diagram.js";
 import { PanZoom, wheelHintKey } from "../pan-zoom.js";
 import { translator } from "../strings.js";
+import { zoomControls } from './diagram-controls.js';
 
 const SVG = "http://www.w3.org/2000/svg";
 /// "Fit" never draws the picture larger than its own size.
@@ -26,8 +27,10 @@ export function diagramView(text, lang, mode = "page") {
   // Until the person zooms or moves it, the picture keeps fitting the view as it is resized.
   let touched = false;
   let fitting = false;
+  let controls;
   const zoom = new PanZoom(wrap, { x: 0, y: 0, k: 1 }, (view, commit) => {
     moved.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.k})`);
+    controls?.setScale(view.k);
     if (commit && !fitting) touched = true;
   }, { mode, hint: t(wheelHintKey()) });
   const fit = () => {
@@ -38,16 +41,12 @@ export function diagramView(text, lang, mode = "page") {
   new ResizeObserver(() => {
     if (!touched && wrap.clientWidth > 0) fit();
   }).observe(wrap);
+  controls = zoomControls({ lang, scale: zoom.view.k, out: () => zoom.zoomBy(1 / 1.25), whole: fit, into: () => zoom.zoomBy(1.25), prefix: 'diagram' });
+  controls.el.classList.add('diagram-zoom');
   return h(
     "div",
     { class: "diagram-viewer" },
-    h(
-      "div",
-      { class: "seg-group diagram-zoom", role: "group", "aria-label": t("map.zoom") },
-      h("button", { type: "button", class: "seg", "data-action": "diagram-zoom-out", "aria-label": t("map.zoom-out"), onclick: () => zoom.zoomBy(1 / 1.25) }, "−"),
-      h("button", { type: "button", class: "seg", "data-action": "diagram-fit", onclick: fit }, t("map.fit")),
-      h("button", { type: "button", class: "seg", "data-action": "diagram-zoom-in", "aria-label": t("map.zoom-in"), onclick: () => zoom.zoomBy(1.25) }, "+"),
-    ),
+    controls.el,
     wrap,
   );
 }

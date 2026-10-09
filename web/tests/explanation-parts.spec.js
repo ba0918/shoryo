@@ -173,7 +173,7 @@ test("legacy_first_parts_remain_folded_until_details_are_opened", async ({ shory
   await expect(scope.locator(".context")).toHaveCount(0);
   await action(scope, "open").click();
   expect(await scope.locator(".context [data-part]").evaluateAll(items => items.map(item => item.dataset.part))).toEqual(["diagram", "text", "code", "text"]);
-  await expect(scope.locator(".context svg")).toHaveCount(1);
+  await expect(scope.locator('.context [data-part="diagram"] svg')).toHaveCount(1);
   await expect(scope.locator(".context").getByText("An existing diagram")).toBeVisible();
   await expect(scope.locator(".context").getByRole("button", { name: /Enlarge/ })).toHaveCount(0);
 });

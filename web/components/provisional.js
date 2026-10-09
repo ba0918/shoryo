@@ -16,6 +16,7 @@ import {
 } from "./question-parts.js";
 import { thread } from "./thread.js";
 import { CodeParts } from "./code-part.js";
+import { DiagramParts } from "./explanation-viewport.js";
 
 export class ProvisionalRow extends Component {
   /// `past` draws a question of a past round: read only.
@@ -26,6 +27,7 @@ export class ProvisionalRow extends Component {
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
     this.codeParts = new CodeParts();
+    this.diagramParts = new DiagramParts(emit);
   }
 
   /// Whether a stamp that can no longer be pressed shows its time, and the tap that toggles it.
@@ -44,7 +46,7 @@ export class ProvisionalRow extends Component {
       this.thread = { ...this.thread, ...change };
       this.redraw();
     };
-    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit, this.codeParts);
+    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit, this.codeParts, this.diagramParts);
   }
 
   revealReply() {
@@ -56,6 +58,7 @@ export class ProvisionalRow extends Component {
   draw(question) {
     const t = translator(question.lang);
     this.codeParts.begin();
+    this.diagramParts.begin();
     const element = h(
       "div",
       {
@@ -90,8 +93,8 @@ export class ProvisionalRow extends Component {
               deferSwitch(question, this.emit),
             ),
             chainLine(question, this.emit),
-            details(question, this.emit, this.codeParts),
-            optionList(question, this.emit, true, this.codeParts),
+            details(question, this.emit, this.codeParts, this.diagramParts),
+            optionList(question, this.emit, true, this.codeParts, this.diagramParts),
             consequence(question),
             noteField(question, this.emit),
             this.threadFor(question),
@@ -131,6 +134,7 @@ export class ProvisionalRow extends Component {
       ),
     );
     this.codeParts.end();
+    this.diagramParts.end();
     return element;
   }
 }

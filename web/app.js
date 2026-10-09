@@ -10,7 +10,6 @@ import { Header, Tabs } from "./components/header.js";
 import { DecisionsTab } from "./components/decisions.js";
 import { DEFAULT_VIEW, MapTab } from "./components/map.js";
 import { diagramView } from "./components/diagram-view.js";
-import { explanationViewer } from "./components/explanation-viewer.js";
 import { PastRounds } from "./components/past-rounds.js";
 import { Toasts } from "./components/toasts.js";
 import { WaitFooter } from "./components/wait-footer.js";
@@ -79,7 +78,7 @@ const decisions = new DecisionsTab(emit);
 const ended = h("p", { class: "ended", "data-ended": true, hidden: true });
 const map = new MapTab(emit);
 const dialogs = new DialogLayer(emit, {
-  explanation: data => ({ label: data.part.title, attrs: { "data-explanation-dialog": data.identity }, body: explanationViewer(data) }),
+  explanation: data => ({ label: data.part.title, attrs: { "data-explanation-dialog": data.identity }, body: null }),
   "confirm-send": confirmSend,
   "finished-picture": ({ picture, lang }) => {
     const t = translator(lang);

@@ -879,6 +879,20 @@ textarea:disabled {
 .part-metadata, .code-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .explanation-code { font-size: 0.875rem; white-space: pre; overflow: auto; max-height: min(20rem, 50vh); margin: 0.5rem 0; user-select: text; }
 .explanation-code code { font-size: inherit; }
+.explanation-block { border: 1px solid var(--line); border-radius: 8px; margin-block: 12px; min-width: 0; background: var(--sheet); }
+.explanation-block-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; background: var(--sheet-sunk); border-radius: 8px 8px 0 0; border-bottom: 1px solid var(--line); }
+.explanation-block-header .part-metadata { flex: 1; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.explanation-block-header strong { color: var(--ink); }
+.operation-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-small); color: var(--muted); background: var(--sheet-sunk); cursor: pointer; }
+.operation-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.code-block .explanation-code { padding: 12px 16px; margin: 0; background: var(--sheet-sunk); color: var(--ink); border-radius: 0 0 8px 8px; }
+.code-feedback:not(:empty) { display: block; padding: 8px 12px; }
+.explanation-inline-surface { position: relative; overflow: hidden; width: 100%; min-width: 0; touch-action: none; user-select: none; }
+.explanation-inline-surface .explanation-diagram-region { overflow: visible; max-height: none; }
+.explanation-inline-surface svg { transform-origin: 0 0; }
+.explanation-inline-surface:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.explanation-inline-surface.failed { touch-action: auto; user-select: text; }
+.explanation-hint { color: var(--muted); font-size: .875rem; margin: 0; padding: 8px 12px; }
 .explanation-diagram-region { overflow: auto; max-height: min(22.5rem, 50vh); min-width: 0; }
 .explanation-diagram { display: block; max-width: none; flex: none; font-size: 0.875rem; line-height: 1.125rem; }
 .explanation-diagram text { fill: var(--ink); stroke: none; white-space: pre; }
@@ -888,9 +902,25 @@ textarea:disabled {
 .explanation-diagram .explanation-lifeline { stroke-dasharray: 4 4; }
 .explanation-failure { white-space: pre; overflow: auto; max-height: min(20rem, 50vh); }
 .explanation-viewer-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-.explanation-viewer-surface { position: relative; overflow: hidden; height: 65vh; width: 100%; touch-action: none; }
-.explanation-viewer-surface > svg { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.dialog:has([data-explanation-viewer]) { width: min(90vw, 76rem); }
+.explanation-viewer-surface { position: relative; overflow: hidden; flex: 1; min-height: 0; min-width: 0; width: 100%; touch-action: none; user-select: none; }
+.explanation-viewer-surface .explanation-diagram-region { overflow: visible; max-height: none; }
+.explanation-viewer-surface svg { transform-origin: 0 0; }
+.explanation-viewer-surface.failed { user-select: text; overflow: auto; }
+.explanation-viewer { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.explanation-viewer .explanation-block-header { padding-right: 48px; }
+.dialog:has([data-explanation-viewer]) { position: relative; width: min(92vw, 76rem); height: calc(100vh - 2rem); height: calc(100dvh - 2rem); max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); display: flex; flex-direction: column; overflow: visible; }
+.dialog:has([data-explanation-viewer]) .dialog-body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: visible; }
+.dialog:has([data-explanation-viewer]) .close { position: absolute; top: 12px; right: 12px; }
+.diagram-zoom-group { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--sheet-sunk); }
+.diagram-percentage { min-width: 4.5em; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
+.map-wrap, .diagram-view { user-select: none; }
+.diagram-move-controls { position: relative; }
+.diagram-move-popover { position: absolute; top: calc(100% + 8px); left: 0; z-index: 2; display: flex; flex-direction: column; padding: 8px; background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); min-width: max-content; }
+.diagram-move-popover[hidden] { display: none; }
+.explanation-viewer-controls { align-items: center; padding: 8px 12px; margin: 0; }
+@media (max-width: 480px), (max-height: 480px) {
+  .dialog:has([data-explanation-viewer]) { width: calc(100vw - 16px); height: calc(100vh - 16px); height: calc(100dvh - 16px); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
+}
 .option-description .explanation { margin-top: 0.5rem; }
 
 .option:hover {

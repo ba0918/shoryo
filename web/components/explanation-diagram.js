@@ -31,7 +31,7 @@ export function explanationDiagram(part, lang, options = {}) {
   }
   async function render() {
     await document.fonts.ready;
-    if (!host.isConnected) return;
+    if (!host.isConnected || options.signal?.aborted) return;
     host.replaceChildren(svg);
     svg.replaceChildren();
     try {
@@ -45,10 +45,12 @@ export function explanationDiagram(part, lang, options = {}) {
         options.emit({ type: "explanation-ready", identity: options.identity });
       }
       options.onSvg?.(svg);
+      options.onReady?.(svg);
     } catch (error) {
       signature = conditions();
       if (enlarge) enlarge.hidden = true;
       host.replaceChildren(h("p", { role: "status", "data-layout-failure": true }, error.message), h("pre", { class: "explanation-failure" }, JSON.stringify(part, null, 2)));
+      options.onFailure?.();
     }
   }
   function check() {
@@ -62,8 +64,11 @@ export function explanationDiagram(part, lang, options = {}) {
   }
   const observer = new MutationObserver(check);
   const resize = new ResizeObserver(check);
+  options.signal?.addEventListener("abort", () => {
+    observer.disconnect(); resize.disconnect(); document.fonts.removeEventListener("loadingdone", schedule);
+  }, { once: true });
   requestAnimationFrame(() => {
-    if (!host.isConnected) return;
+    if (!host.isConnected || options.signal?.aborted) return;
     observer.observe(document.documentElement, { attributes: true });
     observer.observe(document.head, { childList: true, subtree: true, characterData: true, attributes: true });
     resize.observe(host);
