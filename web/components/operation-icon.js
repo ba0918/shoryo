@@ -1,6 +1,7 @@
 const paths = {
   copy: 'M9 9H20V20H9Z M15 9V4H4V15H9',
   success: 'M5 12L10 17L19 7',
+  enlarge: 'M14 4H20V10 M20 4L13 11 M10 20H4V14 M4 20L11 13',
 };
 
 export function operationIcon(name) {

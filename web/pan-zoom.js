@@ -64,15 +64,18 @@ export class PanZoom {
 
   listen() {
     const wrap = this.wrap;
+    const lifetime = new AbortController();
+    const listen = (name, handler, options = {}) => wrap.addEventListener(name, handler, { ...options, signal: lifetime.signal });
     const pointers = new Map();
     let gesture = null;
     const local = (event) => {
       const box = wrap.getBoundingClientRect();
       return { x: event.clientX - box.left, y: event.clientY - box.top };
     };
-    wrap.addEventListener(
+    listen(
       "wheel",
       (event) => {
+        if (this.mode === "inline" && wrap.classList.contains("failed")) return;
         if (!event.ctrlKey && !event.metaKey) {
           let hint = wrap.querySelector("[data-wheel-hint]");
           if (!hint) {
@@ -93,16 +96,24 @@ export class PanZoom {
       },
       { passive: false },
     );
-    wrap.addEventListener("pointerdown", (event) => {
+    listen("pointerdown", (event) => {
       if (event.button !== 0) return;
-      pointers.set(event.pointerId, local(event));
+      if (this.mode === "inline" && wrap.classList.contains("failed")) return;
+      pointers.set(event.pointerId, this.mode === "inline" && event.pointerType === "touch" ? { x: event.clientX, y: event.clientY } : local(event));
+      if (this.mode === "inline" && event.pointerType === "touch") wrap.setPointerCapture(event.pointerId);
       this.dragged = false;
       gesture = { view: { ...this.view }, start: [...pointers.values()].map((p) => ({ ...p })) };
     });
-    wrap.addEventListener("pointermove", (event) => {
+    listen("pointermove", (event) => {
       if (!pointers.has(event.pointerId) || !gesture) return;
-      pointers.set(event.pointerId, local(event));
+      const inlineTouch = this.mode === "inline" && event.pointerType === "touch";
+      pointers.set(event.pointerId, inlineTouch ? { x: event.clientX, y: event.clientY } : local(event));
       const now = [...pointers.values()];
+      if (inlineTouch && now.length === 1) {
+        document.scrollingElement.scrollBy(0, gesture.start[0].y - now[0].y);
+        gesture = { view: { ...this.view }, start: now.map(p => ({ ...p })) };
+        return;
+      }
       if (now.length === 1 && gesture.start.length === 1) {
         if (this.mode === "page" && event.pointerType === "touch") return;
         const dx = now[0].x - gesture.start[0].x;
@@ -121,6 +132,10 @@ export class PanZoom {
         const k = clamp(gesture.view.k * factor, Math.min(MIN_ZOOM, gesture.view.k), MAX_ZOOM);
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const to = { x: (c.x + d.x) / 2, y: (c.y + d.y) / 2 };
+        if (inlineTouch) {
+          const box = wrap.getBoundingClientRect();
+          mid.x -= box.left; mid.y -= box.top; to.x -= box.left; to.y -= box.top;
+        }
         const ratio = k / gesture.view.k;
         this.panning = true;
         this.dragged = true;
@@ -141,8 +156,18 @@ export class PanZoom {
         setTimeout(() => (this.dragged = false), 0);
       }
     };
-    wrap.addEventListener("pointerup", end);
-    wrap.addEventListener("pointercancel", end);
+    const cancel = () => {
+      const ids = [...pointers.keys()];
+      pointers.clear(); gesture = null;
+      if (this.panning) { this.panning = false; this.set(this.view, "now"); }
+      this.dragged = false;
+      for (const id of ids) if (wrap.hasPointerCapture(id)) wrap.releasePointerCapture(id);
+    };
+    this.cancelGesture = cancel;
+    this.destroy = () => { cancel(); lifetime.abort(); clearTimeout(this.hintTimer); };
+    listen("pointerup", end);
+    listen("pointercancel", this.mode === "inline" ? cancel : end);
+    if (this.mode === "inline") listen("lostpointercapture", event => { if (pointers.has(event.pointerId)) cancel(); });
   }
 }
 

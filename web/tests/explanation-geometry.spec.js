@@ -23,19 +23,19 @@ const box = locator => locator.evaluate(element => {
 
 test("hidden_tab_reply_redraw_recovers_visible_diagram", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "A" }], edges: [] })]);
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await page.getByRole("tab", { name: "Map", exact: true }).click();
   await shoryo.op({ op: "ask", question: "q1", text: "Update" });
   await shoryo.reply(1, { parts: [{ type: "text", body: "Arrived" }] });
   await expect(card(page, "q1").getByText("Arrived", { exact: true })).toHaveCount(1);
   await page.getByRole("tab", { name: "Current round", exact: true }).click();
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
 });
 
 test("sequence_order_and_explicit_spacing_are_preserved", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [sequence({ participants: [{ id: "a", label: "First", x: 150 }, { id: "b", label: "Second", x: 450 }], events: [message("a", "b", "One", { gap_after: 100 }), message("b", "a", "Two")], layout: { event_gap: 80 } })]);
-  const svg = scope.locator("svg");
+  const svg = scope.locator('svg[role="img"]');
   await expect(svg).toBeVisible();
   expect(await svg.locator("[data-header]").evaluateAll(nodes => nodes.map(n => Number(n.getAttribute("x"))))).toEqual([70, 370]);
   const paths = await svg.locator("[data-message]").evaluateAll(nodes => nodes.map(n => n.getAttribute("d")));
@@ -45,7 +45,7 @@ test("sequence_order_and_explicit_spacing_are_preserved", async ({ shoryo, page 
 
 test("sequence_returns_self_calls_and_frames_are_distinct", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [sequence({ events: [message("a", "b"), message("b", "a", "Returned", { kind: "return" }), { type: "alt", branches: [{ condition: "A long condition repeated to wrap without losing its words or its trailing spaces   ".repeat(3), messages: [message("a", "a", "Self")] }, { condition: "Otherwise", messages: [message("a", "b", "Other")] }] }, { type: "loop", condition: "Again", messages: [message("b", "a", "Loop")] }] })]);
-  const svg = scope.locator("svg");
+  const svg = scope.locator('svg[role="img"]');
   await expect(svg).toBeVisible();
   await expect(svg.locator('[data-message][stroke-dasharray="6 4"]')).toHaveCount(1);
   const self = await svg.locator("[data-message]").nth(2).getAttribute("d");
@@ -60,7 +60,7 @@ test("sequence_returns_self_calls_and_frames_are_distinct", async ({ shoryo, pag
 
 test("sequence_defaults_are_stable_across_viewport_widths", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [sequence()]);
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   const before = await scope.locator("[data-message]").getAttribute("d");
   await page.setViewportSize({ width: 400, height: 700 });
   await expect(scope.locator("[data-message]")).toHaveAttribute("d", before);
@@ -70,7 +70,7 @@ test("sequence_defaults_are_stable_across_viewport_widths", async ({ shoryo, pag
 test("sequence_labels_wrap_without_loss", async ({ shoryo, page }) => {
   const label = "日本語ABC".repeat(20) + "  \n\nLast  ";
   const scope = await show(shoryo, page, [sequence({ events: [message("a", "b", label)] })]);
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   const text = scope.locator("[data-message-label]");
   expect(await text.evaluate(n => [...n.children].map(c => c.textContent).join(""))).toBe(label.replaceAll("\n", ""));
   expect(await text.locator("tspan").count()).toBeGreaterThan(4);
@@ -123,12 +123,12 @@ test("independent_boxes_and_labels_fail_on_overlap", async ({ shoryo, page }) =>
   const scope = await show(shoryo, page, [crowded, labels, flow()]);
   await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/a.*b|b.*a/);
   await expect(scope.locator("[data-part=flow]").nth(1).locator("[data-layout-failure]")).toContainText(/label/i);
-  await expect(scope.locator("[data-part=flow]").nth(2).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(2).locator('svg[role="img"]')).toBeVisible();
 });
 
 test("owned_labels_ports_self_calls_and_frame_enclosure_are_legal", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [sequence({ events: [{ type: "loop", condition: "A readable condition that needs several lines but keeps its words ".repeat(3), messages: [message("a", "a", "Self")] }] }), flow({ nodes: [{ id: "a", kind: "start", label: "Same" }, { id: "b", kind: "end", label: "Same" }], edges: [{ from: "a", to: "b" }] }), flow({ edges: [{ from: "a", to: "b", label: { text: "First\nSecond" } }] })]);
-  await expect(scope.locator("svg")).toHaveCount(3);
+  await expect(scope.locator('svg[role="img"]')).toHaveCount(3);
   await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
 });
 
@@ -138,7 +138,7 @@ test("arrows_entering_unrelated_shapes_fail_but_crossings_are_legal", async ({ s
   const clear = flow({ nodes, edges: [{ from: "a", to: "b", from_port: "south", to_port: "south", via: [{ x: 150, y: 350 }, { x: 650, y: 350 }] }, { from: "a", to: "b", from_port: "south", to_port: "south", via: [{ x: 200, y: 400 }, { x: 600, y: 250 }] }] });
   const scope = await show(shoryo, page, [through, clear]);
   await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/arrow.*c/i);
-  await expect(scope.locator("[data-part=flow]").nth(1).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(1).locator('svg[role="img"]')).toBeVisible();
 });
 
 test("diamond_and_capsule_containment_use_actual_shapes", async ({ shoryo, page }) => {
@@ -146,8 +146,8 @@ test("diamond_and_capsule_containment_use_actual_shapes", async ({ shoryo, page 
   const smallTerminal = flow({ nodes: [{ id: "a", kind: "start", label: "MMMMMMMMMMMM", width: 80, height: 80 }], edges: [] });
   const scope = await show(shoryo, page, [smallDiamond, smallTerminal, flow({ nodes: [{ id: "a", kind: "decision", label: "Wide text", width: 220 }], edges: [] }), flow({ nodes: [{ id: "a", kind: "start", label: "MMMMMMMMMMMM", width: 80, height: 96 }], edges: [] })]);
   for (const i of [0, 1]) await expect(scope.locator("[data-part=flow]").nth(i).locator("[data-layout-failure]")).toContainText(/contain|outside/i);
-  await expect(scope.locator("[data-part=flow]").nth(2).locator("svg")).toBeVisible();
-  await expect(scope.locator("[data-part=flow]").nth(3).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(2).locator('svg[role="img"]')).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(3).locator('svg[role="img"]')).toBeVisible();
   const insideBoundingBoxes = await page.evaluate(async parts => {
     const { svgElement, textMetrics, drawing } = await import("./explanation-svg.js");
     const { flowDrawing } = await import("./explanation-flow.js");
@@ -174,7 +174,7 @@ test("canvas_and_text_clipping_fail_only_the_affected_part", async ({ shoryo, pa
   const overflow = sequence({ participants: [{ id: "a", label: "A", x: 8192 }], events: [message("a", "a")] });
   const scope = await show(shoryo, page, [{ type: "text", body: "Still readable" }, clipped, negative, overflow, flow()]);
   await expect(scope.locator("[data-layout-failure]")).toHaveCount(3);
-  await expect(scope.locator("svg")).toHaveCount(1);
+  await expect(scope.locator('svg[role="img"]')).toHaveCount(1);
   await expect(scope.getByText("Still readable")).toBeVisible();
   expect(JSON.parse(await scope.locator(".explanation-failure").nth(1).textContent())).toEqual(negative);
   expect(await page.evaluate(() => window.executed)).toBeUndefined();
@@ -184,31 +184,31 @@ test("sequence_frame_stroke_must_fit_fixed_canvas", async ({ shoryo, page }) => 
   const framed = sequence({ events: [{ type: "loop", condition: "Again", messages: [message("b", "b", "Self")] }], layout: { self_loop_width: 100 } });
   const scope = await show(shoryo, page, [{ ...framed, canvas: { width: 460, height: 1000 } }, { ...framed, canvas: { width: 461, height: 1000 } }]);
   await expect(scope.locator("[data-part=sequence]").nth(0).locator("[data-layout-failure]")).toContainText(/frame.*canvas/i);
-  await expect(scope.locator("[data-part=sequence]").nth(0).locator("svg")).toHaveCount(0);
-  await expect(scope.locator("[data-part=sequence]").nth(1).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=sequence]").nth(0).locator('svg[role="img"]')).toHaveCount(0);
+  await expect(scope.locator("[data-part=sequence]").nth(1).locator('svg[role="img"]')).toBeVisible();
   const frame = await box(scope.locator("[data-frame]"));
   expect(frame.x + frame.width).toBe(460);
 });
 
 test("font_and_theme_changes_revalidate_lossless_labels", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "Fits at baseline", height: 40 }], edges: [] })]);
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await page.addStyleTag({ content: ":root { font-size: 32px; }" });
   await expect(scope.locator("[data-layout-failure]")).toBeVisible();
   await page.addStyleTag({ content: ":root { font-size: 16px; }" });
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await page.locator('[data-action="theme"]').click();
   await expect(scope.locator("[data-node-label]")).toHaveText("Fits at baseline");
 });
 
 test("diagram_font_changes_reject_overflow_and_recover", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "Fits at baseline", height: 40 }], edges: [] })]);
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await page.addStyleTag({ content: ".explanation-diagram { font-size: 2rem; }" });
   await expect(scope.locator("[data-layout-failure]")).toContainText(/contain|outside/i);
-  await expect(scope.locator("svg")).toHaveCount(0);
+  await expect(scope.locator('svg[role="img"]')).toHaveCount(0);
   await page.addStyleTag({ content: ".explanation-diagram { font-size: 0.875rem; }" });
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await expect(scope.locator("[data-node-label]")).toHaveText("Fits at baseline");
 });
 
@@ -230,13 +230,13 @@ test("boundary_contact_is_legal_but_connected_routes_cannot_enter_nodes", async 
   const contact = flow({ nodes, edges: [] });
   const backwards = flow({ edges: [{ from: "a", to: "b", from_port: "north", to_port: "north", via: [] }] });
   const scope = await show(shoryo, page, [contact, backwards]);
-  await expect(scope.locator("[data-part=flow]").nth(0).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(0).locator('svg[role="img"]')).toBeVisible();
   await expect(scope.locator("[data-part=flow]").nth(1).locator("[data-layout-failure]")).toContainText(/arrow.*a/i);
 });
 
 test("circular_terminal_capsules_do_not_overlap_at_a_distance", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "start", label: "A", position: { x: 150, y: 100 }, width: 80, height: 80 }, { id: "b", kind: "end", label: "B", position: { x: 150, y: 300 }, width: 80, height: 80 }], edges: [] })]);
-  await expect(scope.locator("svg")).toBeVisible();
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
 });
 
@@ -245,19 +245,20 @@ test("code_and_diagram_regions_obey_both_height_caps", async ({ shoryo, page }) 
   const heights = await scope.locator("pre").evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().height));
   expect(heights[0]).toBeLessThan(60);
   expect(heights[1]).toBeLessThanOrEqual(320);
-  const region = scope.locator(".explanation-diagram-region");
+  const region = scope.getByRole('group', { name: 'Diagram viewport', exact: true });
   expect(await region.evaluate(n => n.clientHeight)).toBeLessThanOrEqual(360);
   await page.setViewportSize({ width: 600, height: 400 });
   expect(await region.evaluate(n => n.clientHeight)).toBeLessThanOrEqual(200);
   expect(await scope.locator("pre").nth(1).evaluate(n => n.clientHeight)).toBeLessThanOrEqual(200);
 });
 
-test("wide_parts_scroll_without_text_shrinking", async ({ shoryo, page }) => {
+test("wide_diagrams_clip_and_code_scrolls_without_text_shrinking", async ({ shoryo, page }) => {
   await page.setViewportSize({ width: 400, height: 700 });
   const scope = await show(shoryo, page, [sequence({ participants: [{ id: "a", label: "First" }, { id: "b", label: "Second", x: 1000 }] }), { type: "code", language: "text", role: "example", body: "wide ".repeat(200) }]);
-  const region = scope.locator(".explanation-diagram-region");
-  await expect(scope.locator("svg")).toBeVisible();
+  const region = scope.getByRole('group', { name: 'Diagram viewport', exact: true });
+  await expect(scope.locator('svg[role="img"]')).toBeVisible();
   expect(await region.evaluate(n => n.scrollWidth > n.clientWidth)).toBe(true);
+  expect(await region.evaluate(n => getComputedStyle(n).overflow)).toBe('hidden');
   expect(await scope.locator("pre").evaluate(n => n.scrollWidth > n.clientWidth)).toBe(true);
   expect(await scope.locator("svg text").first().evaluate(n => getComputedStyle(n).fontSize)).toBe("14px");
 });
@@ -405,7 +406,7 @@ test("viewer_mouse_movement_and_outside_wheel_keep_their_own_boundaries", async 
 test("sequence_header_overlap_fails_without_moving_centers", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [sequence({ layout: { participant_gap: 16 }, events: [message("a", "a")] }), sequence()]);
   await expect(scope.locator("[data-part=sequence]").nth(0).locator("[data-layout-failure]")).toContainText(/a.*b.*overlap/i);
-  await expect(scope.locator("[data-part=sequence]").nth(1).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=sequence]").nth(1).locator('svg[role="img"]')).toBeVisible();
 });
 
 test("edge_label_cannot_occupy_an_unrelated_node", async ({ shoryo, page }) => {
@@ -413,7 +414,7 @@ test("edge_label_cannot_occupy_an_unrelated_node", async ({ shoryo, page }) => {
   const part = position => flow({ nodes, edges: [{ from: "a", to: "b", label: { text: "Condition", position } }] });
   const scope = await show(shoryo, page, [part({ x: 600, y: 228 }), part({ x: 450, y: 228 })]);
   await expect(scope.locator("[data-part=flow]").nth(0).locator("[data-layout-failure]")).toContainText(/label.*unrelated shape c/i);
-  await expect(scope.locator("[data-part=flow]").nth(1).locator("svg")).toBeVisible();
+  await expect(scope.locator("[data-part=flow]").nth(1).locator('svg[role="img"]')).toBeVisible();
 });
 
 test("viewer_does_not_intercept_keys_outside_its_declared_shortcuts", async ({ shoryo, page }) => {

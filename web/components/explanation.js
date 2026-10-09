@@ -1,9 +1,8 @@
 import { h } from "../dom.js";
 import { renderDiagram } from "../diagram.js";
 import { translator } from "../strings.js";
-import { explanationDiagram } from "./explanation-diagram.js";
 
-export function explanation(parts, lang, key, emit, codeParts) {
+export function explanation(parts, lang, key, emit, codeParts, diagramParts) {
   const t = translator(lang);
   return h("div", { class: "explanation", "data-explanation": key }, parts.map((part, index) => {
     const identity = `${key}-${index}`;
@@ -16,7 +15,7 @@ export function explanation(parts, lang, key, emit, codeParts) {
         return h("section", { "data-part": "diagram" }, metadata(part, t), h("div", { class: "diagram-box" }, renderDiagram(part.source)));
       case "sequence":
       case "flow":
-        return h("section", { "data-part": part.type }, metadata(part, t), explanationDiagram(part, lang, { identity, emit }));
+        return diagramParts.render(part, lang, identity);
       default:
         return null;
     }
