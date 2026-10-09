@@ -86,7 +86,9 @@ export class ExplanationViewport extends Component {
     const closeMenu = (restore = false) => { this.menuOpen = false; popup.hidden = true; trigger.setAttribute('aria-expanded', 'false'); if (restore) trigger.focus(); };
     const trigger = operationButton('move', t('part.move'), { 'data-focus': `${popupId}-trigger`, 'aria-expanded': String(this.menuOpen), 'aria-controls': popupId, onclick: () => { this.menuOpen = !this.menuOpen; popup.hidden = !this.menuOpen; trigger.setAttribute('aria-expanded', String(this.menuOpen)); } });
     const moveGroup = h('div', { class: 'diagram-move-controls', onkeydown: event => { if (event.key === 'Escape' && this.menuOpen) { event.preventDefault(); event.stopPropagation(); closeMenu(true); } } }, trigger, popup);
-    document.addEventListener('pointerdown', event => { if (!moveGroup.contains(event.target)) closeMenu(); }, { passive: true, signal: lifetime.signal });
+    const dismissOutside = event => { if (!moveGroup.contains(event.target)) closeMenu(); };
+    document.addEventListener('pointerdown', dismissOutside, { passive: true, signal: lifetime.signal });
+    document.addEventListener('click', dismissOutside, { capture: true, passive: true, signal: lifetime.signal });
     surface.addEventListener('focus', () => closeMenu());
     const strip = h('div', { class: 'explanation-viewer-controls' }, this.modal ? controls.el : operationButton('whole', t('part.whole'), { 'data-focus': `whole-${identity}`, onclick: whole }), moveGroup);
     const resize = new ResizeObserver(() => { if (!surface.getClientRects().length) zoom.cancelGesture(); if (this.fitted) fit(); });
@@ -98,7 +100,7 @@ export class ExplanationViewport extends Component {
     const cleanup = () => { lifetime.abort(); zoom.destroy(); resize.disconnect(); removal.disconnect(); };
     this.cleanup = cleanup;
     const heading = h('header', { class: 'explanation-block-header' }, h('div', { class: 'part-metadata' }, h(this.modal ? 'h2' : 'strong', { class: this.modal ? 'dialog-title' : null }, part.title), h('span', { class: 'badge' }, t(`part.role.${part.role}`))), this.modal ? null : enlarge);
-    return h(this.modal ? 'div' : 'section', { class: this.modal ? 'explanation-viewer' : 'explanation-block', 'data-part': this.modal ? null : part.type, onpointerdown: event => { if (!moveGroup.contains(event.target)) closeMenu(); } },
+    return h(this.modal ? 'div' : 'section', { class: this.modal ? 'explanation-viewer' : 'explanation-block', 'data-part': this.modal ? null : part.type, onpointerdown: dismissOutside },
       heading, strip, surface, this.modal ? null : h('p', { class: 'explanation-hint' }, t('part.inline-hint')));
   }
 }

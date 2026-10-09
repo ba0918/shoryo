@@ -345,6 +345,24 @@ test('ui_polish_dialog_menu_and_close_keep_keyboard_scope_and_opener', async ({ 
   await close.focus(); await close.press('Space'); await expect(opener).toBeFocused();
 });
 
+for (const modal of [false, true]) for (const key of ['Enter', 'Space']) {
+  test(`ui_polish_dialog_move_dismisses_outside_keyboard_activation_${modal ? 'dialog' : 'inline'}_${key}`, async ({ shoryo, page }) => {
+    const scope = await show(shoryo, page, [shortFlow, codePart]);
+    if (modal) await scope.getByRole('button', { name: 'Enlarge diagram', exact: true }).click();
+    const region = modal ? page.getByRole('dialog') : scope;
+    const trigger = region.getByRole('button', { name: 'Move diagram', exact: true });
+    for (const name of modal ? ['Whole', 'Zoom out', 'Zoom in'] : ['Whole', 'Copy code']) {
+      await trigger.focus(); await trigger.press('Enter');
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      const outside = region.getByRole('button', { name, exact: true });
+      await outside.focus(); await outside.press(key);
+      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      await expect(region.getByRole('button', { name: 'Move left', exact: true })).toBeHidden();
+      await expect(outside).toBeFocused();
+    }
+  });
+}
+
 test('ui_polish_dialog_remaining_viewport_keeps_controls_visible_in_short_windows', async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [wideFlow]);
   await scope.getByRole('button', { name: 'Enlarge diagram' }).click();
