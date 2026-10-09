@@ -15,6 +15,7 @@ import {
   stampButton,
 } from "./question-parts.js";
 import { thread } from "./thread.js";
+import { CodeParts } from "./code-part.js";
 
 export class ProvisionalRow extends Component {
   /// `past` draws a question of a past round: read only.
@@ -24,6 +25,7 @@ export class ProvisionalRow extends Component {
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
+    this.codeParts = new CodeParts();
   }
 
   /// Whether a stamp that can no longer be pressed shows its time, and the tap that toggles it.
@@ -42,7 +44,7 @@ export class ProvisionalRow extends Component {
       this.thread = { ...this.thread, ...change };
       this.redraw();
     };
-    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit);
+    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit, this.codeParts);
   }
 
   revealReply() {
@@ -53,7 +55,8 @@ export class ProvisionalRow extends Component {
 
   draw(question) {
     const t = translator(question.lang);
-    return h(
+    this.codeParts.begin();
+    const element = h(
       "div",
       {
         class: `provisional-row${this.open ? " open" : ""}${question.landed ? " landed" : ""}${this.past ? " past" : ""}`,
@@ -87,8 +90,8 @@ export class ProvisionalRow extends Component {
               deferSwitch(question, this.emit),
             ),
             chainLine(question, this.emit),
-            details(question, this.emit),
-            optionList(question, this.emit, true),
+            details(question, this.emit, this.codeParts),
+            optionList(question, this.emit, true, this.codeParts),
             consequence(question),
             noteField(question, this.emit),
             this.threadFor(question),
@@ -127,5 +130,7 @@ export class ProvisionalRow extends Component {
             ),
       ),
     );
+    this.codeParts.end();
+    return element;
   }
 }

@@ -40,7 +40,7 @@ export function chainLine(question, emit) {
 
 /// The options as bordered rows: the chosen row tinted, the recommendation tagged, and each
 /// option's description once the card is open.
-export function optionList(question, emit, open) {
+export function optionList(question, emit, open, codeParts) {
   const t = translator(question.lang);
   return h(
     "fieldset",
@@ -71,7 +71,7 @@ export function optionList(question, emit, open) {
           ),
         ),
         ),
-        open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`, emit)) : null,
+        open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`, emit, codeParts)) : null,
       );
     }),
   );
@@ -116,7 +116,7 @@ export function consequence(question) {
 }
 
 /// The prerequisites' full text and the background, shown once the card is open.
-export function details(question, emit) {
+export function details(question, emit, codeParts) {
   const t = translator(question.lang);
   const parts = [
     question.premises.length > 0
@@ -132,7 +132,7 @@ export function details(question, emit) {
         )
       : null,
     question.background.length > 0
-      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), explanation(question.background, question.lang, `${question.round}-${question.id}-background`, emit))
+      ? h("div", { class: "context-part" }, h("h4", {}, t("card.background")), explanation(question.background, question.lang, `${question.round}-${question.id}-background`, emit, codeParts))
       : null,
   ].filter(Boolean);
   return parts.length > 0 ? h("div", { class: "context" }, parts) : null;

@@ -77,6 +77,93 @@ test("clipboard_unavailable_exposes_keyboard_reachable_manual_selection", async 
   expect(await page.evaluate(() => getSelection().getRangeAt(0).cloneContents().textContent)).toBe(body);
 });
 
+for (const location of ["background", "option", "reply"]) {
+  test(`manual_copy_fallback_and_focus_survive_live_redraw_in_${location}`, async ({ shoryo, page }) => {
+    const content = [parts[1], { ...parts[1], body: "Different body with the same title" }];
+    const scope = await prepare(shoryo, page, content);
+    await shoryo.op({ op: "ask", question: "q1", text: "First" });
+    await shoryo.reply(1, { parts: content });
+    await expect(scope.locator("[data-reply] [data-part=code]")).toHaveCount(2);
+    await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
+    const containers = { background: scope.locator(".context"), option: scope.locator(".option-description").first(), reply: scope.locator('[data-ask="1"] [data-reply]') };
+    const container = containers[location];
+    const code = container.locator("[data-part=code]").first();
+    const copy = code.getByRole("button", { name: "Copy code", exact: true });
+    await copy.focus();
+    await copy.press("Enter");
+    const feedback = await code.getByRole("status").textContent();
+    expect(feedback).not.toBe("");
+    await copy.press("Tab");
+    const select = code.getByRole("button", { name: "Select code", exact: true });
+    await expect(select).toBeFocused();
+    await shoryo.op({ op: "ask", question: "q1", text: "Live update" });
+    await expect(scope.locator('[data-ask="2"]')).toHaveCount(1);
+    await expect(select).toBeVisible();
+    await expect(select).toBeFocused();
+    await shoryo.reply(2, { parts: [{ type: "text", body: "Arrived" }] });
+    await expect(scope.locator('[data-ask="2"] [data-reply]')).toContainText("Arrived");
+    await expect(select).toBeFocused();
+    await expect(code.getByRole("status")).toHaveText(feedback);
+    await select.press("Enter");
+    expect(await page.evaluate(() => getSelection().getRangeAt(0).cloneContents().textContent)).toBe(body);
+    await expect(container.locator("[data-part=code]").nth(1).getByRole("button", { name: "Select code", exact: true })).toBeHidden();
+    for (const [name, other] of Object.entries(containers)) {
+      if (name !== location) await expect(other.getByRole("status").first()).toBeEmpty();
+    }
+    await shoryo.submit();
+    const next = question("q2", "Next?");
+    next.background = [{ ...parts[1], body: "New round body" }];
+    await shoryo.round({ subject: "Next", questions: [next] });
+    await action(card(page, "q2"), "open").click();
+    const nextCode = card(page, "q2").locator(".context [data-part=code]");
+    await expect(nextCode.locator("pre code")).toHaveText("New round body");
+    await expect(nextCode.getByRole("status")).toBeEmpty();
+    await expect(nextCode.getByRole("button", { name: "Select code", exact: true })).toBeHidden();
+  });
+}
+
+test("pending_clipboard_denial_updates_the_surviving_code_after_live_redraw", async ({ shoryo, page }) => {
+  const scope = await prepare(shoryo, page);
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => new Promise((resolve, reject) => { window.denyCopy = () => reject(new DOMException("Denied", "NotAllowedError")); }) } }));
+  const code = scope.locator(".context [data-part=code]");
+  const copy = code.getByRole("button", { name: "Copy code", exact: true });
+  await copy.focus();
+  await copy.press("Enter");
+  await expect(code.getByRole("status")).toBeEmpty();
+  await shoryo.op({ op: "ask", question: "q1", text: "Live update" });
+  await expect(scope.locator('[data-ask="1"]')).toHaveCount(1);
+  await expect(copy).toBeFocused();
+  await page.evaluate(() => window.denyCopy());
+  await expect(code.getByRole("status")).not.toBeEmpty();
+  await copy.press("Tab");
+  await expect(code.getByRole("button", { name: "Select code", exact: true })).toBeFocused();
+});
+
+test("provisional_code_fallback_and_focus_survive_live_reply_and_language_change", async ({ shoryo, page }) => {
+  const q = question("q1", "Which approach?");
+  q.class = "provisional";
+  q.background = [parts[1]];
+  await shoryo.round({ subject: "Provisional", questions: [q] });
+  await page.goto(shoryo.url);
+  const scope = page.locator('[data-provisional-row="q1"]');
+  await action(scope, "open").click();
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
+  const code = scope.locator(".context [data-part=code]");
+  await code.getByRole("button", { name: "Copy code", exact: true }).click();
+  const select = code.getByRole("button").nth(1);
+  await select.focus();
+  await shoryo.op({ op: "ask", question: "q1", text: "Live update" });
+  await shoryo.reply(1, { parts: [{ type: "text", body: "Arrived" }] });
+  await expect(scope.locator("[data-reply]")).toContainText("Arrived");
+  await expect(select).toBeFocused();
+  await page.locator('[data-language="ja"]').click();
+  await expect(select).toBeVisible();
+  await expect(code.getByRole("status")).not.toBeEmpty();
+  await select.focus();
+  await select.press("Enter");
+  expect(await page.evaluate(() => getSelection().getRangeAt(0).cloneContents().textContent)).toBe(body);
+});
+
 test("legacy_first_parts_remain_folded_until_details_are_opened", async ({ shoryo, page }) => {
   const q = question("q1", "Read the diagram?");
   q.background = [{ type: "diagram", title: "An existing diagram", role: "proposal", source: "a = First\nb = Second\n| a | b |\na -> b : Next" }, ...parts];

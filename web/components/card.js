@@ -16,6 +16,7 @@ import {
   stampButton,
 } from "./question-parts.js";
 import { thread } from "./thread.js";
+import { CodeParts } from "./code-part.js";
 
 export class Card extends Component {
   /// `past` draws a question of a past round: read only.
@@ -25,6 +26,7 @@ export class Card extends Component {
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
+    this.codeParts = new CodeParts();
   }
 
   /// Whether a stamp that can no longer be pressed shows its time, and the tap that toggles it.
@@ -43,7 +45,7 @@ export class Card extends Component {
       this.thread = { ...this.thread, ...change };
       this.redraw();
     };
-    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit);
+    return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit, this.codeParts);
   }
 
   toggle() {
@@ -59,7 +61,8 @@ export class Card extends Component {
 
   draw(question) {
     const t = translator(question.lang);
-    return h(
+    this.codeParts.begin();
+    const element = h(
       "article",
       {
         class: `card${this.open ? " open" : ""}${question.landed ? " landed" : ""}${this.past ? " past" : ""}`,
@@ -87,14 +90,14 @@ export class Card extends Component {
         { type: "button", class: "link details-toggle", "data-action": "open", "data-focus": `details-${question.id}`, "aria-expanded": String(this.open), onclick: () => this.toggle() },
         this.open ? t("card.hide-details") : t("card.show-details"),
       ),
-      this.open ? details(question, this.emit) : null,
+      this.open ? details(question, this.emit, this.codeParts) : null,
       h(
         "div",
         { class: "card-body" },
         h(
           "div",
           { class: "card-answer" },
-          optionList(question, this.emit, this.open),
+          optionList(question, this.emit, this.open, this.codeParts),
           consequence(question),
           noteField(question, this.emit),
         ),
@@ -124,5 +127,7 @@ export class Card extends Component {
         ),
       ),
     );
+    this.codeParts.end();
+    return element;
   }
 }

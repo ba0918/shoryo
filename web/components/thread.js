@@ -12,7 +12,7 @@ const QUICK_ASKS = ["thread.quick.more", "thread.quick.diagram", "thread.quick.r
 /// The heading, the exchanges and the ask box. `local` is the card's own state: `open` (null
 /// until the person opens or closes the thread), `expanded` (the elided middle shown) and
 /// `follows` (the ask a follow-up continues). `onLocal` changes it; `emit` sends asks upwards.
-export function thread(question, local, onLocal, emit) {
+export function thread(question, local, onLocal, emit, codeParts) {
   const t = translator(question.lang);
   const asks = question.asks;
   const open = local.open ?? asks.length > 0;
@@ -33,17 +33,17 @@ export function thread(question, local, onLocal, emit) {
           t("thread.heading", { count: asks.length }),
         )
       : null,
-    open && asks.length > 0 ? exchanges(asks, local, onLocal, t, question, emit) : null,
+    open && asks.length > 0 ? exchanges(asks, local, onLocal, t, question, emit, codeParts) : null,
     question.locked ? null : askBox(question, local, onLocal, emit, t),
   );
 }
 
-function exchanges(asks, local, onLocal, t, question, emit) {
+function exchanges(asks, local, onLocal, t, question, emit, codeParts) {
   const { head, elided, tail } = shownExchanges(asks, local.expanded);
   return h(
     "div",
     { class: "exchanges", "data-exchanges": true },
-    head.map((ask) => exchange(ask, local, onLocal, t, question, emit)),
+    head.map((ask) => exchange(ask, local, onLocal, t, question, emit, codeParts)),
     elided > 0
       ? h(
           "button",
@@ -51,11 +51,11 @@ function exchanges(asks, local, onLocal, t, question, emit) {
           t("thread.elided", { count: elided }),
         )
       : null,
-    tail.map((ask) => exchange(ask, local, onLocal, t, question, emit)),
+    tail.map((ask) => exchange(ask, local, onLocal, t, question, emit, codeParts)),
   );
 }
 
-function exchange(ask, local, onLocal, t, question, emit) {
+function exchange(ask, local, onLocal, t, question, emit, codeParts) {
   return h(
     "div",
     { class: "exchange", "data-ask": ask.id, "data-focus-scope": `ask-${ask.id}` },
@@ -74,7 +74,7 @@ function exchange(ask, local, onLocal, t, question, emit) {
         )
       : null,
     h("p", { class: "asked" }, h("span", { class: "speaker" }, t("thread.you")), h("span", { class: "asked-text" }, ask.text)),
-    reply(ask, local, onLocal, t, question, emit),
+    reply(ask, local, onLocal, t, question, emit, codeParts),
   );
 }
 
@@ -95,7 +95,7 @@ function flash(element) {
   element.classList.add("flash");
 }
 
-function reply(ask, local, onLocal, t, question, emit) {
+function reply(ask, local, onLocal, t, question, emit, codeParts) {
   switch (ask.status) {
     case "waiting":
       return h(
@@ -111,7 +111,7 @@ function reply(ask, local, onLocal, t, question, emit) {
         "div",
         { class: "reply", "data-reply": true },
         h("span", { class: "speaker" }, t("thread.llm")),
-        explanation(ask.reply.parts, question.lang, `${question.round}-${question.id}-ask-${ask.id}`, emit),
+        explanation(ask.reply.parts, question.lang, `${question.round}-${question.id}-ask-${ask.id}`, emit, codeParts),
         local.canAsk
           ? h(
               "button",
