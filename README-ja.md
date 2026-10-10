@@ -127,6 +127,21 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory docs/site
 `npx playwright test web/tests/site.spec.js` で実行します。既存のブラウザCIにも含まれます。
 この確認用コマンドはローカルのファイルを配信するだけで、ページを公開しません。
 
+### GitHub Pagesで公開する
+
+[Landing pageワークフロー](.github/workflows/pages.yml) はページを検証し、`docs/site/` だけを
+公開用ファイルにまとめます。`index.html` が配信元の直下に置かれます。
+PRでは検証とファイルの準備だけを行い、公開しません。PRのマージを含む `main` へのpushでは、
+紹介ページの検証成功後に `github-pages` 環境から公開します。
+
+初回公開前に、リポジトリの管理者が **Settings → Pages → Build and deployment → Source →
+GitHub Actions** を選びます。`github-pages` 環境のデプロイ対象ブランチは `main` に限定し、
+公開にもう一度承認が必要なら、その環境に必須レビュアーを設定してください。
+ワークフローは既存のPages設定を読み取るだけで、Pagesを自動で有効化しません。
+公開成功時に実際のURLが表示されるので、外部向けリンクにはそのURLを使ってください。
+
+詳しくは[GitHubの公開元設定ガイド](https://docs.github.com/ja/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)を参照してください。
+
 ## 仕様
 
 - [画面](docs/spec/screen.md)

@@ -117,6 +117,21 @@ Run its browser checks with `npm ci`, `npx playwright install chromium`, then
 `npx playwright test web/tests/site.spec.js`. The existing browser CI includes these checks.
 This preview command serves local files; it does not publish the page.
 
+### Publishing with GitHub Pages
+
+The [Landing page workflow](.github/workflows/pages.yml) checks the page and packages only
+`docs/site/`, with `index.html` at the artifact root. Pull requests test and package the page;
+they do not deploy it. A push to `main`, including a merged pull request, deploys the artifact
+after the landing-page checks pass. The publishing job uses the `github-pages` environment.
+
+Before the first publication, a repository maintainer must select **Settings → Pages →
+Build and deployment → Source → GitHub Actions**. Restrict the `github-pages` environment's
+deployment branches to `main`; add required reviewers there if publication needs another
+approval. The workflow reads the existing Pages configuration and does not enable Pages itself.
+The successful deployment reports the actual site URL; use that URL when adding public links.
+
+See [GitHub's publishing-source guide](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
 ## Specification
 
 - [The screen](docs/spec/screen.md)
