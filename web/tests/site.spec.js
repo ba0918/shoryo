@@ -91,3 +91,22 @@ test("both languages fit a phone and keep their README links in that language", 
     expect(links.every((href) => new URL(href).pathname.endsWith(readme))).toBe(true);
   }
 });
+
+test("English metadata is available before scripts run", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto(siteUrl);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page).toHaveTitle("shoryo — Decisions you can retrace.");
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /A local browser tool for requirements discussions/);
+  await context.close();
+});
+
+test("the main landmark includes the product screens, installation and FAQ", async ({ page }) => {
+  await page.goto(siteUrl);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("img", { name: /Actual shoryo map/ })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Give your agent a desk to think at." })).toBeVisible();
+  await expect(main.getByText("Does shoryo call the AI itself?", { exact: true })).toBeVisible();
+  await expect(page.getByText("UNPUBLISHED LANDING PAGE MOCK", { exact: false })).toHaveCount(0);
+});
