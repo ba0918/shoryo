@@ -20,6 +20,7 @@ The specification is in `docs/spec/`:
 - `crates/shoryo-webview/`: embeds `web/` into the binary.
 - `web/`: the screen (HTML, CSS and plain JavaScript, no build step). `web/tests/`: its browser tests (Playwright; `package.json` at the root exists only for them).
 - The screen's files are embedded in the binary; the release is that one binary (`docs/spec/server.md`, "作り方と配り方").
+- `docs/site/index.html`: the self-contained landing page, independent of the embedded screen. Preview instructions are in the README; `web/tests/site.spec.js` checks it using the existing browser test setup.
 - `docs/spec/`: the specification. `CONTEXT.md`: the glossary.
 - `skills/shoryo/`: the shoryo skill (`SKILL.md` and `references/` with the command, round, event, reply and diagram formats). `tests/round_trip/` feeds every input example in the references to the binary.
 - `tests/round_trip/`: integration tests that run the built binary through the agent's commands and the page API.
