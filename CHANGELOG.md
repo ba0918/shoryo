@@ -15,6 +15,9 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- IPv6 wildcard listeners publish an IPv6 loopback URL, so commands also reach the server
+  on hosts where IPv6 listeners do not accept IPv4 connections.
+
 - The CLI reads complete topic histories and pending event batches even when accumulated
   responses exceed the HTTP client's default 10 MiB cap. Per-request input limits are unchanged.
 

@@ -9,7 +9,7 @@ pub mod location;
 pub mod store;
 
 use std::fmt;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
 use config::ConfigFile;
@@ -118,11 +118,7 @@ pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result
             .map_err(|error| ServerError::Bind { address, error })?
             .port();
         let secret = secret()?;
-        let host = if options.bind.is_unspecified() {
-            IpAddr::V4(Ipv4Addr::LOCALHOST)
-        } else {
-            options.bind
-        };
+        let host = page_host(options.bind);
         let url = format!("http://{}/s/{secret}/", SocketAddr::new(host, port));
         let endpoint = EndpointFile::write(
             &options.location,
@@ -180,6 +176,14 @@ async fn stop_on_signal() {
     }
 }
 
+fn page_host(address: IpAddr) -> IpAddr {
+    match address {
+        IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+        IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+        address => address,
+    }
+}
+
 /// 16 random bytes as hex, so the page and the API cannot be found without the URL.
 fn secret() -> Result<String, ServerError> {
     let mut bytes = [0u8; 16];
@@ -189,4 +193,25 @@ fn secret() -> Result<String, ServerError> {
         )))
     })?;
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wildcard_page_addresses_use_loopback_in_the_listeners_address_family() {
+        assert_eq!(
+            page_host(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        );
+        assert_eq!(
+            page_host(IpAddr::V6(Ipv6Addr::UNSPECIFIED)),
+            IpAddr::V6(Ipv6Addr::LOCALHOST)
+        );
+        for address in ["127.0.0.2", "::1", "192.0.2.1", "2001:db8::1"] {
+            let address: IpAddr = address.parse().unwrap();
+            assert_eq!(page_host(address), address);
+        }
+    }
 }
