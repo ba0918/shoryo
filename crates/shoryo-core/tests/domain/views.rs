@@ -304,3 +304,23 @@ fn path_uses_the_first_node_when_public_map_keys_repeat() {
     );
     assert_eq!(map.path("a"), ["a", "r1"]);
 }
+
+#[test]
+fn map_columns_align_independent_prerequisite_chains_instead_of_crossing_them() {
+    let topic = topic_from(vec![
+        json!({"subject":"First", "questions":[question("q1", &[]), question("q2", &[])]}),
+        json!({"subject":"Second", "questions":[question("q3", &["d2"]), question("q4", &["d1"])],
+            "records":{"decisions":[decision("d1", "q1", "One"), decision("d2", "q2", "Two")]}}),
+        json!({"subject":"Result", "records":{"decisions":[decision("d3", "q3", "Three"), decision("d4", "q4", "Four")]}}),
+    ]);
+    let map = topic.map();
+    let row = |column: usize, key: &str| {
+        map.columns[column]
+            .nodes
+            .iter()
+            .position(|node| node == key)
+            .unwrap()
+    };
+    assert_eq!(row(0, "d:d1"), row(1, "d:d4"));
+    assert_eq!(row(0, "d:d2"), row(1, "d:d3"));
+}

@@ -352,51 +352,66 @@ fn premise_edges<'a>(
     })
 }
 
-/// Orders each column by the mean position of its neighbours in the adjacent columns,
+/// Orders each column by the mean position of its neighbours in the connected columns,
 /// sweeping left to right and back, which reduces crossings without an exact solution.
 fn order_columns(mut columns: Vec<Column>, edges: &[MapEdge]) -> Vec<Column> {
+    // Keep the last owning column: an earlier occurrence of a duplicate key must not replace it.
+    let mut position: HashMap<String, (usize, usize)> = columns
+        .iter()
+        .enumerate()
+        .flat_map(|(column, value)| {
+            value
+                .nodes
+                .iter()
+                .enumerate()
+                .map(move |(row, key)| (key.clone(), (column, row)))
+        })
+        .collect();
+    let mut incoming: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut outgoing: HashMap<&str, Vec<&str>> = HashMap::new();
+    for edge in edges {
+        incoming.entry(&edge.to).or_default().push(&edge.from);
+        outgoing.entry(&edge.from).or_default().push(&edge.to);
+    }
     for sweep in 0..ORDERING_SWEEPS {
         let forward = sweep % 2 == 0;
+        let neighbours = if forward { &incoming } else { &outgoing };
         let indices: Vec<usize> = if forward {
             (1..columns.len()).collect()
         } else {
             (0..columns.len().saturating_sub(1)).rev().collect()
         };
         for index in indices {
-            let position: HashMap<&str, usize> = columns
-                .iter()
-                .flat_map(|column| column.nodes.iter().enumerate())
-                .map(|(row, key)| (key.as_str(), row))
-                .collect();
-            let neighbours = |key: &str| -> Vec<usize> {
-                edges
-                    .iter()
-                    .filter_map(|edge| {
-                        let other = if forward {
-                            (edge.to == key).then_some(edge.from.as_str())
-                        } else {
-                            (edge.from == key).then_some(edge.to.as_str())
-                        };
-                        other.and_then(|other| position.get(other).copied())
-                    })
-                    .collect()
-            };
             let mut keyed: Vec<(f64, usize, String)> = columns[index]
                 .nodes
                 .iter()
                 .enumerate()
                 .map(|(row, key)| {
-                    let near = neighbours(key);
-                    let centre = if near.is_empty() {
+                    let (sum, count) = neighbours
+                        .get(key.as_str())
+                        .into_iter()
+                        .flat_map(|keys| keys.iter())
+                        .filter_map(|other| position.get(*other).map(|(_, row)| *row))
+                        .fold((0_usize, 0_usize), |(sum, count), row| {
+                            (sum + row, count + 1)
+                        });
+                    let centre = if count == 0 {
                         row as f64
                     } else {
-                        near.iter().sum::<usize>() as f64 / near.len() as f64
+                        sum as f64 / count as f64
                     };
                     (centre, row, key.clone())
                 })
                 .collect();
             keyed.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
             columns[index].nodes = keyed.into_iter().map(|(_, _, key)| key).collect();
+            for (row, key) in columns[index].nodes.iter().enumerate() {
+                if let Some((column, previous_row)) = position.get_mut(key)
+                    && *column == index
+                {
+                    *previous_row = row;
+                }
+            }
         }
     }
     columns
