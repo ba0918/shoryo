@@ -10,6 +10,42 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("a replacement editor after real IME class migration displays the latest body before stamping", async ({ shoryo, page, context }, testInfo) => {
+  await setup(shoryo, page);
+  await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });
+  await shoryo.op({ op: "free_text", question: "q1", text: "base" });
+  const field = custom(q(page));
+  await expect(field).toHaveValue("base"); await field.focus();
+  await field.evaluate(el => {
+    el.setSelectionRange(4, 4);
+    window.removedImeEditor = el;
+    window.removedImeEnds = 0;
+    el.addEventListener("compositionend", () => { window.removedImeEnds++; });
+  });
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Input.imeSetComposition", { text: "にほん", selectionStart: 3, selectionEnd: 3 });
+  await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).topic.rounds[0].questions[0].answer.free_text).toBe("baseにほん");
+  await shoryo.op({ op: "swap_class", question: "q1" });
+  await expect(page.locator('[data-provisional-row="q1"]')).toBeVisible();
+  await q(page).locator('[data-action="open"]').click();
+  await expect(field).toHaveValue("baseにほん"); await field.focus();
+  const lifecycle = await page.evaluate(() => ({ oldEditorConnected: window.removedImeEditor.isConnected, oldEditorCompositionEnds: window.removedImeEnds }));
+  console.info("Native editor lifecycle:", lifecycle);
+  await testInfo.attach("native-editor-lifecycle", {
+    contentType: "application/json",
+    body: JSON.stringify(lifecycle),
+  });
+  await shoryo.op({ op: "free_text", question: "q1", text: "remote answer" });
+  await shoryo.op({ op: "ask", question: "q1", text: "Update after migration reached this page" });
+  await expect(q(page)).toContainText("Update after migration reached this page");
+  await expect(field).toHaveValue("remote answer");
+  await expect(field).toBeFocused();
+  await q(page).locator('[data-action="stamp"]').click();
+  await expect(q(page).locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "person");
+  expect((await (await fetch(`${shoryo.url}api/view`)).json()).expected_answers[0].free_text).toBe("remote answer");
+  await cdp.detach();
+});
+
 test("real IME commit preserves its text and replacement range after autosave and a remote answer", async ({ shoryo, page, context }) => {
   await setup(shoryo, page);
   await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });

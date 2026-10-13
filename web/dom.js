@@ -3,9 +3,15 @@
 // `Component`, which redraws itself only when its view data changes.
 
 const listeners = new WeakMap();
+const composingEditors = new WeakSet();
 
 export function h(tag, attrs = {}, ...children) {
   const element = document.createElement(tag);
+  if (Object.hasOwn(attrs, "data-sync-value")) {
+    // Redraw callbacks are replaced; these node-lifetime listeners must survive an active IME conversion.
+    element.addEventListener("compositionstart", event => composingEditors.add(event.currentTarget));
+    element.addEventListener("compositionend", event => composingEditors.delete(event.currentTarget));
+  }
   const events = [];
   for (const [name, value] of Object.entries(attrs)) {
     if (value === undefined || value === null || value === false) continue;
@@ -58,7 +64,7 @@ function retainEditor(current, next, editor, replacement) {
   for (const [name, handler] of events) current.addEventListener(name, handler);
   listeners.set(current, events);
   if (current === editor) {
-    if (next.hasAttribute("data-sync-value") && current.value !== next.value) {
+    if (next.hasAttribute("data-sync-value") && !composingEditors.has(current) && current.value !== next.value) {
       const { selectionStart, selectionEnd, selectionDirection } = current;
       current.value = next.value;
       current.setSelectionRange(Math.min(selectionStart, current.value.length), Math.min(selectionEnd, current.value.length), selectionDirection);
