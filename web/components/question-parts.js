@@ -173,6 +173,8 @@ function otherOption(question, emit) {
   }), h("span", {}, translator(question.lang)("card.other")));
 }
 
+const MAX_DRAFT_SAVE_ATTEMPTS = 8;
+
 export class AnswerDrafts {
   constructor(emit) { this.emit = emit; this.dirty = new Map(); this.timer = null; this.pending = null; }
   update(question) {
@@ -195,14 +197,14 @@ export class AnswerDrafts {
     return this.pending;
   }
   async flush() {
-    while (this.dirty.size) {
+    for (let attempt = 0; this.dirty.size && attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt++) {
       if (!this.available) return false;
       const [kind, text] = this.dirty.entries().next().value;
       const saved = await this.emit({ type: "save-draft", op: { op: kind, question: this.question.id, text } });
       if (!saved) return false;
       if (this.dirty.get(kind) === text) this.dirty.delete(kind);
     }
-    return true;
+    return this.dirty.size === 0;
   }
   draw(question) {
     if (question.method !== "custom") return null;

@@ -10,6 +10,55 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("restamping includes a reedit made while another question's save is held", async ({ shoryo, page }) => {
+  await setup(shoryo, page); await other(q(page)).check();
+  await custom(q(page)).fill("first"); await custom(q(page)).blur();
+  await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).topic.rounds[0].questions[0].answer.free_text).toBe("first");
+  await q(page, "q2").locator('[data-action="open"]').click();
+  let release, began;
+  const held = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { began = resolve; });
+  await page.route("**/api/op", async route => {
+    const op = route.request().postDataJSON();
+    if (op.op === "note" && op.question === "q2") { began(); await held; }
+    await route.continue();
+  });
+  await q(page, "q2").locator('[data-field="note"] textarea').fill("held note");
+  await q(page).locator('[data-action="stamp"]').click(); await started;
+  await custom(q(page)).fill("latest while waiting");
+  release();
+  await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).expected_answers?.[0]?.free_text).toBe("latest while waiting");
+  await page.waitForTimeout(450);
+  const view = await (await fetch(`${shoryo.url}api/view`)).json();
+  expect(view.topic.rounds[0].questions[0].answer.stamp).toBe("person");
+});
+
+for (const refused of [false, true]) {
+  test(`a stamp waits for a preceding provisional choice ${refused ? "refusal" : "success"}`, async ({ shoryo, page }) => {
+    await setup(shoryo, page);
+    let release, began;
+    const held = new Promise(resolve => { release = resolve; });
+    const started = new Promise(resolve => { began = resolve; });
+    await page.route("**/api/op", async route => {
+      if (route.request().postDataJSON().op === "choose") {
+        began(); await held;
+        if (refused) { await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "choice refused" }) }); return; }
+      }
+      await route.continue();
+    });
+    const scope = q(page, "q2");
+    await scope.getByRole("radio").nth(1).check(); await started;
+    await scope.locator('[data-action="stamp"]').click(); release();
+    if (refused) await expect(page.getByRole("alert")).toBeVisible();
+    await expect(scope.locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", refused ? "pre_approved" : "person");
+    await page.unroute("**/api/op");
+    if (refused) {
+      await scope.locator('[data-action="stamp"]').click();
+      await expect(scope.locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "none");
+    }
+  });
+}
+
 test("a failed focused note is recoverable but is never displayed as another client's sent note", async ({ shoryo, page }) => {
   await setup(shoryo, page);
   await page.route("**/api/op", async route => {

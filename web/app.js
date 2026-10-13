@@ -376,29 +376,50 @@ function frozenConfirmation() {
   return { kind: "confirm-send", data: structuredClone(confirmData({ ...view, lang: ui.config.language })), expected: structuredClone(view.expected_answers) };
 }
 
+let actions = Promise.resolve(true);
+let pendingActions = 0;
+function sequenceAction(task, requiresPreviousSuccess = true) {
+  const dependent = requiresPreviousSuccess && pendingActions > 0;
+  pendingActions++;
+  actions = actions.then(success => dependent && !success ? false : task())
+    .finally(() => { pendingActions--; });
+  return actions;
+}
+
 async function answerOperation(op) {
-  if (!await current.flush()) return false;
-  if (op.op === "stamp") {
-    const question = view.topic.rounds.at(-1)?.questions.find(q => q.id === op.question);
-    op = { ...op, stamped: question?.answer.stamp == null };
-  }
-  return enqueue(op);
+  return sequenceAction(async () => {
+    if (!await current.flush()) return false;
+    await queue;
+    if (current.hasDirty()) return false;
+    if (op.op === "stamp") {
+      const question = view.topic.rounds.at(-1)?.questions.find(q => q.id === op.question);
+      op = { ...op, stamped: question?.answer.stamp == null };
+    }
+    return enqueue(op);
+  }, op.op === "stamp");
 }
 
 async function openConfirmation() {
-  if (!await current.flush()) return;
-  await queue;
-  if (view.expected_answers === null || view.topic.rounds.at(-1)?.submitted) return;
-  ui.dialog = frozenConfirmation();
-  render();
+  return sequenceAction(async () => {
+    if (!await current.flush()) return false;
+    await queue;
+    if (current.hasDirty() || view.expected_answers === null || view.topic.rounds.at(-1)?.submitted) return false;
+    ui.dialog = frozenConfirmation();
+    render();
+    return true;
+  });
 }
 
 async function sendConfirmed() {
   const snapshot = ui.dialog;
-  if (snapshot?.kind !== "confirm-send" || !await current.flush()) return;
-  ui.dialog = null;
-  render();
-  await enqueue({ op: "submit", round: snapshot.data.round, expected_answers: snapshot.expected });
+  return sequenceAction(async () => {
+    if (snapshot?.kind !== "confirm-send" || !await current.flush()) return false;
+    await queue;
+    if (current.hasDirty()) return false;
+    ui.dialog = null;
+    render();
+    return enqueue({ op: "submit", round: snapshot.data.round, expected_answers: snapshot.expected });
+  });
 }
 
 /// A refusal in the screen's language when its kind is known; otherwise the server's words.

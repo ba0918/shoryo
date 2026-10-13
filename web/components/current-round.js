@@ -8,6 +8,8 @@ import { Fixes } from "./fixes.js";
 import { ResultView } from "./result.js";
 import { AnswerDrafts } from "./question-parts.js";
 
+const MAX_ROUND_DRAIN_PASSES = 3;
+
 class RecoverableDrafts extends Component {
   draw({ entries, lang }) {
     const t = translator(lang);
@@ -55,11 +57,17 @@ class SendBar extends Component {
 }
 
 export class CurrentRound {
+  hasDirty() {
+    return [...this.cards.items.values(), ...this.rows.items.values()].some(component => component.customDraft.dirty.size > 0);
+  }
   async flush() {
-    for (const component of [...this.cards.items.values(), ...this.rows.items.values()]) {
-      if (!await component.customDraft.save()) return false;
+    for (let pass = 0; pass < MAX_ROUND_DRAIN_PASSES; pass++) {
+      for (const component of [...this.cards.items.values(), ...this.rows.items.values()]) {
+        if (!await component.customDraft.save()) return false;
+      }
+      if (!this.hasDirty()) return true;
     }
-    return true;
+    return false;
   }
   revealReply(question) {
     (this.cards.items.get(question) ?? this.rows.items.get(question))?.revealReply();
