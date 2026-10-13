@@ -10,6 +10,37 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("real IME commit preserves its text and replacement range after autosave and a remote answer", async ({ shoryo, page, context }) => {
+  await setup(shoryo, page);
+  await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });
+  await shoryo.op({ op: "free_text", question: "q1", text: "base" });
+  const field = custom(q(page));
+  await expect(field).toHaveValue("base");
+  await field.focus();
+  await field.evaluate(el => {
+    el.setSelectionRange(4, 4);
+    window.realImeActive = false;
+    el.addEventListener("compositionstart", () => { window.realImeActive = true; });
+    el.addEventListener("compositionend", () => { window.realImeActive = false; });
+  });
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Input.imeSetComposition", { text: "にほん", selectionStart: 3, selectionEnd: 3 });
+  await expect(field).toHaveValue("baseにほん");
+  await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).topic.rounds[0].questions[0].answer.free_text).toBe("baseにほん");
+  await shoryo.op({ op: "free_text", question: "q1", text: "remote answer" });
+  await shoryo.op({ op: "ask", question: "q1", text: "Remote update reached this page" });
+  await expect(q(page)).toContainText("Remote update reached this page");
+  expect(await page.evaluate(() => window.realImeActive)).toBe(true);
+  await cdp.send("Input.insertText", { text: "日本" });
+  await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).topic.rounds[0].questions[0].answer.free_text).toBe("base日本");
+  await expect(field).toHaveValue("base日本");
+  expect(await page.evaluate(() => window.realImeActive)).toBe(false);
+  await q(page).locator('[data-action="stamp"]').click();
+  await expect(q(page).locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "person");
+  expect((await (await fetch(`${shoryo.url}api/view`)).json()).expected_answers[0].free_text).toBe("base日本");
+  await cdp.detach();
+});
+
 test("a clean focused custom field shows a second tab's latest body before it can be stamped", async ({ shoryo, page, context }) => {
   await setup(shoryo, page);
   await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });

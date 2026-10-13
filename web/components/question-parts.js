@@ -176,7 +176,7 @@ function otherOption(question, emit) {
 const MAX_DRAFT_SAVE_ATTEMPTS = 8;
 
 export class AnswerDrafts {
-  constructor(emit) { this.emit = emit; this.dirty = new Map(); this.timer = null; this.pending = null; }
+  constructor(emit) { this.emit = emit; this.dirty = new Map(); this.timer = null; this.pending = null; this.composing = false; }
   update(question) {
     const wasAvailable = this.available;
     this.question = question;
@@ -217,10 +217,15 @@ export class AnswerDrafts {
     return h("div", { class: "note", "data-field": "free-text" },
       h("label", {}, h("span", { class: "note-label" }, t("card.free-text")), h("textarea", {
         rows: 3, value: this.value("free_text", question.free_text), disabled: question.locked,
-        "data-sync-value": !this.dirty.has("free_text"),
+        "data-sync-value": !this.composing && !this.dirty.has("free_text"),
         "data-focus": `free-text-${question.id}`,
         "aria-describedby": question.emptyCustom ? `empty-${question.id}` : undefined,
         oninput: event => this.edit("free_text", event.target.value), onchange: () => this.save(),
+        oncompositionstart: () => { this.composing = true; },
+        oncompositionend: event => {
+          this.composing = false;
+          this.edit("free_text", event.target.value);
+        },
       })),
       question.emptyCustom ? h("p", { id: `empty-${question.id}`, "data-empty-answer": true }, t("card.empty-answer")) : null);
   }
