@@ -10,6 +10,98 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("questions are delivered despite a refused answer draft save", async ({ shoryo, page }) => {
+  await setup(shoryo, page); await other(q(page)).check();
+  await page.route("**/api/op", async route => {
+    if (route.request().postDataJSON().op === "free_text") await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "draft save refused" }) });
+    else await route.continue();
+  });
+  await custom(q(page)).fill("recoverable answer"); await custom(q(page)).blur();
+  await expect(page.getByRole("alert")).toBeVisible();
+  const text = "Explain this while my answer cannot be saved";
+  await q(page).locator('[data-field="ask"]').fill(text);
+  await q(page).locator('[data-action="ask"]').click();
+  await expect(q(page).getByText(text, { exact: true })).toBeVisible();
+  expect((await shoryo.wait()).find(event => event.kind === "ask").text).toBe(text);
+  await expect(custom(q(page))).toHaveValue("recoverable answer");
+});
+
+test("a question's own save error remains visible independently of answer draft failure", async ({ shoryo, page }) => {
+  await setup(shoryo, page); await other(q(page)).check();
+  const askFailure = "The question could not be stored";
+  await page.route("**/api/op", async route => {
+    const op = route.request().postDataJSON().op;
+    if (op === "free_text" || op === "ask") await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: op === "ask" ? askFailure : "The answer could not be stored" }) });
+    else await route.continue();
+  });
+  await custom(q(page)).fill("recoverable answer"); await custom(q(page)).blur();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await q(page).locator('[data-field="ask"]').fill("A question with its own storage failure");
+  await q(page).locator('[data-action="ask"]').click();
+  await expect(page.getByRole("alert")).toHaveText(askFailure);
+  await expect(custom(q(page))).toHaveValue("recoverable answer");
+});
+
+test("an intervening question preserves a preceding answer refusal for its dependent stamp", async ({ shoryo, page }) => {
+  await setup(shoryo, page);
+  let release, began;
+  const held = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { began = resolve; });
+  await page.route("**/api/op", async route => {
+    if (route.request().postDataJSON().op === "choose") {
+      began(); await held;
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "choice refused" }) });
+    } else await route.continue();
+  });
+  await q(page, "q2").getByRole("radio").nth(1).check(); await started;
+  const text = "Question independent of the refused choice";
+  await q(page).locator('[data-field="ask"]').fill(text);
+  await q(page).locator('[data-action="ask"]').click();
+  await q(page, "q2").locator('[data-action="stamp"]').click(); release();
+  await expect(q(page).getByText(text, { exact: true })).toBeVisible();
+  const laterText = "Another question after the pending actions";
+  await q(page).locator('[data-field="ask"]').fill(laterText);
+  await q(page).locator('[data-action="ask"]').click();
+  await expect(q(page).getByText(laterText, { exact: true })).toBeVisible();
+  await expect(q(page, "q2").locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "pre_approved");
+});
+
+for (const locked of [false, true]) {
+  for (const id of ["q1", "q2"]) {
+    test(`${locked ? "locked" : "editable"} ${id} details remain accessible after a draft save failure`, async ({ shoryo, page }) => {
+      await setup(shoryo, page);
+      await shoryo.op({ op: "answer_method", question: id, method: "custom" });
+      await shoryo.op({ op: "free_text", question: id, text: "actual saved answer" });
+      const scope = q(page.locator('[data-panel="current"]'), id);
+      await page.route("**/api/op", async route => {
+        if (route.request().postDataJSON().op === "free_text") await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "draft save refused" }) });
+        else await route.continue();
+      });
+      await custom(scope).fill("recoverable local draft"); await custom(scope).blur();
+      await expect(page.getByRole("alert")).toBeVisible();
+      if (locked) {
+        await shoryo.submit(); await expect(page.locator("[data-wait-footer]")).toBeVisible();
+        await expect(page.getByRole("textbox").and(page.locator("[readonly]"))).toHaveValue("recoverable local draft");
+      }
+      const explanation = scope.getByText(`Background for ${id}: the terms it uses.`, { exact: true });
+      await scope.locator('[data-action="open"]').click();
+      await expect(explanation).toBeVisible();
+      await scope.locator('[data-action="open"]').click();
+      if (locked) {
+        await expect(explanation).not.toBeVisible();
+        await expect(page.getByRole("textbox").and(page.locator("[readonly]"))).toHaveValue("recoverable local draft");
+      } else {
+        await expect(explanation).toBeVisible();
+        await expect(custom(scope)).toHaveValue("recoverable local draft");
+        await page.unroute("**/api/op");
+        await scope.locator('[data-action="open"]').click();
+        await expect(explanation).not.toBeVisible();
+        await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).topic.rounds[0].questions.find(question => question.id === id).answer.free_text).toBe("recoverable local draft");
+      }
+    });
+  }
+}
+
 test("a note being composed when another client submits shows only the actual sent note", async ({ shoryo, page, context }) => {
   await setup(shoryo, page);
   await shoryo.op({ op: "note", question: "q1", text: "base" });

@@ -399,6 +399,14 @@ async function answerOperation(op) {
   }, op.op === "stamp");
 }
 
+function questionOperation(op) {
+  const previousAnswerOutcome = actions;
+  const result = sequenceAction(() => enqueue(op), false);
+  // An unrelated question's success must not authorize a stamp after a failed answer operation.
+  actions = result.then(() => previousAnswerOutcome);
+  return result;
+}
+
 async function openConfirmation() {
   return sequenceAction(async () => {
     if (!await current.flush()) return false;
@@ -525,6 +533,7 @@ function handle(event) {
       return;
     }
     case "op":
+      if (event.op.op === "ask") return questionOperation(event.op);
       return answerOperation(event.op);
     case "save-draft":
       return enqueue(event.op);

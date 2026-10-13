@@ -116,7 +116,10 @@ export class ProvisionalRow extends Component {
             "data-focus": `provisional-toggle-${question.id}`,
             "aria-expanded": String(this.open),
             onclick: async () => {
-              if (!await this.customDraft.save()) return;
+              if (this.open && !this.data.locked) {
+                const saved = await this.customDraft.save();
+                if (!saved && !this.data.locked) return;
+              }
               this.open = !this.open;
               this.redraw();
             },

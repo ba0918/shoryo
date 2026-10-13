@@ -53,7 +53,10 @@ export class Card extends Component {
   }
 
   async toggle() {
-    if (!await this.customDraft.save()) return;
+    if (this.open && !this.data.locked) {
+      const saved = await this.customDraft.save();
+      if (!saved && !this.data.locked) return;
+    }
     this.open = !this.open;
     this.redraw();
   }
