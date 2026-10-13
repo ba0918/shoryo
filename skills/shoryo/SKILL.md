@@ -67,6 +67,10 @@ and its consequence (この答えだと). Give every decision a short name — i
 map show — and every round a subject, which heads its column on the map. Send the updated
 records and the redrawn finished picture with every round.
 
+shoryo adds Other (write my answer) to every question, including folded provisional rows.
+Do not add an Other option or invent a consequence for a person's own answer; your options
+remain concrete alternatives with exactly one recommendation.
+
 The format, its fields and three complete examples are in `references/round.md`; read it before
 writing the first round. `shoryo round` checks the round and refuses it with the reason if it
 breaks a rule; fix it and send it again.
@@ -102,10 +106,19 @@ reply. Asks may arrive after the round was sent; reply to them too.
 
 Every answer in a `submitted` event is an answer — including ones left at the recommendation and
 provisional ones sent with your pre-approval (`"stamp": "pre_approved"`, 代決) — except a
-deferred one (`deferred`, `choice` null). Every question carries a stamp (判子) before the round
+deferred one (`deferred: true`). A null `choice` alone does not mean deferral: a custom answer
+has `choice: null`, `free_text` as its exact plain-text body, and `deferred: false`.
+Every question carries a stamp (判子) before the round
 can be sent; `stamp` says whether the person pressed it or left yours. Record the answers as
 decisions, not building, undecided, delegated or rejected options before sending the next
 round. The screen marks decisions made from pre-approved answers as 代決 until they are revised.
+
+Treat clear custom text as the answer itself, including its reasons and conditions. Do not
+read it as a note, force it onto an option or the recommendation, or assume your pre-approval
+applies to it. If it conflicts with an existing decision or leaves a necessary condition
+unspecified, ask in the next round rather than fill in what the person did not say.
+Read `references/events-and-replies.md` for the three sent variants and for distinguishing
+sent answers from inactive drafts retained in `result`.
 
 ### Deferred questions
 

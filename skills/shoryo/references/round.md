@@ -34,6 +34,9 @@ refused, so a misspelt field name fails loudly instead of being ignored.
 Every option's `description` is also an explanation-part array, not a string. Its schema,
 representation choices, defaults, finite bounds and rendering repair are in `explanations.md`.
 
+Other (write my answer) is a system-provided answer method, not an entry in `options`.
+Do not add it to create a free-text field, recommend it, or write a consequence for it.
+
 ### Records
 
 | Field | Meaning |
