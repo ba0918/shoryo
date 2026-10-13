@@ -1,9 +1,10 @@
 //! The topic's files: the state, the lock against a second server, and the endpoint file the
 //! agent's commands use to find the running server.
 
-use std::fs;
-use std::io::ErrorKind;
+use std::fs::{self, File, OpenOptions, TryLockError};
+use std::io::{ErrorKind, Write};
 use std::net::{IpAddr, SocketAddr};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -82,6 +83,7 @@ pub fn save(location: &TopicLocation, state: &StoredTopic) -> Result<(), ServerE
 /// Held while the server runs; removing it on drop lets the topic start again.
 pub struct Lock {
     path: PathBuf,
+    _guard: File,
 }
 
 impl Lock {
@@ -91,10 +93,43 @@ impl Lock {
     pub fn take(location: &TopicLocation) -> Result<Self, ServerError> {
         fs::create_dir_all(&location.dir).map_err(|error| ServerError::io(&location.dir, error))?;
         let path = location.lock_file();
+        // The guard is never unlinked: contenders must keep locking the same inode even while
+        // the PID marker is moved aside during stale-lock recovery.
+        let guard_path = location.dir.join("lock.guard");
+        let guard = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(&guard_path)
+            .map_err(|error| ServerError::io(&guard_path, error))?;
+        match guard.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::Error(error)) => return Err(ServerError::io(&guard_path, error)),
+            Err(TryLockError::WouldBlock) => {
+                if let Some(pid) = fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|pid| pid.trim().parse::<u32>().ok())
+                    .filter(|pid| process_exists(*pid))
+                {
+                    return Err(already_running(location, pid));
+                }
+                return Err(ServerError::io(
+                    &path,
+                    std::io::Error::other("another server is acquiring the topic lock"),
+                ));
+            }
+        }
         let own = std::process::id();
         for _ in 0..4 {
             let seen = match link_new(&location.dir, &path, own) {
-                Ok(()) => return Ok(Self { path }),
+                Ok(()) => {
+                    return Ok(Self {
+                        path,
+                        _guard: guard,
+                    });
+                }
                 Err(error) if error.kind() == ErrorKind::AlreadyExists => {
                     match fs::read_to_string(&path) {
                         Ok(seen) => seen,
@@ -125,11 +160,9 @@ impl Lock {
 /// Writes `pid` to a temporary file and links it to the lock's name, which fails when the
 /// lock exists.
 fn link_new(dir: &Path, lock: &Path, pid: u32) -> std::io::Result<()> {
-    let temporary = dir.join(format!("lock.{pid}.tmp"));
-    let linked =
-        fs::write(&temporary, pid.to_string()).and_then(|()| fs::hard_link(&temporary, lock));
-    let _ = fs::remove_file(&temporary);
-    linked
+    let mut temporary = tempfile::NamedTempFile::new_in(dir)?;
+    temporary.write_all(pid.to_string().as_bytes())?;
+    fs::hard_link(temporary.path(), lock)
 }
 
 /// Moves the stale lock aside and removes it, but only when what was moved is still the lock
@@ -329,5 +362,46 @@ mod tests {
         assert!(save(&location, &state()).is_err());
         assert_eq!(fs::read_to_string(sentinel).unwrap(), "Keep this");
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn a_running_topic_remains_exclusive_while_its_pid_marker_is_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location(dir.path());
+        let _first = Lock::take(&location).unwrap();
+        fs::remove_file(location.lock_file()).unwrap();
+        assert!(
+            Lock::take(&location).is_err(),
+            "a missing marker must not allow a second owner"
+        );
+    }
+
+    #[test]
+    fn a_stale_topic_can_be_taken_again_after_its_owner_finishes() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location(dir.path());
+        fs::write(location.lock_file(), "0").unwrap();
+        let first = Lock::take(&location).unwrap();
+        assert_eq!(
+            fs::read_to_string(location.lock_file()).unwrap(),
+            std::process::id().to_string()
+        );
+        drop(first);
+        let _next = Lock::take(&location).unwrap();
+    }
+
+    #[test]
+    fn unreadable_pid_markers_are_refused_without_overwriting_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location(dir.path());
+        fs::write(location.lock_file(), "not a pid").unwrap();
+        assert!(matches!(
+            Lock::take(&location),
+            Err(ServerError::UnreadableLock { .. })
+        ));
+        assert_eq!(
+            fs::read_to_string(location.lock_file()).unwrap(),
+            "not a pid"
+        );
     }
 }

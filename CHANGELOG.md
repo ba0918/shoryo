@@ -15,6 +15,9 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- Topic startup remains exclusive while stale PID markers are being recovered. An OS-backed
+  guard serializes acquisition even when the visible PID marker is briefly absent.
+
 - Wait requests whose timeout cannot be represented return a validation error without
   acknowledging events or leaving the page in a waiting state, instead of dropping the request.
 
