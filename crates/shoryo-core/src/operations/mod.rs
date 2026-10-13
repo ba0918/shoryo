@@ -311,11 +311,7 @@ impl Topic {
             }
             Operation::Stamp { question, stamped } => {
                 let q = self.open_question(&question)?;
-                if stamped
-                    && q.answer.method == AnswerMethod::Custom
-                    && !q.answer.deferred
-                    && q.answer.free_text.trim().is_empty()
-                {
+                if stamped && q.answer.empty_custom_body() {
                     return Err(OperationRefusal::EmptyFreeText {
                         questions: vec![question],
                     });

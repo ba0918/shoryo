@@ -1,16 +1,39 @@
 use super::{EventKind, OperationRefusal, SentAnswer};
-use crate::state::{AnswerMethod, Round, Stamp, Topic};
+use crate::state::{Answer, AnswerMethod, Question, Round, Stamp, Topic};
 
 impl Round {
     pub fn sent_answers(&self) -> Result<Vec<SentAnswer>, OperationRefusal> {
+        self.check_sent_answers()?;
+        Ok(self
+            .questions
+            .iter()
+            .map(|q| {
+                let custom = q.answer.method == AnswerMethod::Custom;
+                SentAnswer {
+                    question: q.id.clone(),
+                    class: q.class,
+                    choice: (!q.answer.deferred && !custom).then_some(q.answer.selected),
+                    free_text: (!q.answer.deferred && custom).then(|| q.answer.free_text.clone()),
+                    note: if custom {
+                        String::new()
+                    } else {
+                        q.answer.note.clone()
+                    },
+                    deferred: q.answer.deferred,
+                    stamp: q
+                        .answer
+                        .stamp
+                        .expect("all stamps were validated before projection"),
+                }
+            })
+            .collect())
+    }
+
+    fn check_sent_answers(&self) -> Result<(), OperationRefusal> {
         let empty: Vec<_> = self
             .questions
             .iter()
-            .filter(|q| {
-                q.answer.method == AnswerMethod::Custom
-                    && !q.answer.deferred
-                    && q.answer.free_text.trim().is_empty()
-            })
+            .filter(|q| q.answer.empty_custom_body())
             .map(|q| q.id.clone())
             .collect();
         if !empty.is_empty() {
@@ -27,38 +50,34 @@ impl Round {
                 questions: unstamped,
             });
         }
-        self.questions
-            .iter()
-            .map(|q| {
-                if q.answer.selected >= q.options.len() {
-                    return Err(OperationRefusal::UnknownOption {
-                        option: q.answer.selected,
-                    });
-                }
-                let custom = q.answer.method == AnswerMethod::Custom;
-                if custom && q.answer.stamp != Some(Stamp::Person) {
-                    return Err(OperationRefusal::InvalidAnswer {
-                        question: q.id.clone(),
-                    });
-                }
-                Ok(SentAnswer {
-                    question: q.id.clone(),
-                    class: q.class,
-                    choice: (!q.answer.deferred && !custom).then_some(q.answer.selected),
-                    free_text: (!q.answer.deferred && custom).then(|| q.answer.free_text.clone()),
-                    note: if custom {
-                        String::new()
-                    } else {
-                        q.answer.note.clone()
-                    },
-                    deferred: q.answer.deferred,
-                    stamp: q
-                        .answer
-                        .stamp
-                        .expect("all stamps were validated before projection"),
-                })
-            })
-            .collect()
+        for question in &self.questions {
+            question.check_answer()?;
+        }
+        Ok(())
+    }
+}
+
+impl Answer {
+    pub(super) fn empty_custom_body(&self) -> bool {
+        self.method == AnswerMethod::Custom && !self.deferred && self.free_text.trim().is_empty()
+    }
+}
+
+impl Question {
+    fn check_answer(&self) -> Result<(), OperationRefusal> {
+        if self.answer.selected >= self.options.len() {
+            return Err(OperationRefusal::UnknownOption {
+                option: self.answer.selected,
+            });
+        }
+        if self.answer.method == AnswerMethod::Custom
+            && self.answer.stamp == Some(Stamp::PreApproved)
+        {
+            return Err(OperationRefusal::InvalidAnswer {
+                question: self.id.clone(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -85,21 +104,10 @@ impl Topic {
     pub fn validate_answers(&self) -> Result<(), OperationRefusal> {
         for round in &self.rounds {
             for q in &round.questions {
-                if q.answer.selected >= q.options.len() {
-                    return Err(OperationRefusal::UnknownOption {
-                        option: q.answer.selected,
-                    });
-                }
-                if q.answer.method == AnswerMethod::Custom
-                    && q.answer.stamp == Some(Stamp::PreApproved)
-                {
-                    return Err(OperationRefusal::InvalidAnswer {
-                        question: q.id.clone(),
-                    });
-                }
+                q.check_answer()?;
             }
             if round.submitted {
-                round.sent_answers()?;
+                round.check_sent_answers()?;
             }
         }
         for event in &self.events {

@@ -247,3 +247,27 @@ fn custom_drafts_survive_method_switches() {
     assert_eq!(answer["free_text"], "  My answer\ncondition  ");
     assert_eq!(answer["note"], "retained note");
 }
+
+#[test]
+fn empty_custom_bodies_are_reported_in_question_order_before_missing_stamps() {
+    let mut topic = topic_from(vec![json!({
+        "subject":"Answers", "questions":[question("q1", &[]), question("q2", &[])]
+    })]);
+    for id in ["q1", "q2"] {
+        apply(
+            &mut topic,
+            json!({"op":"answer_method", "question":id, "method":"custom"}),
+        );
+    }
+    let before = topic.clone();
+    assert_eq!(
+        topic.current_round().unwrap().sent_answers(),
+        Err(shoryo_core::OperationRefusal::EmptyFreeText {
+            questions: vec![
+                shoryo_core::QuestionId::new("q1"),
+                shoryo_core::QuestionId::new("q2")
+            ],
+        }),
+    );
+    assert_eq!(topic, before);
+}
