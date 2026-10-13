@@ -15,6 +15,10 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- Topic state, configuration and endpoint files are published through private temporary files
+  with automatic cleanup on failure. Replacing an endpoint no longer inherits overly broad
+  permissions, and preexisting temporary-file symlinks cannot redirect state writes.
+
 - Exhausted ask or event counters refuse operations without changing answers, review marks,
   submissions, pending events or either counter, rather than panicking or wrapping IDs.
 - Applying a round after the maximum `u32` round number returns an error without reopening

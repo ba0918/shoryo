@@ -1,10 +1,9 @@
 //! The topic's files: the state, the lock against a second server, and the endpoint file the
 //! agent's commands use to find the running server.
 
-use std::fs::{self, File, OpenOptions};
-use std::io::{ErrorKind, Write};
+use std::fs;
+use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -76,9 +75,8 @@ pub fn read_state(location: &TopicLocation) -> Result<Option<String>, ServerErro
 /// leaves either the old state or the new one.
 pub fn save(location: &TopicLocation, state: &StoredTopic) -> Result<(), ServerError> {
     let path = location.state_file();
-    let temporary = location.dir.join("state.json.tmp");
-    fs::write(&temporary, state.to_json()).map_err(|error| ServerError::io(&temporary, error))?;
-    fs::rename(&temporary, &path).map_err(|error| ServerError::io(&path, error))
+    crate::atomic_file::write(&path, state.to_json().as_bytes())
+        .map_err(|error| ServerError::io(&path, error))
 }
 
 /// Held while the server runs; removing it on drop lets the topic start again.
@@ -219,16 +217,9 @@ impl EndpointFile {
     /// Writes the endpoint, readable only by the user, replacing any file left behind.
     pub fn write(location: &TopicLocation, endpoint: &Endpoint) -> Result<Self, ServerError> {
         let path = location.endpoint_file();
-        let mut file: File = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&path)
-            .map_err(|error| ServerError::io(&path, error))?;
         let json = serde_json::to_string(endpoint)
             .expect("the endpoint holds only an address, a number and strings");
-        file.write_all(json.as_bytes())
+        crate::atomic_file::write(&path, json.as_bytes())
             .map_err(|error| ServerError::io(&path, error))?;
         Ok(Self { path })
     }
@@ -261,5 +252,82 @@ pub fn read_endpoint(location: &TopicLocation) -> Result<Option<Endpoint>, Serve
         }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(ServerError::io(&path, error)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::location::TopicName;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    fn location(dir: &Path) -> TopicLocation {
+        TopicLocation {
+            name: TopicName::parse("test").expect("a valid topic name"),
+            repository: dir.join("repository"),
+            dir: dir.to_path_buf(),
+        }
+    }
+
+    fn state() -> StoredTopic {
+        StoredTopic {
+            repository: "repository".into(),
+            name: "test".into(),
+            topic: Topic::new("New", "Request"),
+        }
+    }
+
+    #[test]
+    fn replacing_an_endpoint_does_not_inherit_readable_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location(dir.path());
+        fs::write(location.endpoint_file(), "old endpoint").unwrap();
+        fs::set_permissions(location.endpoint_file(), fs::Permissions::from_mode(0o644)).unwrap();
+        let endpoint = Endpoint {
+            host: "127.0.0.1".parse().unwrap(),
+            port: 1234,
+            secret: "test-secret".into(),
+            url: "http://example.invalid/".into(),
+        };
+        let _published = EndpointFile::write(&location, &endpoint).unwrap();
+        let mode = fs::metadata(location.endpoint_file())
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+        let stored: Endpoint =
+            serde_json::from_str(&fs::read_to_string(location.endpoint_file()).unwrap()).unwrap();
+        assert_eq!(stored.secret, endpoint.secret);
+    }
+
+    #[test]
+    fn saving_state_does_not_follow_a_preexisting_temporary_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location(dir.path());
+        let protected = dir.path().join("unrelated.txt");
+        fs::write(&protected, "Keep this").unwrap();
+        symlink(&protected, dir.path().join("state.json.tmp")).unwrap();
+        save(&location, &state()).unwrap();
+        assert_eq!(fs::read_to_string(&protected).unwrap(), "Keep this");
+        assert!(
+            !fs::symlink_metadata(location.state_file())
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(load(&location).unwrap().topic.title, "New");
+    }
+
+    #[test]
+    fn failed_publication_preserves_the_destination_and_removes_temporary_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location(dir.path());
+        fs::create_dir(location.state_file()).unwrap();
+        let sentinel = location.state_file().join("existing.txt");
+        fs::write(&sentinel, "Keep this").unwrap();
+        assert!(save(&location, &state()).is_err());
+        assert_eq!(fs::read_to_string(sentinel).unwrap(), "Keep this");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 }
