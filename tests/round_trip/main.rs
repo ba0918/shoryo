@@ -5,6 +5,7 @@ mod config;
 mod explanations;
 mod free_text;
 mod harness;
+mod large_responses;
 mod wait;
 
 use std::io::{BufRead, BufReader};

@@ -15,6 +15,9 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- The CLI reads complete topic histories and pending event batches even when accumulated
+  responses exceed the HTTP client's default 10 MiB cap. Per-request input limits are unchanged.
+
 - The CLI reports failed HTTP result requests as errors instead of printing error responses
   as successful topic data. Malformed round receipts no longer print a fictitious round zero
   or an empty page URL.

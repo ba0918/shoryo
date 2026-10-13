@@ -44,8 +44,11 @@ impl Client {
             .send(body)
             .map_err(|error| format!("the server did not answer: {error}"))?;
         let status = response.status();
+        // Histories and unacknowledged event batches can exceed the default 10 MiB limit.
         let answer: Value = response
             .body_mut()
+            .with_config()
+            .limit(u64::MAX)
             .read_json()
             .map_err(|error| format!("the server's answer is not JSON: {error}"))?;
         if status.is_success() {
@@ -64,6 +67,8 @@ impl Client {
         let status = response.status();
         let body = response
             .body_mut()
+            .with_config()
+            .limit(u64::MAX)
             .read_to_string()
             .map_err(|error| format!("the server's answer cannot be read: {error}"))?;
         if status.is_success() {
