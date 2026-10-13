@@ -249,6 +249,7 @@ test("sent custom bodies stay literal and read-only in history and both map cont
   await confirm(page).locator('[data-action="confirm-send"]').click();
   await expect(page.locator("[data-wait-footer]")).toBeVisible();
   await expect(q(page.locator('[data-panel="current"]')).locator("[data-sent-answer]")).toHaveText(body);
+  expect(await q(page.locator('[data-panel="current"]')).locator("[data-sent-answer]").textContent()).toBe(body);
   await expect(custom(q(page.locator('[data-panel="current"]')))).toHaveCount(0);
   await page.getByRole("tab", { name: "Map", exact: true }).click();
   await page.locator('[data-map-node="q:q1"]').focus();
@@ -260,6 +261,7 @@ test("sent custom bodies stay literal and read-only in history and both map cont
   await page.getByRole("tab", { name: "Past rounds", exact: true }).click();
   const history = page.locator('[data-panel="past"] [data-past-question="q1"]');
   await expect(history.locator("[data-chosen] dd")).toHaveText(body);
+  expect(await history.locator("[data-chosen] dd").textContent()).toBe(body);
   await expect(history).not.toContainText("inactive note");
   await expect(history.locator("img")).toHaveCount(0);
   await expect(history.locator("[data-chosen] dd")).toHaveCSS("white-space", "pre-wrap");
@@ -267,6 +269,18 @@ test("sent custom bodies stay literal and read-only in history and both map cont
   await page.locator('[data-map-node="d:d1"]').focus();
   await expect(page.locator("[data-map-hover]")).toContainText(body);
   await expect(page.locator("[data-map-hover] img")).toHaveCount(0);
+});
+
+test("UI blank feedback agrees with Rust for U0085 and UFEFF", async ({ shoryo, page }) => {
+  await setup(shoryo, page);
+  await other(q(page)).check(); await custom(q(page)).fill("\u0085");
+  await q(page).locator('[data-action="stamp"]').click();
+  await expect(q(page).locator("[data-empty-answer]")).toBeVisible();
+  await expect(q(page).locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "none");
+  await custom(q(page)).fill("\ufeff");
+  await q(page).locator('[data-action="stamp"]').click();
+  await expect(q(page).locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "person");
+  await expect(q(page).locator("[data-empty-answer]")).toHaveCount(0);
 });
 
 test("custom deferral confirmation and sent display exclude retained body and note", async ({ shoryo, page }) => {

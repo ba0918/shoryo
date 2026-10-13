@@ -2,6 +2,49 @@ use super::harness::{Env, Server, files_under, first_round};
 use serde_json::{Value, json};
 
 #[test]
+fn old_deferred_pending_event_keeps_its_id_note_and_acknowledgment_after_restart() {
+    let env = Env::new();
+    let server = env.start("answers", &[]);
+    env.run(&["round", "answers"], &first_round());
+    server.operate(json!({"op":"note","question":"q1","text":"ask differently"}));
+    server.operate(json!({"op":"defer","question":"q1","deferred":true}));
+    server.submit();
+    let pending = server.view()["topic"]["events"].clone();
+    env.run(&["stop", "answers"], "");
+    server.finish();
+    let path = files_under(&env.data)
+        .into_iter()
+        .find(|p| p.ends_with("answers/state.json"))
+        .unwrap();
+    let mut old: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let answer = old["rounds"][0]["questions"][0]["answer"]
+        .as_object_mut()
+        .unwrap();
+    answer.remove("method");
+    answer.remove("free_text");
+    std::fs::write(&path, old.to_string()).unwrap();
+    let _restarted = env.start("answers", &[]);
+    let received = env.run(&["wait", "answers", "--timeout", "0"], "");
+    let events: Value = serde_json::from_slice(&received.stdout).unwrap();
+    assert_eq!(events["events"], pending);
+    assert_eq!(events["events"][0]["answers"][0]["choice"], Value::Null);
+    assert_eq!(events["events"][0]["answers"][0]["deferred"], true);
+    assert_eq!(events["events"][0]["answers"][0]["note"], "ask differently");
+    let id = events["events"][0]["id"].to_string();
+    let acknowledged = env.run(&["wait", "answers", "--ack", &id, "--timeout", "0"], "");
+    assert_eq!(
+        serde_json::from_slice::<Value>(&acknowledged.stdout).unwrap()["events"],
+        json!([])
+    );
+    let result = env.run(&["result", "answers"], "");
+    assert_eq!(
+        serde_json::from_slice::<Value>(&result.stdout).unwrap()["rounds"][0]["questions"][0]["answer"]
+            ["deferred"],
+        true
+    );
+}
+
+#[test]
 fn blank_custom_and_contradictory_guards_leave_real_storage_unchanged() {
     let env = Env::new();
     let server = env.start("answers", &[]);
