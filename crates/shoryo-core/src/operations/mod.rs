@@ -2,14 +2,16 @@
 //! events the agent waits for (`docs/spec/server.md`, "待つ", "返す", "終える";
 //! `docs/spec/screen.md`, "今のラウンド").
 
+mod answers;
+mod interactions;
+
 use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{AskId, DecisionId, EventId, QuestionId};
 use crate::state::{
-    AnswerMethod, Ask, AskState, Class, InReview, Question, Reply, Round, SentAs, Stamp, Timestamp,
-    Topic,
+    AnswerMethod, Class, InReview, Question, Round, SentAs, Stamp, Timestamp, Topic,
 };
 
 /// One thing the person does on the screen.
@@ -354,52 +356,6 @@ impl Topic {
         Ok(())
     }
 
-    /// Stores the agent's reply to an ask, in whichever round the ask belongs to.
-    pub fn reply(&mut self, ask: AskId, reply: Reply) -> Result<(), OperationRefusal> {
-        if self.ended {
-            return Err(OperationRefusal::TopicEnded);
-        }
-        crate::explanation_validation::validate_parts(&reply.parts, "reply", 1, &mut 0)
-            .map_err(OperationRefusal::Explanation)?;
-        let found = self
-            .rounds
-            .iter_mut()
-            .flat_map(|round| round.asks.iter_mut())
-            .find(|candidate| candidate.id == ask)
-            .ok_or(OperationRefusal::UnknownAsk { ask })?;
-        match found.state {
-            AskState::Waiting => {
-                found.state = AskState::Replied(reply);
-                Ok(())
-            }
-            AskState::Replied(_) | AskState::NoReply => {
-                Err(OperationRefusal::AlreadyReplied { ask })
-            }
-        }
-    }
-
-    /// Ends the topic; asks still waiting get "no reply".
-    pub fn end(&mut self) -> Result<(), OperationRefusal> {
-        if let Some(round) = self.current_round()
-            && !round.submitted
-        {
-            return Err(OperationRefusal::RoundUnsent {
-                round: round.number,
-            });
-        }
-        for ask in self
-            .rounds
-            .iter_mut()
-            .flat_map(|round| round.asks.iter_mut())
-        {
-            if ask.state == AskState::Waiting {
-                ask.state = AskState::NoReply;
-            }
-        }
-        self.ended = true;
-        Ok(())
-    }
-
     /// The question of the current round, while that round is still open for answers.
     fn open_question(&mut self, id: &QuestionId) -> Result<&mut Question, OperationRefusal> {
         let round = self.open_round()?;
@@ -418,43 +374,6 @@ impl Topic {
             return Err(OperationRefusal::RoundSubmitted);
         }
         Ok(round)
-    }
-
-    fn ask(
-        &mut self,
-        question: QuestionId,
-        text: String,
-        follows: Option<AskId>,
-    ) -> Result<(), OperationRefusal> {
-        let round = self.open_round()?;
-        if let Some(ask) = follows {
-            let followed = round
-                .asks
-                .iter()
-                .find(|candidate| candidate.id == ask)
-                .ok_or(OperationRefusal::UnknownAsk { ask })?;
-            if followed.question != question {
-                return Err(OperationRefusal::FollowsAnotherQuestion { ask });
-            }
-        }
-        let number = round.number;
-        self.open_question(&question)?;
-        let id = self.allocate_ask_id();
-        self.open_round()?.asks.push(Ask {
-            id,
-            question: question.clone(),
-            text: text.clone(),
-            follows,
-            state: AskState::Waiting,
-        });
-        self.push_event(EventKind::Ask {
-            ask: id,
-            round: number,
-            question,
-            text,
-            follows,
-        });
-        Ok(())
     }
 
     fn request_review(&mut self, decision: DecisionId) -> Result<(), OperationRefusal> {
@@ -532,131 +451,5 @@ impl Topic {
     fn push_event(&mut self, kind: EventKind) {
         let id = self.allocate_event_id();
         self.events.push(Event { id, kind });
-    }
-}
-
-impl Round {
-    pub fn sent_answers(&self) -> Result<Vec<SentAnswer>, OperationRefusal> {
-        let empty: Vec<_> = self
-            .questions
-            .iter()
-            .filter(|q| {
-                q.answer.method == AnswerMethod::Custom
-                    && !q.answer.deferred
-                    && q.answer.free_text.trim().is_empty()
-            })
-            .map(|q| q.id.clone())
-            .collect();
-        if !empty.is_empty() {
-            return Err(OperationRefusal::EmptyFreeText { questions: empty });
-        }
-        let unstamped: Vec<_> = self
-            .questions
-            .iter()
-            .filter(|q| q.answer.stamp.is_none())
-            .map(|q| q.id.clone())
-            .collect();
-        if !unstamped.is_empty() {
-            return Err(OperationRefusal::Unstamped {
-                questions: unstamped,
-            });
-        }
-        self.questions
-            .iter()
-            .map(|q| {
-                if q.answer.selected >= q.options.len() {
-                    return Err(OperationRefusal::UnknownOption {
-                        option: q.answer.selected,
-                    });
-                }
-                let custom = q.answer.method == AnswerMethod::Custom;
-                if custom && q.answer.stamp != Some(Stamp::Person) {
-                    return Err(OperationRefusal::InvalidAnswer {
-                        question: q.id.clone(),
-                    });
-                }
-                Ok(SentAnswer {
-                    question: q.id.clone(),
-                    class: q.class,
-                    choice: (!q.answer.deferred && !custom).then_some(q.answer.selected),
-                    free_text: (!q.answer.deferred && custom).then(|| q.answer.free_text.clone()),
-                    note: if custom {
-                        String::new()
-                    } else {
-                        q.answer.note.clone()
-                    },
-                    deferred: q.answer.deferred,
-                    stamp: q
-                        .answer
-                        .stamp
-                        .expect("all stamps were validated before projection"),
-                })
-            })
-            .collect()
-    }
-}
-
-impl SentAnswer {
-    pub fn validate(&self) -> Result<(), OperationRefusal> {
-        let valid = match (self.deferred, self.choice, &self.free_text) {
-            (true, None, None) | (false, Some(_), None) => true,
-            (false, None, Some(text)) => {
-                !text.trim().is_empty() && self.note.is_empty() && self.stamp == Stamp::Person
-            }
-            _ => false,
-        };
-        if valid {
-            Ok(())
-        } else {
-            Err(OperationRefusal::InvalidAnswer {
-                question: self.question.clone(),
-            })
-        }
-    }
-}
-
-impl Topic {
-    pub fn validate_answers(&self) -> Result<(), OperationRefusal> {
-        for round in &self.rounds {
-            for q in &round.questions {
-                if q.answer.selected >= q.options.len() {
-                    return Err(OperationRefusal::UnknownOption {
-                        option: q.answer.selected,
-                    });
-                }
-                if q.answer.method == AnswerMethod::Custom
-                    && q.answer.stamp == Some(Stamp::PreApproved)
-                {
-                    return Err(OperationRefusal::InvalidAnswer {
-                        question: q.id.clone(),
-                    });
-                }
-            }
-            if round.submitted {
-                round.sent_answers()?;
-            }
-        }
-        for event in &self.events {
-            if let EventKind::Submitted { round, answers } = &event.kind {
-                for answer in answers {
-                    answer.validate()?;
-                    let q = self
-                        .rounds
-                        .iter()
-                        .filter(|candidate| candidate.number == *round)
-                        .flat_map(|candidate| &candidate.questions)
-                        .find(|q| q.id == answer.question)
-                        .ok_or_else(|| OperationRefusal::InvalidAnswer {
-                            question: answer.question.clone(),
-                        })?;
-                    if answer.choice.is_some_and(|i| i >= q.options.len()) {
-                        return Err(OperationRefusal::InvalidAnswer {
-                            question: answer.question.clone(),
-                        });
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 }
