@@ -92,9 +92,7 @@ fn run(command: Commands) -> Result<(), String> {
         Commands::Round { topic, file } => {
             let body = read_input(file)?;
             let done = client::connect(&locate(&topic)?)?.post("round", body)?;
-            let round = done["round"].as_u64().unwrap_or_default();
-            let url = done["url"].as_str().unwrap_or_default();
-            println!("Round {round} is on the screen: {url}");
+            println!("{}", round_notice(&done)?);
             Ok(())
         }
         Commands::Wait {
@@ -138,6 +136,18 @@ fn locate(topic: &str) -> Result<TopicLocation, String> {
     TopicLocation::find(name, &start).map_err(|error| error.to_string())
 }
 
+fn round_notice(receipt: &serde_json::Value) -> Result<String, String> {
+    let number = receipt["round"]
+        .as_u64()
+        .filter(|number| (1..=u64::from(u32::MAX)).contains(number))
+        .ok_or_else(|| "the server's answer has no valid round number".to_string())?;
+    let url = receipt["url"]
+        .as_str()
+        .filter(|url| !url.trim().is_empty())
+        .ok_or_else(|| "the server's answer has no page URL".to_string())?;
+    Ok(format!("Round {number} is on the screen: {url}"))
+}
+
 fn read_input(file: Option<PathBuf>) -> Result<String, String> {
     match file {
         Some(path) => {
@@ -150,5 +160,33 @@ fn read_input(file: Option<PathBuf>) -> Result<String, String> {
                 .map_err(|error| format!("stdin cannot be read: {error}"))?;
             Ok(input)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn round_notifications_require_a_valid_number_and_a_url() {
+        for receipt in [
+            json!({}),
+            json!({"round":1}),
+            json!({"url":"http://example.invalid/"}),
+            json!({"round":0,"url":"http://example.invalid/"}),
+            json!({"round":u64::MAX,"url":"http://example.invalid/"}),
+            json!({"round":"1","url":"http://example.invalid/"}),
+            json!({"round":1,"url":" "}),
+        ] {
+            assert!(
+                round_notice(&receipt).is_err(),
+                "invalid receipt accepted: {receipt}"
+            );
+        }
+        let url = "http://example.invalid/";
+        let notice = round_notice(&json!({"round":u32::MAX,"url":url})).unwrap();
+        assert!(notice.contains(&u32::MAX.to_string()));
+        assert!(notice.contains(url));
     }
 }

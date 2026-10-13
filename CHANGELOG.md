@@ -15,6 +15,10 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- The CLI reports failed HTTP result requests as errors instead of printing error responses
+  as successful topic data. Malformed round receipts no longer print a fictitious round zero
+  or an empty page URL.
+
 - Concurrent language and theme switches from different topic servers retain both changes,
   instead of letting the last write restore the other setting to an older value.
 

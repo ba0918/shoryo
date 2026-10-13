@@ -51,21 +51,37 @@ impl Client {
         if status.is_success() {
             Ok(answer)
         } else {
-            Err(answer["error"]
-                .as_str()
-                .map_or_else(|| answer.to_string(), str::to_string))
+            Err(server_error(&answer))
         }
     }
 
     fn get_text(&self, path: &str) -> Result<String, String> {
-        self.agent
+        let mut response = self
+            .agent
             .get(format!("{}{path}", self.endpoint.api_base()))
             .call()
-            .map_err(|error| format!("the server did not answer: {error}"))?
+            .map_err(|error| format!("the server did not answer: {error}"))?;
+        let status = response.status();
+        let body = response
             .body_mut()
             .read_to_string()
-            .map_err(|error| format!("the server's answer cannot be read: {error}"))
+            .map_err(|error| format!("the server's answer cannot be read: {error}"))?;
+        if status.is_success() {
+            Ok(body)
+        } else {
+            Err(serde_json::from_str::<Value>(&body)
+                .map(|answer| server_error(&answer))
+                .unwrap_or_else(|_| {
+                    format!("the server returned HTTP {}: {body}", status.as_u16())
+                }))
+        }
     }
+}
+
+fn server_error(answer: &Value) -> String {
+    answer["error"]
+        .as_str()
+        .map_or_else(|| answer.to_string(), str::to_string)
 }
 
 /// The topic's whole data: from the running server, or from the file when none runs.
@@ -80,4 +96,59 @@ pub fn result(location: &TopicLocation) -> Result<String, String> {
     store::read_state(location)
         .map_err(|error| error.to_string())?
         .ok_or_else(|| format!("topic {} has no data yet", location.name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    fn responding(status: &str, body: &str) -> (Client, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a test listener can bind");
+        let address = listener.local_addr().expect("the listener has an address");
+        let response = format!(
+            "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client connects");
+            let mut request = [0; 1024];
+            assert!(stream.read(&mut request).expect("the request arrives") > 0);
+            stream
+                .write_all(response.as_bytes())
+                .expect("the response is written");
+        });
+        let client = Client {
+            agent: agent(),
+            endpoint: Endpoint {
+                host: address.ip(),
+                port: address.port(),
+                secret: "test-secret".into(),
+                url: "http://example.invalid/".into(),
+            },
+        };
+        (client, server)
+    }
+
+    #[test]
+    fn failed_result_requests_return_the_servers_reason_instead_of_successful_data() {
+        let (client, server) = responding(
+            "500 Internal Server Error",
+            r#"{"error":"The state cannot be read"}"#,
+        );
+        assert_eq!(
+            client.get_text("result"),
+            Err("The state cannot be read".into())
+        );
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn successful_results_preserve_the_exact_response_text() {
+        let body = "{\n  \"title\": \"Keep whitespace\"\n}\n";
+        let (client, server) = responding("200 OK", body);
+        assert_eq!(client.get_text("result").unwrap(), body);
+        server.join().unwrap();
+    }
 }
