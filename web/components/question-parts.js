@@ -74,7 +74,7 @@ export function optionList(question, emit, open, codeParts, diagramParts) {
         open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`, emit, codeParts, diagramParts)) : null,
       );
     }),
-    otherOption(question, emit),
+    otherOption(question, emit, "option"),
   );
 }
 
@@ -101,7 +101,7 @@ export function optionSegments(question, emit) {
         option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, t("card.recommended")) : null,
       ),
     ),
-    otherOption(question, emit),
+    otherOption(question, emit, "segment"),
   );
 }
 
@@ -163,14 +163,22 @@ export function noteField(question, drafts) {
   );
 }
 
-function otherOption(question, emit) {
+function otherOption(question, emit, display) {
   if (question.locked) return null;
-  return h("label", { class: "option-choice" }, h("input", {
+  const chosen = question.method === "custom";
+  const radio = h("input", {
     type: "radio", name: `option-${question.id}`, value: "custom",
-    checked: question.method === "custom", disabled: question.locked,
+    checked: chosen, disabled: question.locked,
     "data-focus": `other-${question.id}`,
     onchange: () => emit({ type: "op", op: { op: "answer_method", question: question.id, method: "custom" } }),
-  }), h("span", {}, translator(question.lang)("card.other")));
+  });
+  const text = translator(question.lang)("card.other");
+  if (display === "segment") {
+    return h("label", { class: `segment${chosen ? " chosen" : ""}` }, radio, h("span", {}, text));
+  }
+  return h("div", { class: `option${chosen ? " chosen" : ""}` },
+    h("label", { class: "option-choice" }, radio,
+      h("span", { class: "option-body" }, h("span", { class: "option-head" }, h("span", { class: "option-text" }, text)))));
 }
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 8;
