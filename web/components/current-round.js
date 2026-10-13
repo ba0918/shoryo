@@ -43,6 +43,12 @@ class SendBar extends Component {
 }
 
 export class CurrentRound {
+  async flush() {
+    for (const component of [...this.cards.items.values(), ...this.rows.items.values()]) {
+      if (!await component.customDraft.save()) return false;
+    }
+    return true;
+  }
   revealReply(question) {
     (this.cards.items.get(question) ?? this.rows.items.get(question))?.revealReply();
   }

@@ -143,7 +143,7 @@ export function details(question, emit, codeParts, diagramParts) {
 
 /// The note sent with the answer, labelled as such, under the answer. A past question shows
 /// it only when it was sent with one.
-export function noteField(question, emit) {
+export function noteField(question, drafts) {
   if (question.method === "custom") return null;
   if (question.past && question.note === "") return null;
   const t = translator(question.lang);
@@ -153,16 +153,17 @@ export function noteField(question, emit) {
     h("span", { class: "note-label" }, t("card.note")),
     h("textarea", {
       rows: 1,
-      value: question.note,
+      value: drafts.value("note", question.note),
       disabled: question.locked,
       "data-focus": `note-${question.id}`,
-      oninput: (event) => noteSaver(event.target, question, emit).later(event.target.value),
-      onchange: (event) => noteSaver(event.target, question, emit).now(event.target.value),
+      oninput: (event) => drafts.edit("note", event.target.value),
+      onchange: () => drafts.save(),
     }),
   );
 }
 
 function otherOption(question, emit) {
+  if (question.locked) return null;
   return h("label", { class: "option-choice" }, h("input", {
     type: "radio", name: `option-${question.id}`, value: "custom",
     checked: question.method === "custom", disabled: question.locked,
@@ -171,30 +172,39 @@ function otherOption(question, emit) {
   }), h("span", {}, translator(question.lang)("card.other")));
 }
 
-export class CustomDraft {
-  constructor(emit) { this.emit = emit; this.dirty = null; this.timer = null; }
-  update(question) {
-    this.question = question;
-    if (question.free_text === this.dirty) this.dirty = null;
-  }
-  edit(text) {
-    this.dirty = text;
+export class AnswerDrafts {
+  constructor(emit) { this.emit = emit; this.dirty = new Map(); this.timer = null; this.pending = null; }
+  update(question) { this.question = question; }
+  value(kind, saved) { return this.dirty.has(kind) ? this.dirty.get(kind) : saved; }
+  edit(kind, text) {
+    this.dirty.set(kind, text);
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.save(), 400);
   }
   save() {
     clearTimeout(this.timer);
-    if (this.dirty !== null) this.emit({ type: "op", op: { op: "free_text", question: this.question.id, text: this.dirty } });
+    if (this.pending) return this.pending;
+    this.pending = this.flush().finally(() => { this.pending = null; });
+    return this.pending;
+  }
+  async flush() {
+    while (this.dirty.size) {
+      const [kind, text] = this.dirty.entries().next().value;
+      const saved = await this.emit({ type: "save-draft", op: { op: kind, question: this.question.id, text } });
+      if (!saved) return false;
+      if (this.dirty.get(kind) === text) this.dirty.delete(kind);
+    }
+    return true;
   }
   draw(question) {
     if (question.method !== "custom") return null;
     const t = translator(question.lang);
     return h("div", { class: "note", "data-field": "free-text" },
       h("label", {}, h("span", { class: "note-label" }, t("card.free-text")), h("textarea", {
-        rows: 3, value: this.dirty ?? question.free_text, disabled: question.locked,
+        rows: 3, value: this.value("free_text", question.free_text), disabled: question.locked,
         "data-focus": `free-text-${question.id}`,
         "aria-describedby": question.emptyCustom ? `empty-${question.id}` : undefined,
-        oninput: event => this.edit(event.target.value), onchange: () => this.save(),
+        oninput: event => this.edit("free_text", event.target.value), onchange: () => this.save(),
       })),
       question.emptyCustom ? h("p", { id: `empty-${question.id}`, "data-empty-answer": true }, t("card.empty-answer")) : null);
   }
@@ -218,29 +228,6 @@ export function deferSwitch(question, emit) {
     h("span", { class: "toggle-track", "aria-hidden": "true" }),
     h("span", {}, t("card.defer")),
   );
-}
-
-/// How long typing pauses before the note is saved, so a closed page keeps what was typed.
-const NOTE_PAUSE_MS = 400;
-// A redraw must not give a retained editor a second saver whose timer cannot cancel the first.
-const noteSavers = new WeakMap();
-
-function noteSaver(field, question, emit) {
-  const existing = noteSavers.get(field);
-  if (existing) return existing;
-  let timer = null;
-  const now = (text) => {
-    clearTimeout(timer);
-    // Last-sent text is not authoritative: another tab may have stored a different note.
-    emit({ type: "op", op: { op: "note", question: question.id, text } });
-  };
-  const later = (text) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => now(text), NOTE_PAUSE_MS);
-  };
-  const saver = { now, later };
-  noteSavers.set(field, saver);
-  return saver;
 }
 
 /// 判子: pressed by the person, or pre-approved by the LLM; pressing a pressed stamp lifts it.

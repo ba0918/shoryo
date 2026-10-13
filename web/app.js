@@ -287,7 +287,7 @@ function dialogData(shown) {
     return detail ? { kind: "decision", data: detail, lang: shown.lang } : null;
   }
   if (dialog?.kind === "confirm-send") {
-    return { kind: "confirm-send", data: confirmData(shown), lang: shown.lang };
+    return { kind: "confirm-send", data: dialog.data, lang: shown.lang };
   }
   if (dialog?.kind === "confirm-review") {
     return { kind: "confirm-review", data: reviewConfirmData(shown, dialog.decision, dialog.resultWording), lang: shown.lang };
@@ -343,7 +343,9 @@ function enqueue(op) {
   queue = queue.then(() => operate(op)).catch((failure) => {
     ui.error = { key: "screen.unreachable", vars: { reason: failure.message } };
     render();
+    return false;
   });
+  return queue;
 }
 
 async function operate(op) {
@@ -355,11 +357,47 @@ async function operate(op) {
     // current state with the reason.
     const current = await fetch("./api/view").catch(() => null);
     if (current?.ok) accept(await current.json());
+    if (op.op === "submit") {
+      ui.dialog = body.refusal?.kind === "answers_changed" && view.expected_answers !== null
+        ? frozenConfirmation() : null;
+    }
+    render();
+    return false;
   } else {
     ui.error = null;
     accept(await response.json());
   }
   render();
+  return true;
+}
+
+function frozenConfirmation() {
+  return { kind: "confirm-send", data: structuredClone(confirmData({ ...view, lang: ui.config.language })), expected: structuredClone(view.expected_answers) };
+}
+
+async function answerOperation(op) {
+  if (!await current.flush()) return false;
+  if (op.op === "stamp") {
+    const question = view.topic.rounds.at(-1)?.questions.find(q => q.id === op.question);
+    op = { ...op, stamped: question?.answer.stamp == null };
+  }
+  return enqueue(op);
+}
+
+async function openConfirmation() {
+  if (!await current.flush()) return;
+  await queue;
+  if (view.expected_answers === null || view.topic.rounds.at(-1)?.submitted) return;
+  ui.dialog = frozenConfirmation();
+  render();
+}
+
+async function sendConfirmed() {
+  const snapshot = ui.dialog;
+  if (snapshot?.kind !== "confirm-send" || !await current.flush()) return;
+  ui.dialog = null;
+  render();
+  await enqueue({ op: "submit", round: snapshot.data.round, expected_answers: snapshot.expected });
 }
 
 /// A refusal in the screen's language when its kind is known; otherwise the server's words.
@@ -465,8 +503,9 @@ function handle(event) {
       return;
     }
     case "op":
-      enqueue(event.op);
-      return;
+      return answerOperation(event.op);
+    case "save-draft":
+      return enqueue(event.op);
     case "tab":
       ui.tab = event.tab;
       ui.landed = null;
@@ -518,12 +557,9 @@ function handle(event) {
       changeConfig(event.change);
       return;
     case "confirm-send":
-      ui.dialog = { kind: "confirm-send" };
-      break;
+      return openConfirmation();
     case "send":
-      ui.dialog = null;
-      enqueue({ op: "submit", round: event.round });
-      break;
+      return sendConfirmed();
     case "go-unstamped":
       remember();
       ui.tab = "current";

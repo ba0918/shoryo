@@ -4,7 +4,7 @@ import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {
   chainLine,
-  CustomDraft,
+  AnswerDrafts,
   consequence,
   deferSwitch,
   details,
@@ -24,7 +24,7 @@ export class ProvisionalRow extends Component {
   constructor(emit, { past = false } = {}) {
     super(emit);
     this.past = past;
-    this.customDraft = new CustomDraft(emit);
+    this.customDraft = new AnswerDrafts(emit);
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
@@ -100,7 +100,7 @@ export class ProvisionalRow extends Component {
             optionList(question, this.emit, true, this.codeParts, this.diagramParts),
             this.customDraft.draw(question),
             consequence(question),
-            noteField(question, this.emit),
+            noteField(question, this.customDraft),
             this.threadFor(question),
           )
         : null,
@@ -115,8 +115,8 @@ export class ProvisionalRow extends Component {
             "data-action": "open",
             "data-focus": `provisional-toggle-${question.id}`,
             "aria-expanded": String(this.open),
-            onclick: () => {
-              this.customDraft.save();
+            onclick: async () => {
+              if (!await this.customDraft.save()) return;
               this.open = !this.open;
               this.redraw();
             },

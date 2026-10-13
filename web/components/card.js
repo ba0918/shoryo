@@ -6,7 +6,7 @@ import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {
   chainLine,
-  CustomDraft,
+  AnswerDrafts,
   consequence,
   deferSwitch,
   details,
@@ -25,7 +25,7 @@ export class Card extends Component {
   constructor(emit, { past = false } = {}) {
     super(emit);
     this.past = past;
-    this.customDraft = new CustomDraft(emit);
+    this.customDraft = new AnswerDrafts(emit);
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
@@ -52,8 +52,8 @@ export class Card extends Component {
     return thread(question, { ...this.thread, canAsk: !question.locked }, onLocal, this.emit, this.codeParts, this.diagramParts);
   }
 
-  toggle() {
-    this.customDraft.save();
+  async toggle() {
+    if (!await this.customDraft.save()) return;
     this.open = !this.open;
     this.redraw();
   }
@@ -106,7 +106,7 @@ export class Card extends Component {
           optionList(question, this.emit, this.open, this.codeParts, this.diagramParts),
           this.customDraft.draw(question),
           consequence(question),
-          noteField(question, this.emit),
+          noteField(question, this.customDraft),
         ),
         h("div", { class: "card-stamp" }, stampButton(question, this.emit, this.stampTime())),
       ),

@@ -151,14 +151,16 @@ export function confirmData(view) {
     lang: view.lang,
     round: round.number,
     result: round.questions.length === 0,
-    questions: round.questions.map((question) => ({
+    questions: (view.expected_answers ?? []).map((answer) => {
+      const question = round.questions.find(q => q.id === answer.question);
+      return {
       id: question.id,
       text: question.text,
-      answer: question.answer.deferred ? null : question.options[question.answer.selected]?.text ?? "",
-      deferred: question.answer.deferred,
-      note: question.answer.note,
-      stamp: question.answer.stamp,
-    })),
+      answer: answer.deferred ? null : answer.free_text ?? question.options[answer.choice]?.text ?? "",
+      deferred: answer.deferred,
+      note: answer.note,
+      stamp: answer.stamp,
+    }; }),
     reviews: topic.records.in_review
       .map((entry) => findDecision(topic, entry.decision))
       .filter((decision) => decision !== null)
