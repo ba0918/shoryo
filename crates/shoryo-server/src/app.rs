@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use shoryo_core::{
     AskId, ChainLink, DecisionId, EventId, Map, Operation, OperationRefusal, QuestionId, Reply,
-    RoundInput,
+    RoundInput, SentAnswer,
 };
 use tokio::sync::watch;
 
@@ -145,6 +145,13 @@ impl Shared {
             chains,
             unstamped: topic.unstamped(),
             pre_approved,
+            expected_answers: topic.current_round().and_then(|r| r.sent_answers().ok()),
+            sent_answers: topic
+                .rounds
+                .iter()
+                .filter(|r| r.submitted)
+                .filter_map(|r| r.sent_answers().ok().map(|a| (r.number, a)))
+                .collect(),
             topic: state.clone(),
         }
     }
@@ -185,6 +192,8 @@ impl Drop for WaitInProgress {
 /// Everything the page draws, sent whole on every change.
 #[derive(Serialize)]
 struct View {
+    expected_answers: Option<Vec<SentAnswer>>,
+    sent_answers: BTreeMap<u32, Vec<SentAnswer>>,
     version: u64,
     agent: AgentView,
     topic: StoredTopic,

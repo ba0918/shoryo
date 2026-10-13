@@ -407,7 +407,10 @@ fn answers_are_refused_after_submit() {
             question: q("q2"),
             stamped: false,
         },
-        Operation::Submit { round: 2 },
+        Operation::Submit {
+            round: 2,
+            expected_answers: None,
+        },
     ] {
         assert_eq!(
             topic.apply(operation, any_time()),
@@ -636,7 +639,13 @@ fn every_input_is_refused_after_end() {
 fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
     let mut topic = topic_on_a_round();
 
-    let refused = topic.apply(Operation::Submit { round: 1 }, any_time());
+    let refused = topic.apply(
+        Operation::Submit {
+            round: 1,
+            expected_answers: None,
+        },
+        any_time(),
+    );
 
     assert_eq!(refused, Err(OperationRefusal::NotCurrentRound { round: 1 }));
     assert!(!topic.current_round().expect("round 2 is out").submitted);
@@ -807,7 +816,13 @@ fn swap_resets_stamp_to_new_class_initial_state() {
 fn submit_is_refused_while_a_question_is_unstamped() {
     let mut topic = topic_on_a_round();
 
-    let refused = topic.apply(Operation::Submit { round: 2 }, any_time());
+    let refused = topic.apply(
+        Operation::Submit {
+            round: 2,
+            expected_answers: None,
+        },
+        any_time(),
+    );
 
     assert_eq!(
         refused,
@@ -819,7 +834,13 @@ fn submit_is_refused_while_a_question_is_unstamped() {
     assert!(topic.pending_events().is_empty());
     stamp(&mut topic, "q2", true);
     assert_eq!(
-        topic.apply(Operation::Submit { round: 2 }, any_time()),
+        topic.apply(
+            Operation::Submit {
+                round: 2,
+                expected_answers: None
+            },
+            any_time()
+        ),
         Ok(())
     );
 }
@@ -838,7 +859,13 @@ fn deferred_question_needs_a_stamp() {
         )
         .unwrap();
 
-    let refused = topic.apply(Operation::Submit { round: 2 }, any_time());
+    let refused = topic.apply(
+        Operation::Submit {
+            round: 2,
+            expected_answers: None,
+        },
+        any_time(),
+    );
 
     assert_eq!(
         refused,
@@ -854,7 +881,13 @@ fn submitted_event_carries_stamp_kind() {
     stamp(&mut topic, "q2", true);
 
     topic
-        .apply(Operation::Submit { round: 2 }, any_time())
+        .apply(
+            Operation::Submit {
+                round: 2,
+                expected_answers: None,
+            },
+            any_time(),
+        )
         .unwrap();
 
     let EventKind::Submitted { answers, .. } = kinds(&topic)[0] else {
@@ -878,7 +911,13 @@ fn round_without_questions_is_submitted_with_no_answers() {
     topic.acknowledge(&ids);
 
     topic
-        .apply(Operation::Submit { round: 3 }, any_time())
+        .apply(
+            Operation::Submit {
+                round: 3,
+                expected_answers: None,
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(
@@ -897,7 +936,10 @@ fn submitting_records_the_sent_time() {
 
     topic
         .apply(
-            Operation::Submit { round: 2 },
+            Operation::Submit {
+                round: 2,
+                expected_answers: None,
+            },
             Timestamp::new("2026-10-08T04:05:00.000Z"),
         )
         .unwrap();
@@ -929,10 +971,22 @@ fn result_round_records_whether_it_proceeded_or_asked_for_review() {
         .unwrap();
 
     proceeded
-        .apply(Operation::Submit { round: 3 }, any_time())
+        .apply(
+            Operation::Submit {
+                round: 3,
+                expected_answers: None,
+            },
+            any_time(),
+        )
         .unwrap();
     reviewed
-        .apply(Operation::Submit { round: 3 }, any_time())
+        .apply(
+            Operation::Submit {
+                round: 3,
+                expected_answers: None,
+            },
+            any_time(),
+        )
         .unwrap();
 
     assert_eq!(

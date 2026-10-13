@@ -45,6 +45,13 @@ pub fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
                     path: location.state_file(),
                     reason: error.to_string(),
                 })?;
+            state
+                .topic
+                .validate_answers()
+                .map_err(|error| ServerError::CorruptState {
+                    path: location.state_file(),
+                    reason: error.to_string(),
+                })?;
             Ok(state)
         }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(StoredTopic {

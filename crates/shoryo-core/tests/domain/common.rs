@@ -62,7 +62,13 @@ pub fn topic_from(rounds: Vec<Value>) -> shoryo_core::Topic {
 /// round on the screen.
 pub fn submit_current(topic: &mut shoryo_core::Topic) -> Result<(), shoryo_core::OperationRefusal> {
     let Some(current) = topic.current_round() else {
-        return topic.apply(shoryo_core::Operation::Submit { round: 0 }, any_time());
+        return topic.apply(
+            shoryo_core::Operation::Submit {
+                round: 0,
+                expected_answers: None,
+            },
+            any_time(),
+        );
     };
     let round = current.number;
     let unstamped: Vec<_> = current
@@ -80,5 +86,11 @@ pub fn submit_current(topic: &mut shoryo_core::Topic) -> Result<(), shoryo_core:
             any_time(),
         )?;
     }
-    topic.apply(shoryo_core::Operation::Submit { round }, any_time())
+    topic.apply(
+        shoryo_core::Operation::Submit {
+            round,
+            expected_answers: None,
+        },
+        any_time(),
+    )
 }

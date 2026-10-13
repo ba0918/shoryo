@@ -718,7 +718,10 @@ fn reply_and_historical_submission_budgets_are_not_cumulative() {
             .unwrap();
         topic
             .apply(
-                Operation::Submit { round: round + 1 },
+                Operation::Submit {
+                    round: round + 1,
+                    expected_answers: None,
+                },
                 super::common::any_time(),
             )
             .unwrap();

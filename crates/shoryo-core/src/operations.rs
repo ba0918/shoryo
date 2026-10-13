@@ -58,6 +58,8 @@ pub enum Operation {
     /// Sends the round the person was looking at; `round` is that round's number.
     Submit {
         round: u32,
+        #[serde(default)]
+        expected_answers: Option<Vec<SentAnswer>>,
     },
 }
 
@@ -115,6 +117,7 @@ pub struct SentAnswer {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum OperationRefusal {
+    AnswersChanged,
     EmptyFreeText {
         questions: Vec<QuestionId>,
     },
@@ -163,6 +166,10 @@ pub enum OperationRefusal {
 impl fmt::Display for OperationRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::AnswersChanged => write!(
+                f,
+                "answers changed; confirm the latest answers before sending"
+            ),
             Self::InvalidAnswer { question } => write!(f, "invalid sent answer for {question}"),
             Self::EmptyFreeText { questions } => {
                 write!(f, "custom answers are empty: {questions:?}")
@@ -331,7 +338,10 @@ impl Topic {
             } => self.ask(question, text, follows)?,
             Operation::RequestReview { decision } => self.request_review(decision)?,
             Operation::StopReview { decision } => self.stop_review(decision)?,
-            Operation::Submit { round } => self.submit(round, now)?,
+            Operation::Submit {
+                round,
+                expected_answers,
+            } => self.submit(round, expected_answers.as_deref(), now)?,
         }
         Ok(())
     }
@@ -469,7 +479,12 @@ impl Topic {
         Ok(())
     }
 
-    fn submit(&mut self, made_on: u32, now: Timestamp) -> Result<(), OperationRefusal> {
+    fn submit(
+        &mut self,
+        made_on: u32,
+        expected: Option<&[SentAnswer]>,
+        now: Timestamp,
+    ) -> Result<(), OperationRefusal> {
         if self
             .current_round()
             .is_some_and(|round| round.number != made_on)
@@ -481,6 +496,14 @@ impl Topic {
             .current_round()
             .ok_or(OperationRefusal::NoRound)?
             .sent_answers()?;
+        if let Some(expected) = expected {
+            for answer in expected {
+                answer.validate()?;
+            }
+            if expected != answers {
+                return Err(OperationRefusal::AnswersChanged);
+            }
+        }
         let sent_as = if self.records.in_review.is_empty() {
             SentAs::Proceeded
         } else {

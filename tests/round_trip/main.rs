@@ -3,6 +3,7 @@
 
 mod config;
 mod explanations;
+mod free_text;
 mod harness;
 
 use std::io::{BufRead, BufReader};
