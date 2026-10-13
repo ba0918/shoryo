@@ -1,3 +1,6 @@
+mod errors;
+mod schema;
+
 use serde_json::{Value, json};
 use shoryo_core::{AskId, AskState, Operation, QuestionId, Reply, RoundInput, Topic};
 
@@ -215,6 +218,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn layout_numbers_accept_their_limits_and_refuse_out_of_range_values() {
     for (part, path, min, max) in [
         (sequence(), "/layout/participant_gap", 16, 512),
         (sequence(), "/layout/event_gap", 16, 512),
@@ -258,6 +265,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn sequence_participant_counts_accept_their_limits_and_refuse_excess() {
     for (count, valid) in [(1, true), (12, true), (0, false), (13, false)] {
         let mut p = sequence();
         p["participants"] = json!(
@@ -273,6 +284,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn flow_node_counts_accept_their_limits_and_refuse_excess() {
     for (count, valid) in [(1, true), (32, true), (0, false), (33, false)] {
         let mut p = flow();
         p["nodes"] = json!(
@@ -287,6 +302,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn flow_edge_counts_accept_their_limits_and_refuse_excess() {
     for (count, valid) in [(0, true), (64, true), (65, false)] {
         let mut p = flow();
         p["edges"] = json!(vec![p["edges"][0].clone(); count]);
@@ -296,6 +315,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn flow_routes_accept_their_limits_and_refuse_excess() {
     for (count, valid) in [(0, true), (12, true), (13, false)] {
         let mut p = flow();
         p["edges"][0]["via"] = json!(vec![json!({"x":8192,"y":0}); count]);
@@ -306,6 +329,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn sequence_branch_counts_accept_their_limits_and_refuse_excess() {
     for (count, valid) in [(2, true), (8, true), (1, false), (9, false)] {
         let mut p = sequence();
         let message = p["events"][0].clone();
@@ -316,6 +343,10 @@ fn diagram_and_string_bounds_are_checked_without_truncation() {
             refused(json!([p]));
         }
     }
+}
+
+#[test]
+fn round_explanations_accept_the_byte_budget_and_refuse_one_extra_byte() {
     let mut parts = vec![json!({"type":"text","body":"a".repeat(16384)}); 32];
     parts[31]["body"] = json!("a".repeat(16256));
     accept(json!(parts));
@@ -358,13 +389,12 @@ fn invalid_reply_leaves_ask_waiting() {
 }
 
 #[test]
-fn corrupt_stored_explanations_are_refused_without_altering_the_source() {
+fn corrupt_stored_explanations_are_refused() {
     let topic = accept(json!([{"type":"text","body":"Fine"}]));
     let mut stored: Value = serde_json::from_str(&topic.to_json()).unwrap();
     stored["rounds"][0]["questions"][0]["background"][0]["body"] = json!("x".repeat(16385));
     let bytes = stored.to_string();
     assert!(Topic::from_json(&bytes).is_err());
-    assert_eq!(bytes, stored.to_string());
 }
 
 #[test]
@@ -439,77 +469,6 @@ fn legacy_limits_have_reachable_acceptance_and_refusal_pairs() {
         }
     }
     refused(diagram("a =\n| a | . |\n| a |".into()));
-}
-
-#[test]
-fn every_nested_input_object_refuses_unknown_fields_and_null_optionals() {
-    let mut seq = sequence();
-    seq["layout"] = json!({"event_gap":72});
-    seq["canvas"] = json!({"width":64,"height":64});
-    let message = seq["events"][0].clone();
-    seq["events"] = json!([
-        message,{"type":"alt","branches":[{"condition":"Yes","messages":[message]},{"condition":"No","messages":[message]}]},
-        {"type":"loop","condition":"Again","messages":[message]}]);
-    let mut path = flow();
-    path["canvas"] = json!({"width":64,"height":64});
-    path["nodes"][0]["position"] = json!({"x":100,"y":100});
-    path["edges"][0]["via"] = json!([{"x":100,"y":100}]);
-    path["edges"][0]["label"]["position"] = json!({"x":100,"y":100});
-    for (base, paths) in [
-        (
-            seq,
-            vec![
-                "",
-                "/layout",
-                "/canvas",
-                "/participants/0",
-                "/events/0",
-                "/events/1",
-                "/events/1/branches/0",
-                "/events/1/branches/0/messages/0",
-                "/events/2",
-                "/events/2/messages/0",
-            ],
-        ),
-        (
-            path,
-            vec![
-                "",
-                "/canvas",
-                "/nodes/0",
-                "/nodes/0/position",
-                "/edges/0",
-                "/edges/0/via/0",
-                "/edges/0/label",
-                "/edges/0/label/position",
-            ],
-        ),
-    ] {
-        accept(json!([base]));
-        for ptr in paths {
-            let mut p = base.clone();
-            p.pointer_mut(ptr)
-                .unwrap()
-                .as_object_mut()
-                .unwrap()
-                .insert("unexpected".into(), json!("x"));
-            assert!(
-                RoundInput::from_json(&input(json!([p])).to_string()).is_err(),
-                "unknown field at {ptr}"
-            );
-        }
-    }
-    for field in ["position", "width", "height"] {
-        let mut p = flow();
-        p["nodes"][0][field] = Value::Null;
-        refused(json!([p]));
-    }
-    for field in ["from_port", "to_port", "via", "label"] {
-        let mut p = flow();
-        p["edges"][0][field] = Value::Null;
-        refused(json!([p]));
-    }
-    assert!(RoundInput::from_json(r#"{"subject":"x","questions":[{"id":"q","text":"x","class":"human","why_now":"x","background":[{"type":"text","body":"\ud800"}],"options":[] }]}"#).is_err());
 }
 
 #[test]
@@ -730,83 +689,4 @@ fn reply_and_historical_submission_budgets_are_not_cumulative() {
     let mut stored: Value = serde_json::from_str(&topic.to_json()).unwrap();
     stored["rounds"][0]["asks"][0]["state"]["parts"][0]["body"] = json!("x".repeat(16385));
     assert!(Topic::from_json(&stored.to_string()).is_err());
-}
-
-#[test]
-fn required_nested_fields_and_optional_nulls_are_not_silently_defaulted() {
-    let message = sequence()["events"][0].clone();
-    let mut seq = sequence();
-    seq["events"] = json!([{ "type":"alt", "branches":[{"condition":"Yes","messages":[message]},{"condition":"No","messages":[message]}] },{"type":"loop","condition":"Again","messages":[message]}]);
-    let code = json!({"type":"code","body":"","language":"rust","role":"example"});
-    let legacy = json!({"type":"diagram","title":"Legacy","role":"example","source":"a ="});
-    let text = json!({"type":"text","body":""});
-    for (base, ptr, fields) in [
-        (text, "", vec!["type", "body"]),
-        (code, "", vec!["type", "body", "language", "role"]),
-        (legacy, "", vec!["type", "title", "role", "source"]),
-        (
-            sequence(),
-            "",
-            vec!["type", "title", "role", "participants", "events"],
-        ),
-        (sequence(), "/participants/0", vec!["id", "label"]),
-        (
-            sequence(),
-            "/events/0",
-            vec!["type", "from", "to", "label", "kind"],
-        ),
-        (seq.clone(), "/events/0", vec!["type", "branches"]),
-        (
-            seq.clone(),
-            "/events/0/branches/0",
-            vec!["condition", "messages"],
-        ),
-        (
-            seq.clone(),
-            "/events/1",
-            vec!["type", "condition", "messages"],
-        ),
-        (
-            seq.clone(),
-            "/events/1/messages/0",
-            vec!["type", "from", "to", "label", "kind"],
-        ),
-        (flow(), "", vec!["type", "title", "role", "nodes", "edges"]),
-        (flow(), "/nodes/0", vec!["id", "kind", "label"]),
-        (flow(), "/edges/0", vec!["from", "to"]),
-        (flow(), "/edges/0/label", vec!["text"]),
-    ] {
-        accept(json!([base]));
-        let mut unknown = base.clone();
-        unknown
-            .pointer_mut(ptr)
-            .unwrap()
-            .as_object_mut()
-            .unwrap()
-            .insert("unknown".into(), json!(true));
-        refused(json!([unknown]));
-        for field in fields {
-            let mut p = base.clone();
-            p.pointer_mut(ptr)
-                .unwrap()
-                .as_object_mut()
-                .unwrap()
-                .remove(field);
-            assert!(
-                RoundInput::from_json(&input(json!([p])).to_string()).is_err(),
-                "missing {ptr}/{field}"
-            );
-        }
-    }
-    for ptr in ["/participants/0/x", "/events/0/gap_after"] {
-        let mut p = sequence();
-        let fields: Vec<_> = ptr.trim_start_matches('/').split('/').collect();
-        p[fields[0]][0][fields[2]] = Value::Null;
-        refused(json!([p]));
-    }
-    for path in ["/events/0/branches/0/messages", "/events/1/messages"] {
-        let mut p = seq.clone();
-        *p.pointer_mut(path).unwrap() = json!([]);
-        refused(json!([p]));
-    }
 }

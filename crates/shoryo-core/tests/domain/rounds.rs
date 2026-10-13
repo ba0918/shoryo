@@ -3,7 +3,7 @@ use shoryo_core::{
     DecisionContent, DecisionId, InReview, QuestionId, RoundInput, RoundRefusal, Topic,
 };
 
-use crate::common::{decision, option, question, round};
+use crate::common::{decision, option, question, round, submit_current};
 
 fn first_round() -> RoundInput {
     round(json!({
@@ -20,7 +20,7 @@ fn topic_with_submitted_round() -> Topic {
     topic
         .apply_round(first_round())
         .expect("the first round is valid");
-    topic.rounds[0].submitted = true;
+    submit_current(&mut topic).expect("the first round can be sent");
     topic
         .apply_round(round(json!({
             "subject": "Format",
@@ -28,7 +28,7 @@ fn topic_with_submitted_round() -> Topic {
             "records": { "decisions": [decision("d1", "q1", "One file")] },
         })))
         .expect("the second round is valid");
-    topic.rounds[1].submitted = true;
+    submit_current(&mut topic).expect("the second round can be sent");
     topic
 }
 
@@ -220,7 +220,7 @@ fn review_conclusion_changed_records_revision() {
 #[test]
 fn round_after_end_reopens_topic() {
     let mut topic = topic_with_submitted_round();
-    topic.ended = true;
+    topic.end().unwrap();
 
     topic
         .apply_round(round(json!({
@@ -316,7 +316,7 @@ fn round_keeps_the_picture_and_records_it_was_applied_with() {
             },
         })))
         .unwrap();
-    topic.rounds[2].submitted = true;
+    submit_current(&mut topic).unwrap();
 
     topic
         .apply_round(round(json!({
@@ -335,4 +335,38 @@ fn round_keeps_the_picture_and_records_it_was_applied_with() {
     assert_eq!(next.records.not_building, ["A web service"]);
     assert_eq!(next.records.delegated, result.records.delegated);
     assert_eq!(next.records.rejected, result.records.rejected);
+}
+
+#[test]
+fn refusing_duplicate_questions_does_not_partially_apply_metadata_or_records() {
+    let mut topic = topic_with_submitted_round();
+    let before = topic.clone();
+    let refused = topic.apply_round(round(json!({
+        "title":"Changed", "original_request":"Changed", "finished_picture":"Changed",
+        "subject":"Next", "questions":[question("q3", &[]), question("q3", &[])],
+        "records":{"decisions":[decision("d1", "q1", "Changed")], "not_building":["Changed"]},
+    })));
+    assert_eq!(
+        refused,
+        Err(RoundRefusal::QuestionIdReused {
+            question: QuestionId::new("q3")
+        })
+    );
+    assert_eq!(topic, before);
+}
+
+#[test]
+fn questions_without_a_recommendation_are_refused_before_initializing_answers() {
+    let mut topic = Topic::new("Original", "Keep this");
+    let before = topic.clone();
+    let mut q = question("q1", &[]);
+    q["options"] = json!([option("A", false), option("B", false)]);
+    assert_eq!(
+        topic.apply_round(round(json!({"subject":"S", "questions":[q]}))),
+        Err(RoundRefusal::RecommendedCount {
+            question: QuestionId::new("q1"),
+            count: 0
+        }),
+    );
+    assert_eq!(topic, before);
 }

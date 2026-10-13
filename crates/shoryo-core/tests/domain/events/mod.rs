@@ -1,7 +1,10 @@
+mod stamps;
+mod submissions;
+
 use serde_json::json;
 use shoryo_core::{
     AskId, AskState, Class, DecisionId, EventKind, Operation, OperationRefusal, QuestionId, Reply,
-    SentAs, Stamp, Timestamp, Topic,
+    Stamp, Topic,
 };
 
 use crate::common::{any_time, decision, question, round, submit_current};
@@ -391,6 +394,14 @@ fn answers_are_refused_after_submit() {
     submit_current(&mut topic).unwrap();
 
     for operation in [
+        Operation::AnswerMethod {
+            question: q("q2"),
+            method: shoryo_core::AnswerMethod::Custom,
+        },
+        Operation::FreeText {
+            question: q("q2"),
+            text: "late".into(),
+        },
         Operation::Choose {
             question: q("q2"),
             option: 1,
@@ -649,6 +660,31 @@ fn every_input_is_refused_after_end() {
 
     for operation in [
         Operation::RequestReview { decision: d("d1") },
+        Operation::StopReview { decision: d("d1") },
+        Operation::AnswerMethod {
+            question: q("q2"),
+            method: shoryo_core::AnswerMethod::Custom,
+        },
+        Operation::FreeText {
+            question: q("q2"),
+            text: "late".into(),
+        },
+        Operation::Note {
+            question: q("q2"),
+            text: "late".into(),
+        },
+        Operation::Defer {
+            question: q("q2"),
+            deferred: true,
+        },
+        Operation::Stamp {
+            question: q("q2"),
+            stamped: true,
+        },
+        Operation::Submit {
+            round: 2,
+            expected_answers: None,
+        },
         Operation::SwapClass { question: q("q2") },
         Operation::Ask {
             question: q("q2"),
@@ -701,341 +737,49 @@ fn stamp_of(topic: &Topic, id: &str) -> Option<Stamp> {
 }
 
 #[test]
-fn pressing_a_stamp_records_the_time_and_lifting_it_clears_it() {
+fn edits_of_an_unknown_question_never_change_state_or_allocate_events() {
     let mut topic = topic_on_a_round();
-    let press = |topic: &mut Topic, stamped, at: &str| {
-        topic
-            .apply(
-                Operation::Stamp {
-                    question: q("q2"),
-                    stamped,
-                },
-                Timestamp::new(at),
-            )
-            .unwrap();
-    };
-
-    press(&mut topic, true, "2026-10-08T04:01:00.000Z");
-    let first = current_answer(&topic, "q2").stamped_at.clone();
-    press(&mut topic, true, "2026-10-08T04:02:00.000Z");
-    let pressed_twice = current_answer(&topic, "q2").stamped_at.clone();
-    press(&mut topic, false, "2026-10-08T04:03:00.000Z");
-    let lifted = current_answer(&topic, "q2").stamped_at.clone();
-    press(&mut topic, true, "2026-10-08T04:04:00.000Z");
-    let pressed_again = current_answer(&topic, "q2").stamped_at.clone();
-
-    assert_eq!(first, Some(Timestamp::new("2026-10-08T04:01:00.000Z")));
-    assert_eq!(pressed_twice, first);
-    assert_eq!(lifted, None);
-    assert_eq!(
-        pressed_again,
-        Some(Timestamp::new("2026-10-08T04:04:00.000Z"))
-    );
-}
-
-#[test]
-fn stamp_time_goes_with_the_stamp_when_the_answer_changes() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-    topic
-        .apply(
-            Operation::Choose {
-                question: q("q2"),
-                option: 1,
-            },
-            any_time(),
-        )
-        .unwrap();
-    let after_choose = current_answer(&topic, "q2").stamped_at.clone();
-    stamp(&mut topic, "q2", true);
-    topic
-        .apply(Operation::SwapClass { question: q("q2") }, any_time())
-        .unwrap();
-
-    assert_eq!(after_choose, None);
-    assert_eq!(current_answer(&topic, "q2").stamped_at, None);
-}
-
-#[test]
-fn pre_approved_stamp_has_no_time_of_its_own() {
-    let topic = topic_on_a_round();
-
-    assert_eq!(current_answer(&topic, "q3").stamped_at, None);
-}
-
-#[test]
-fn human_question_starts_unstamped_and_provisional_starts_pre_approved() {
-    let topic = topic_on_a_round();
-
-    assert_eq!(stamp_of(&topic, "q2"), None);
-    assert_eq!(stamp_of(&topic, "q3"), Some(Stamp::PreApproved));
-}
-
-#[test]
-fn changing_choice_removes_stamp_but_changing_note_does_not() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-
-    topic
-        .apply(
-            Operation::Note {
-                question: q("q2"),
-                text: "Only for now.".into(),
-            },
-            any_time(),
-        )
-        .unwrap();
-    assert_eq!(stamp_of(&topic, "q2"), Some(Stamp::Person));
-    topic
-        .apply(
-            Operation::Choose {
-                question: q("q2"),
-                option: 1,
-            },
-            any_time(),
-        )
-        .unwrap();
-
-    assert_eq!(stamp_of(&topic, "q2"), None);
-}
-
-#[test]
-fn changing_defer_switch_removes_stamp() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-
-    topic
-        .apply(
-            Operation::Defer {
-                question: q("q2"),
-                deferred: true,
-            },
-            any_time(),
-        )
-        .unwrap();
-
-    assert_eq!(stamp_of(&topic, "q2"), None);
-}
-
-#[test]
-fn unstamping_pre_approved_row_is_a_send_back() {
-    let mut topic = topic_on_a_round();
-
-    stamp(&mut topic, "q3", false);
-    assert_eq!(stamp_of(&topic, "q3"), None);
-    stamp(&mut topic, "q3", true);
-
-    assert_eq!(stamp_of(&topic, "q3"), Some(Stamp::Person));
-}
-
-#[test]
-fn swap_resets_stamp_to_new_class_initial_state() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-
-    topic
-        .apply(Operation::SwapClass { question: q("q2") }, any_time())
-        .unwrap();
-    assert_eq!(stamp_of(&topic, "q2"), Some(Stamp::PreApproved));
-    topic
-        .apply(Operation::SwapClass { question: q("q3") }, any_time())
-        .unwrap();
-
-    assert_eq!(stamp_of(&topic, "q3"), None);
-}
-
-#[test]
-fn submit_is_refused_while_a_question_is_unstamped() {
-    let mut topic = topic_on_a_round();
-
-    let refused = topic.apply(
-        Operation::Submit {
-            round: 2,
-            expected_answers: None,
+    let before = topic.clone();
+    for operation in [
+        Operation::AnswerMethod {
+            question: q("absent"),
+            method: shoryo_core::AnswerMethod::Custom,
         },
-        any_time(),
-    );
-
-    assert_eq!(
-        refused,
-        Err(OperationRefusal::Unstamped {
-            questions: vec![q("q2")]
-        })
-    );
-    assert!(!topic.current_round().unwrap().submitted);
-    assert!(topic.pending_events().is_empty());
-    stamp(&mut topic, "q2", true);
-    assert_eq!(
-        topic.apply(
-            Operation::Submit {
-                round: 2,
-                expected_answers: None
-            },
-            any_time()
-        ),
-        Ok(())
-    );
-}
-
-#[test]
-fn deferred_question_needs_a_stamp() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-    topic
-        .apply(
-            Operation::Defer {
-                question: q("q2"),
-                deferred: true,
-            },
-            any_time(),
-        )
-        .unwrap();
-
-    let refused = topic.apply(
-        Operation::Submit {
-            round: 2,
-            expected_answers: None,
+        Operation::FreeText {
+            question: q("absent"),
+            text: "answer".into(),
         },
-        any_time(),
-    );
-
-    assert_eq!(
-        refused,
-        Err(OperationRefusal::Unstamped {
-            questions: vec![q("q2")]
-        })
-    );
-}
-
-#[test]
-fn submitted_event_carries_stamp_kind() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-
-    topic
-        .apply(
-            Operation::Submit {
-                round: 2,
-                expected_answers: None,
-            },
-            any_time(),
-        )
-        .unwrap();
-
-    let EventKind::Submitted { answers, .. } = kinds(&topic)[0] else {
-        panic!("expected the submitted event");
-    };
-    let stamps: Vec<_> = answers.iter().map(|a| (&a.question, a.stamp)).collect();
-    assert_eq!(
-        stamps,
-        [(&q("q2"), Stamp::Person), (&q("q3"), Stamp::PreApproved)]
-    );
-}
-
-#[test]
-fn round_without_questions_is_submitted_with_no_answers() {
-    let mut topic = topic_on_a_round();
-    submit_current(&mut topic).unwrap();
-    topic
-        .apply_round(round(json!({ "subject": "Result" })))
-        .unwrap();
-    let ids: Vec<_> = topic.pending_events().iter().map(|e| e.id).collect();
-    topic.acknowledge(&ids);
-
-    topic
-        .apply(
-            Operation::Submit {
-                round: 3,
-                expected_answers: None,
-            },
-            any_time(),
-        )
-        .unwrap();
-
-    assert_eq!(
-        kinds(&topic),
-        [&EventKind::Submitted {
-            round: 3,
-            answers: vec![]
-        }]
-    );
-}
-
-#[test]
-fn submitting_records_the_sent_time() {
-    let mut topic = topic_on_a_round();
-    stamp(&mut topic, "q2", true);
-
-    topic
-        .apply(
-            Operation::Submit {
-                round: 2,
-                expected_answers: None,
-            },
-            Timestamp::new("2026-10-08T04:05:00.000Z"),
-        )
-        .unwrap();
-
-    let round = topic.current_round().unwrap();
-    assert!(round.submitted);
-    assert_eq!(
-        round.sent_at,
-        Some(Timestamp::new("2026-10-08T04:05:00.000Z"))
-    );
-}
-
-/// The topic on its result round (round 3), with decision d1 decided.
-fn topic_on_the_result() -> Topic {
-    let mut topic = topic_on_a_round();
-    submit_current(&mut topic).expect("the second round can be sent");
-    topic
-        .apply_round(round(json!({ "subject": "Result" })))
-        .expect("a round without questions is valid");
-    topic
-}
-
-#[test]
-fn result_round_records_whether_it_proceeded_or_asked_for_review() {
-    let mut proceeded = topic_on_the_result();
-    let mut reviewed = topic_on_the_result();
-    reviewed
-        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
-        .unwrap();
-
-    proceeded
-        .apply(
-            Operation::Submit {
-                round: 3,
-                expected_answers: None,
-            },
-            any_time(),
-        )
-        .unwrap();
-    reviewed
-        .apply(
-            Operation::Submit {
-                round: 3,
-                expected_answers: None,
-            },
-            any_time(),
-        )
-        .unwrap();
-
-    assert_eq!(
-        proceeded.current_round().unwrap().sent_as,
-        Some(SentAs::Proceeded)
-    );
-    assert_eq!(
-        reviewed.current_round().unwrap().sent_as,
-        Some(SentAs::ReviewRequested)
-    );
-}
-
-#[test]
-fn a_round_with_questions_records_no_way_of_sending() {
-    let mut topic = topic_on_a_round();
-
-    submit_current(&mut topic).unwrap();
-
-    assert_eq!(topic.current_round().unwrap().sent_as, None);
+        Operation::Choose {
+            question: q("absent"),
+            option: 0,
+        },
+        Operation::Note {
+            question: q("absent"),
+            text: "note".into(),
+        },
+        Operation::Defer {
+            question: q("absent"),
+            deferred: true,
+        },
+        Operation::Stamp {
+            question: q("absent"),
+            stamped: true,
+        },
+        Operation::SwapClass {
+            question: q("absent"),
+        },
+        Operation::Ask {
+            question: q("absent"),
+            text: "why?".into(),
+            follows: None,
+        },
+    ] {
+        assert_eq!(
+            topic.apply(operation, any_time()),
+            Err(OperationRefusal::UnknownQuestion {
+                question: q("absent")
+            })
+        );
+        assert_eq!(topic, before);
+    }
 }
