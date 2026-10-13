@@ -85,4 +85,16 @@ mod tests {
 
         assert_eq!(rfc3339_utc(since_epoch), "1970-01-01T00:00:01.999Z");
     }
+
+    #[test]
+    fn century_years_not_divisible_by_four_hundred_skip_leap_day() {
+        assert_eq!(
+            rfc3339_utc(Duration::from_secs(4_107_542_399)),
+            "2100-02-28T23:59:59.000Z"
+        );
+        assert_eq!(
+            rfc3339_utc(Duration::from_secs(4_107_542_400)),
+            "2100-03-01T00:00:00.000Z"
+        );
+    }
 }
