@@ -114,3 +114,22 @@ fn ids_are_never_reused_in_a_topic() {
     assert_ne!(reloaded.allocate_ask_id(), first_ask);
     assert_ne!(reloaded.allocate_event_id(), first_event);
 }
+
+#[test]
+fn stored_decisions_without_content_are_refused_before_they_can_be_read() {
+    let mut topic = Topic::new("", "");
+    topic.records.decisions.push(Decision::new(
+        DecisionId::new("d1"),
+        Origin::FixRound(1),
+        1,
+        DecisionContent {
+            name: "One file".into(),
+            text: "Keep one file.".into(),
+        },
+    ));
+    let mut stored = serde_json::to_value(&topic).unwrap();
+    stored["records"]["decisions"][0]["history"] = serde_json::json!([]);
+
+    assert!(Topic::from_json(&stored.to_string()).is_err());
+    assert!(serde_json::from_value::<Decision>(stored["records"]["decisions"][0].clone()).is_err());
+}

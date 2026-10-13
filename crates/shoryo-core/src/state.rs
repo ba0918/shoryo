@@ -293,6 +293,7 @@ pub struct Decision {
     pub id: DecisionId,
     pub origin: Origin,
     /// Each content with the round it took effect in, oldest first; never empty.
+    #[serde(deserialize_with = "nonempty_history")]
     history: Vec<Version>,
 }
 
@@ -316,6 +317,19 @@ pub struct DecisionContent {
 struct Version {
     round: u32,
     content: DecisionContent,
+}
+
+fn nonempty_history<'de, D>(deserializer: D) -> Result<Vec<Version>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let history = Vec::<Version>::deserialize(deserializer)?;
+    if history.is_empty() {
+        return Err(serde::de::Error::custom(
+            "a decision must have at least one content",
+        ));
+    }
+    Ok(history)
 }
 
 /// The stored state could not be read.
