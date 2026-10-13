@@ -282,26 +282,37 @@ impl Map {
     /// 道筋: the selected node, every node reachable back through prerequisites, and the
     /// options rejected in the questions along the way.
     pub fn path(&self, selected: &str) -> Vec<String> {
-        let mut on_path: Vec<String> = Vec::new();
-        let mut stack = vec![selected.to_string()];
+        let mut nodes = HashMap::new();
+        for node in &self.nodes {
+            nodes.entry(node.key.as_str()).or_insert(node);
+        }
+        let mut prerequisites: HashMap<&str, Vec<&str>> = HashMap::new();
+        for edge in &self.edges {
+            if !edge.dashed {
+                prerequisites
+                    .entry(edge.to.as_str())
+                    .or_default()
+                    .push(&edge.from);
+            }
+        }
+        let mut visited = HashSet::new();
+        let mut on_path = Vec::new();
+        let mut stack = vec![selected];
         while let Some(key) = stack.pop() {
-            if on_path.contains(&key) || self.node(&key).is_none() {
+            if !nodes.contains_key(key) || !visited.insert(key) {
                 continue;
             }
-            stack.extend(
-                self.edges
-                    .iter()
-                    .filter(|edge| edge.to == key && !edge.dashed)
-                    .map(|edge| edge.from.clone()),
-            );
+            if let Some(previous) = prerequisites.get(key) {
+                stack.extend(previous.iter().copied());
+            }
             on_path.push(key);
         }
         let questions: HashSet<&QuestionId> = on_path
             .iter()
-            .filter_map(|key| self.node(key))
+            .filter_map(|key| nodes.get(key))
             .filter_map(|node| node.question_id.as_ref())
             .collect();
-        let rejected: Vec<String> = self
+        let rejected = self
             .nodes
             .iter()
             .filter(|node| node.kind == NodeKind::Rejected)
@@ -310,10 +321,12 @@ impl Map {
                     .as_ref()
                     .is_some_and(|q| questions.contains(q))
             })
-            .map(|node| node.key.clone())
-            .collect();
-        on_path.extend(rejected);
+            .map(|node| node.key.as_str());
         on_path
+            .into_iter()
+            .chain(rejected)
+            .map(str::to_owned)
+            .collect()
     }
 }
 

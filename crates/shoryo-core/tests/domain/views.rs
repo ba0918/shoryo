@@ -222,3 +222,85 @@ fn decision_from_pre_approved_answer_is_marked_and_loses_mark_when_revised() {
 
     assert!(!topic.decided_pre_approved(&DecisionId::new("d2")));
 }
+
+fn graph(nodes: &[(&str, NodeKind, &str)], edges: &[(&str, &str, bool)]) -> shoryo_core::Map {
+    shoryo_core::Map {
+        columns: vec![],
+        nodes: nodes
+            .iter()
+            .map(|(key, kind, question)| shoryo_core::MapNode {
+                key: (*key).into(),
+                kind: *kind,
+                label: (*key).into(),
+                question: None,
+                question_id: Some(QuestionId::new(*question)),
+                round: 1,
+                in_review: false,
+                review_mark: false,
+            })
+            .collect(),
+        edges: edges
+            .iter()
+            .map(|(from, to, dashed)| shoryo_core::MapEdge {
+                from: (*from).into(),
+                to: (*to).into(),
+                label: String::new(),
+                dashed: *dashed,
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn path_preserves_prerequisite_order_and_appends_only_related_rejections() {
+    use NodeKind::{Decision, Rejected};
+    let map = graph(
+        &[
+            ("a", Decision, "qa"),
+            ("b", Decision, "qb"),
+            ("c", Decision, "qc"),
+            ("r1", Rejected, "qb"),
+            ("r2", Rejected, "other"),
+        ],
+        &[
+            ("a", "c", false),
+            ("b", "c", false),
+            ("r2", "c", true),
+            ("missing", "c", false),
+            ("a", "b", false),
+        ],
+    );
+    assert_eq!(map.path("c"), ["c", "b", "a", "r1"]);
+    assert!(map.path("missing").is_empty());
+}
+
+#[test]
+fn path_visits_cycles_and_repeated_edges_only_once() {
+    let map = graph(
+        &[
+            ("a", NodeKind::Decision, "qa"),
+            ("b", NodeKind::Decision, "qb"),
+        ],
+        &[
+            ("a", "b", false),
+            ("a", "b", false),
+            ("b", "a", false),
+            ("a", "a", false),
+        ],
+    );
+    assert_eq!(map.path("b"), ["b", "a"]);
+}
+
+#[test]
+fn path_uses_the_first_node_when_public_map_keys_repeat() {
+    let map = graph(
+        &[
+            ("a", NodeKind::Decision, "first"),
+            ("a", NodeKind::Decision, "second"),
+            ("r1", NodeKind::Rejected, "first"),
+            ("r2", NodeKind::Rejected, "second"),
+        ],
+        &[],
+    );
+    assert_eq!(map.path("a"), ["a", "r1"]);
+}
