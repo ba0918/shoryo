@@ -5,10 +5,11 @@ use shoryo_core::{Operation, Topic};
 fn apply(topic: &mut Topic, value: serde_json::Value) {
     topic
         .apply(
-            serde_json::from_value::<Operation>(value).unwrap(),
+            serde_json::from_value::<Operation>(value)
+                .expect("the test operation has the declared wire shape"),
             any_time(),
         )
-        .unwrap();
+        .expect("the test's valid operation is accepted");
 }
 
 fn custom(text: &str) -> Topic {
