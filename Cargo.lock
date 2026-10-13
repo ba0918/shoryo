@@ -939,6 +939,7 @@ dependencies = [
  "clap",
  "serde_json",
  "shoryo-server",
+ "tempfile",
  "ureq",
 ]
 

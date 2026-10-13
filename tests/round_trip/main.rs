@@ -10,7 +10,10 @@ mod wait;
 use std::io::{BufRead, BufReader};
 use std::process::Command;
 
-use harness::{Env, Server, clock_ms, files_under, first_round, stored_time, text, wait_until};
+use harness::{
+    Env, Server, block_state_writes, clock_ms, files_under, first_round, stored_time, text,
+    wait_until,
+};
 use serde_json::{Value, json};
 
 fn events(output: &std::process::Output) -> Vec<Value> {
@@ -60,7 +63,6 @@ fn restart_restores_rounds_and_pre_submit_state() {
 
 #[test]
 fn refused_save_leaves_the_state_as_it_was() {
-    use std::os::unix::fs::PermissionsExt;
     let env = Env::new();
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
@@ -68,21 +70,13 @@ fn refused_save_leaves_the_state_as_it_was() {
         .into_iter()
         .find(|path| path.ends_with("store/state.json"))
         .expect("the round is stored");
-    let dir = state
-        .parent()
-        .expect("the state file is in the topic directory");
-    let set_mode = |mode| {
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
-            .expect("the topic directory's mode can be set");
-    };
-
     server.stamp_all();
-    let before = std::fs::read_to_string(&state).expect("the state can be read");
-    set_mode(0o500);
+    let before = std::fs::read(&state).expect("the state can be read");
+    let blocked = block_state_writes(&state);
     let refused = server.send();
     let submitted = server.view()["topic"]["rounds"][0]["submitted"].clone();
-    let after = std::fs::read_to_string(&state).expect("the state can be read");
-    set_mode(0o700);
+    let after = blocked.stored_bytes();
+    drop(blocked);
     let retried = server.send();
 
     assert_eq!(refused, 500);
@@ -220,7 +214,7 @@ fn wait_returns_when_an_event_happens() {
         .stdout(std::process::Stdio::piped())
         .spawn()
         .expect("wait starts");
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    wait_until(|| server.view()["agent"]["waiting"] == true);
 
     server.submit();
 
@@ -249,14 +243,26 @@ fn status_reports_whether_a_wait_is_in_progress() {
     wait_until(|| waiting_now() == Some(false));
 }
 
-fn read_page_stream_until(server: &Server, needle: &str) -> bool {
+fn read_page_stream_until(
+    server: &Server,
+    needle: &str,
+    ready: std::sync::mpsc::Sender<()>,
+) -> bool {
     let mut response = Server::agent()
         .get(format!("{}api/events", server.url))
         .call()
         .expect("the event stream opens");
     let reader = BufReader::new(response.body_mut().as_reader());
+    let mut ready = Some(ready);
     for line in reader.lines() {
         let Ok(line) = line else { return false };
+        if line.is_empty()
+            && let Some(ready) = ready.take()
+        {
+            ready
+                .send(())
+                .expect("the test is waiting for the initial snapshot");
+        }
         if line.contains(needle) {
             return true;
         }
@@ -273,8 +279,11 @@ fn reply_reaches_open_page_without_reload() {
     let ask = events(&env.run(&["wait", "store", "--timeout", "1"], ""))[0]["ask"].to_string();
 
     std::thread::scope(|scope| {
-        let page = scope.spawn(|| read_page_stream_until(&server, "It is one file"));
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        let (ready, received) = std::sync::mpsc::channel();
+        let page = scope.spawn(|| read_page_stream_until(&server, "It is one file", ready));
+        received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("the page receives its initial snapshot");
         let reply = env.run(
             &["reply", "store", &ask],
             &json!({ "parts": [{"type":"text","body":"It is one file on disk."}] }).to_string(),
@@ -290,9 +299,16 @@ fn two_open_pages_receive_the_same_change() {
     let server = env.start("store", &[]);
 
     std::thread::scope(|scope| {
-        let first = scope.spawn(|| read_page_stream_until(&server, "Which store keeps"));
-        let second = scope.spawn(|| read_page_stream_until(&server, "Which store keeps"));
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        let (ready, received) = std::sync::mpsc::channel();
+        let second_ready = ready.clone();
+        let first = scope.spawn(|| read_page_stream_until(&server, "Which store keeps", ready));
+        let second =
+            scope.spawn(|| read_page_stream_until(&server, "Which store keeps", second_ready));
+        for _ in 0..2 {
+            received
+                .recv_timeout(std::time::Duration::from_secs(10))
+                .expect("both pages receive their initial snapshots");
+        }
         env.run(&["round", "store"], &first_round());
         assert!(first.join().expect("the first page finishes"));
         assert!(second.join().expect("the second page finishes"));
@@ -662,33 +678,36 @@ fn review_request_between_sending_and_the_next_round_is_refused_and_leaves_no_tr
 fn counted_commands_restart_the_quiet_time_and_result_does_not() {
     let env = Env::new();
     let server = env.start("store", &[]);
-    let quiet_ms = || server.view()["agent"]["quiet_ms"].as_u64().unwrap_or(0);
-    let pause = || std::thread::sleep(std::time::Duration::from_millis(800));
-    let mut after = Vec::new();
-
-    pause();
-    env.run(&["round", "store"], &first_round());
-    after.push(("round", quiet_ms()));
+    let quiet_ms = || {
+        server.view()["agent"]["quiet_ms"]
+            .as_u64()
+            .expect("the view reports elapsed milliseconds")
+    };
+    let counted = |args: &[&str], input: &str| {
+        wait_until(|| quiet_ms() >= 10);
+        let began = std::time::Instant::now();
+        let output = env.run(args, input);
+        assert!(output.status.success(), "{}", text(&output));
+        let quiet = quiet_ms();
+        assert!(
+            u128::from(quiet) <= began.elapsed().as_millis(),
+            "the command did not restart elapsed time"
+        );
+    };
+    counted(&["round", "store"], &first_round());
     server.operate(json!({ "op": "ask", "question": "q1", "text": "Why one file?" }));
-    pause();
-    env.run(
+    counted(
         &["reply", "store", "1"],
         r#"{ "parts": [{"type":"text","body":"It is simple."}] }"#,
     );
-    after.push(("reply", quiet_ms()));
-    pause();
+    wait_until(|| quiet_ms() >= 10);
     let before_result = quiet_ms();
     env.run(&["result", "store"], "");
     let after_result = quiet_ms();
     server.submit();
-    env.run(&["end", "store"], "");
-    after.push(("end", quiet_ms()));
-
-    for (command, quiet) in after {
-        assert!(quiet < 400, "{command} left the quiet time at {quiet} ms");
-    }
+    counted(&["end", "store"], "");
     assert!(
-        after_result >= before_result && before_result >= 800,
+        after_result >= before_result,
         "result restarted the quiet time: {before_result} ms, then {after_result} ms"
     );
 }

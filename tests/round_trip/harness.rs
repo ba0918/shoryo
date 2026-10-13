@@ -4,16 +4,13 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdout, Command, Output, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-static NEXT: AtomicUsize = AtomicUsize::new(0);
-
 /// A data directory, a config directory and a start directory that belong to one test.
 pub struct Env {
-    root: PathBuf,
+    _root: tempfile::TempDir,
     pub data: PathBuf,
     pub config: PathBuf,
     pub work: PathBuf,
@@ -21,18 +18,17 @@ pub struct Env {
 
 impl Env {
     pub fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "shoryo-test-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::SeqCst)
-        ));
-        let data = root.join("data");
-        let config = root.join("config");
-        let work = root.join("work");
+        let root = tempfile::Builder::new()
+            .prefix("shoryo-test-")
+            .tempdir()
+            .expect("the test directory can be created exclusively");
+        let data = root.path().join("data");
+        let config = root.path().join("config");
+        let work = root.path().join("work");
         std::fs::create_dir_all(&data).expect("the temporary data directory can be created");
         std::fs::create_dir_all(&work).expect("the temporary start directory can be created");
         Self {
-            root,
+            _root: root,
             data,
             config,
             work,
@@ -100,12 +96,38 @@ impl Env {
     }
 }
 
-impl Drop for Env {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.root);
+pub struct BlockedStateWrite {
+    destination: PathBuf,
+    backup: PathBuf,
+}
+
+pub fn block_state_writes(path: &Path) -> BlockedStateWrite {
+    let backup = path.with_extension("json.test-backup");
+    std::fs::rename(path, &backup).expect("the test's state can be moved aside");
+    std::fs::create_dir(path)
+        .expect("a directory blocks atomic publication regardless of user privileges");
+    BlockedStateWrite {
+        destination: path.to_path_buf(),
+        backup,
     }
 }
 
+impl BlockedStateWrite {
+    pub fn stored_bytes(&self) -> Vec<u8> {
+        assert!(
+            self.destination.is_dir(),
+            "a refused write must not replace the blocking destination"
+        );
+        std::fs::read(&self.backup).expect("the original state remains readable")
+    }
+}
+
+impl Drop for BlockedStateWrite {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir(&self.destination);
+        let _ = std::fs::rename(&self.backup, &self.destination);
+    }
+}
 pub struct Server {
     child: Child,
     pub url: String,

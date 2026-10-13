@@ -278,20 +278,18 @@ fn invalid_round_or_reply_keeps_saved_bytes() {
 
 #[test]
 fn refused_part_save_keeps_previous_content() {
-    use std::os::unix::fs::PermissionsExt;
     let env = Env::new();
     let server = env.start("store", &[]);
     assert!(env.run(&["round", "store"], &round()).status.success());
     let id = ask(&server, None);
     let path = state(&env);
-    let dir = path.parent().unwrap();
     let bytes = std::fs::read(&path).unwrap();
     let before = server.view()["topic"].clone();
-    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let blocked = crate::harness::block_state_writes(&path);
     let status = post(&server, "reply", json!({"ask":id,"parts":parts()}));
     let after = server.view()["topic"].clone();
-    let saved = std::fs::read(&path).unwrap();
-    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let saved = blocked.stored_bytes();
+    drop(blocked);
     assert_eq!(status, 500);
     assert_eq!(after, before);
     assert_eq!(saved, bytes);
