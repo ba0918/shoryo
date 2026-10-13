@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::explanation::Part;
-use crate::ids::{AskId, DecisionId, EventId, QuestionId};
+use crate::ids::{AskId, DecisionId, EventId, IdExhaustion, QuestionId};
 use crate::operations::Event;
 
 /// One topic: the unit shoryo starts for and keeps data for.
@@ -418,16 +418,29 @@ impl Topic {
         Ok(())
     }
 
-    pub fn allocate_ask_id(&mut self) -> AskId {
+    /// Allocates an ask ID, or refuses without changing state when the counter is exhausted.
+    pub fn allocate_ask_id(&mut self) -> Result<AskId, IdExhaustion> {
+        let next = self.next_ask.checked_add(1).ok_or(IdExhaustion::Ask)?;
         let id = AskId(self.next_ask);
-        self.next_ask += 1;
-        id
+        self.next_ask = next;
+        Ok(id)
     }
 
-    pub fn allocate_event_id(&mut self) -> EventId {
+    /// Allocates an event ID, or refuses without changing state when the counter is exhausted.
+    pub fn allocate_event_id(&mut self) -> Result<EventId, IdExhaustion> {
+        let next = self.next_event.checked_add(1).ok_or(IdExhaustion::Event)?;
         let id = EventId(self.next_event);
-        self.next_event += 1;
-        id
+        self.next_event = next;
+        Ok(id)
+    }
+
+    pub(crate) fn allocate_ask_event_ids(&mut self) -> Result<(AskId, EventId), IdExhaustion> {
+        let next_ask = self.next_ask.checked_add(1).ok_or(IdExhaustion::Ask)?;
+        let next_event = self.next_event.checked_add(1).ok_or(IdExhaustion::Event)?;
+        let ids = (AskId(self.next_ask), EventId(self.next_event));
+        self.next_ask = next_ask;
+        self.next_event = next_event;
+        Ok(ids)
     }
 }
 

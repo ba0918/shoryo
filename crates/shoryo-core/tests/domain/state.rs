@@ -106,13 +106,13 @@ fn decision_content_as_of_an_earlier_round_is_its_content_then() {
 #[test]
 fn ids_are_never_reused_in_a_topic() {
     let mut topic = Topic::new("Data store", "Where should the data live?");
-    let first_ask = topic.allocate_ask_id();
-    let first_event = topic.allocate_event_id();
+    let first_ask = topic.allocate_ask_id().unwrap();
+    let first_event = topic.allocate_event_id().unwrap();
 
     let mut reloaded = Topic::from_json(&topic.to_json()).unwrap();
 
-    assert_ne!(reloaded.allocate_ask_id(), first_ask);
-    assert_ne!(reloaded.allocate_event_id(), first_event);
+    assert_ne!(reloaded.allocate_ask_id().unwrap(), first_ask);
+    assert_ne!(reloaded.allocate_event_id().unwrap(), first_event);
 }
 
 #[test]

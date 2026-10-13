@@ -27,6 +27,26 @@ pub struct AskId(pub u64);
 #[serde(transparent)]
 pub struct EventId(pub u64);
 
+/// The identifier counter has no representable successor. `u64::MAX` is reserved as the
+/// exhausted next-counter value so exhaustion survives saving and reloading without ID reuse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdExhaustion {
+    Ask,
+    Event,
+}
+
+impl fmt::Display for IdExhaustion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ask => write!(f, "no more ask identifiers can be allocated"),
+            Self::Event => write!(f, "no more event identifiers can be allocated"),
+        }
+    }
+}
+
+impl std::error::Error for IdExhaustion {}
+
 impl QuestionId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())

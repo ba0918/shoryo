@@ -9,7 +9,7 @@ use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{AskId, DecisionId, EventId, QuestionId};
+use crate::ids::{AskId, DecisionId, EventId, IdExhaustion, QuestionId};
 use crate::state::{
     AnswerMethod, Class, InReview, Question, Round, SentAs, Stamp, Timestamp, Topic,
 };
@@ -119,6 +119,9 @@ pub struct SentAnswer {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum OperationRefusal {
+    IdExhausted {
+        counter: IdExhaustion,
+    },
     AnswersChanged,
     EmptyFreeText {
         questions: Vec<QuestionId>,
@@ -168,6 +171,7 @@ pub enum OperationRefusal {
 impl fmt::Display for OperationRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::IdExhausted { counter } => counter.fmt(f),
             Self::AnswersChanged => write!(
                 f,
                 "answers changed; confirm the latest answers before sending"
@@ -216,6 +220,12 @@ impl fmt::Display for OperationRefusal {
 }
 
 impl std::error::Error for OperationRefusal {}
+
+impl From<IdExhaustion> for OperationRefusal {
+    fn from(counter: IdExhaustion) -> Self {
+        Self::IdExhausted { counter }
+    }
+}
 
 impl Topic {
     pub fn current_round(&self) -> Option<&Round> {
@@ -324,6 +334,8 @@ impl Topic {
                 }
             }
             Operation::SwapClass { question } => {
+                self.open_question(&question)?;
+                let event = self.allocate_event_id()?;
                 let q = self.open_question(&question)?;
                 q.class = match q.class {
                     Class::Human => Class::Provisional,
@@ -335,7 +347,7 @@ impl Topic {
                 };
                 q.answer.set_stamp(stamp, now);
                 let class = q.class;
-                self.push_event(EventKind::ClassSwapped { question, class });
+                self.push_event(event, EventKind::ClassSwapped { question, class });
             }
             Operation::Ask {
                 question,
@@ -383,11 +395,12 @@ impl Topic {
             return Ok(());
         }
         let since_round = self.current_round().map_or(0, |round| round.number);
+        let event = self.allocate_event_id()?;
         self.records.in_review.push(InReview {
             decision: decision.clone(),
             since_round,
         });
-        self.push_event(EventKind::ReviewRequested { decision });
+        self.push_event(event, EventKind::ReviewRequested { decision });
         Ok(())
     }
 
@@ -395,10 +408,11 @@ impl Topic {
         if !self.is_in_review(&decision) {
             return Err(OperationRefusal::NotInReview { decision });
         }
+        let event = self.allocate_event_id()?;
         self.records
             .in_review
             .retain(|mark| mark.decision != decision);
-        self.push_event(EventKind::ReviewStopped { decision });
+        self.push_event(event, EventKind::ReviewStopped { decision });
         Ok(())
     }
 
@@ -427,6 +441,7 @@ impl Topic {
                 return Err(OperationRefusal::AnswersChanged);
             }
         }
+        let event = self.allocate_event_id()?;
         let sent_as = if self.records.in_review.is_empty() {
             SentAs::Proceeded
         } else {
@@ -437,15 +452,17 @@ impl Topic {
         round.sent_at = Some(now);
         round.sent_as = round.questions.is_empty().then_some(sent_as);
         let number = round.number;
-        self.push_event(EventKind::Submitted {
-            round: number,
-            answers,
-        });
+        self.push_event(
+            event,
+            EventKind::Submitted {
+                round: number,
+                answers,
+            },
+        );
         Ok(())
     }
 
-    fn push_event(&mut self, kind: EventKind) {
-        let id = self.allocate_event_id();
+    fn push_event(&mut self, id: EventId, kind: EventKind) {
         self.events.push(Event { id, kind });
     }
 }

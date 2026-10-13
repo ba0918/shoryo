@@ -5,6 +5,18 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** The Rust domain API's `Topic::allocate_ask_id` and `Topic::allocate_event_id`
+  return `Result<_, IdExhaustion>` instead of an ID directly. Callers must handle exhaustion;
+  `OperationRefusal` also adds `IdExhausted`. The maximum `u64` next-counter value denotes
+  exhaustion, with no changes to the stored JSON format.
+
+### Fixed
+
+- Exhausted ask or event counters refuse operations without changing answers, review marks,
+  submissions, pending events or either counter, rather than panicking or wrapping IDs.
+
 ## [0.1.1] - 2026-10-09
 
 ### Changed

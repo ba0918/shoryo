@@ -11,7 +11,7 @@ mod views;
 
 pub use explanation::{Part, Role};
 pub use explanation_validation::{ExplanationError, ExplanationRule};
-pub use ids::{AskId, DecisionId, EventId, QuestionId};
+pub use ids::{AskId, DecisionId, EventId, IdExhaustion, QuestionId};
 pub use operations::{Event, EventKind, Operation, OperationRefusal, SentAnswer};
 pub use round::{
     DecidedBy, DecisionInput, FixInput, InputError, QuestionInput, RecordsInput, RoundInput,

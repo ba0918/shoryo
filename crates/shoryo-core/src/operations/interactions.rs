@@ -68,7 +68,7 @@ impl Topic {
         }
         let number = round.number;
         self.open_question(&question)?;
-        let id = self.allocate_ask_id();
+        let (id, event) = self.allocate_ask_event_ids()?;
         self.open_round()?.asks.push(Ask {
             id,
             question: question.clone(),
@@ -76,13 +76,16 @@ impl Topic {
             follows,
             state: AskState::Waiting,
         });
-        self.push_event(EventKind::Ask {
-            ask: id,
-            round: number,
-            question,
-            text,
-            follows,
-        });
+        self.push_event(
+            event,
+            EventKind::Ask {
+                ask: id,
+                round: number,
+                question,
+                text,
+                follows,
+            },
+        );
         Ok(())
     }
 }
