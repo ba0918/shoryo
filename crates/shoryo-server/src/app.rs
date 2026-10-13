@@ -391,6 +391,19 @@ struct WaitRequest {
 
 async fn wait(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
     let request: WaitRequest = parse(&body)?;
+    let deadline = match request.timeout {
+        Some(seconds) => Some(
+            tokio::time::Instant::now()
+                .checked_add(Duration::from_secs(seconds))
+                .ok_or_else(|| {
+                    ApiError::new(
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        "the wait timeout is too large to represent",
+                    )
+                })?,
+        ),
+        None => None,
+    };
     let _in_progress = shared.wait_started();
     if !request.ack.is_empty() {
         shared.change(|state| {
@@ -399,9 +412,6 @@ async fn wait(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
             Ok::<(), shoryo_core::OperationRefusal>(())
         })?;
     }
-    let deadline = request
-        .timeout
-        .map(|seconds| tokio::time::Instant::now() + Duration::from_secs(seconds));
     let mut version = shared.version.subscribe();
     let mut shutdown = shared.shutdown.subscribe();
     loop {

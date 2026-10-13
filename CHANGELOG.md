@@ -15,6 +15,9 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- Wait requests whose timeout cannot be represented return a validation error without
+  acknowledging events or leaving the page in a waiting state, instead of dropping the request.
+
 - Topic state, configuration and endpoint files are published through private temporary files
   with automatic cleanup on failure. Replacing an endpoint no longer inherits overly broad
   permissions, and preexisting temporary-file symlinks cannot redirect state writes.
