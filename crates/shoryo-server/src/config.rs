@@ -5,7 +5,6 @@ use std::fmt;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
@@ -79,8 +78,6 @@ impl std::error::Error for ConfigError {}
 #[derive(Debug, Clone)]
 pub struct ConfigFile {
     path: Option<PathBuf>,
-    /// Held for a whole read-change-write, so two switches on one server never interleave.
-    writing: Arc<Mutex<()>>,
 }
 
 impl ConfigFile {
@@ -88,7 +85,6 @@ impl ConfigFile {
     pub fn per_user() -> Self {
         Self {
             path: dirs::config_dir().map(|dir| dir.join("shoryo").join("config.toml")),
-            writing: Arc::default(),
         }
     }
 
@@ -105,16 +101,8 @@ impl ConfigFile {
     /// Applies a switch and writes the whole file through a temporary file and a rename, so a
     /// crash leaves the old file or the new one. An unreadable file is refused, untouched.
     pub fn change(&self, change: ConfigChange) -> Result<Config, ConfigError> {
-        let _writing = self
-            .writing
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut config = self.read()?;
+        self.read()?;
         let path = self.path.as_deref().ok_or(ConfigError::NoConfigDirectory)?;
-        config.language = change.language.unwrap_or(config.language);
-        config.theme = change.theme.unwrap_or(config.theme);
-        let text = toml::to_string(&config)
-            .expect("the config holds only two plain keys, which always serialise");
         let write = |target: &Path, error: std::io::Error| ConfigError::Write {
             path: target.to_path_buf(),
             error,
@@ -122,7 +110,17 @@ impl ConfigFile {
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(|error| write(dir, error))?;
         }
-        crate::atomic_file::write(path, text.as_bytes()).map_err(|error| write(path, error))?;
+        // A process-local mutex cannot protect switches from servers of other topics.
+        let lock_path = path.with_extension("toml.lock");
+        let guard =
+            crate::files::open_lock(&lock_path).map_err(|error| write(&lock_path, error))?;
+        guard.lock().map_err(|error| write(&lock_path, error))?;
+        let mut config = self.read()?;
+        config.language = change.language.unwrap_or(config.language);
+        config.theme = change.theme.unwrap_or(config.theme);
+        let text = toml::to_string(&config)
+            .expect("the config holds only two plain keys, which always serialise");
+        crate::files::atomic_write(path, text.as_bytes()).map_err(|error| write(path, error))?;
         Ok(config)
     }
 }
@@ -131,5 +129,76 @@ fn unreadable(path: &Path, reason: impl fmt::Display) -> ConfigError {
     ConfigError::Unreadable {
         path: path.to_path_buf(),
         reason: reason.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Barrier;
+
+    fn at(path: &Path) -> ConfigFile {
+        ConfigFile {
+            path: Some(path.to_path_buf()),
+        }
+    }
+
+    #[test]
+    fn concurrent_switches_from_independent_topics_keep_both_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        for _ in 0..32 {
+            fs::write(&path, "language = 'en'\ntheme = 'system'\n").unwrap();
+            let language = at(&path);
+            let theme = at(&path);
+            let ready = Barrier::new(2);
+            std::thread::scope(|scope| {
+                let first = scope.spawn(|| {
+                    ready.wait();
+                    language
+                        .change(ConfigChange {
+                            language: Some(Language::Ja),
+                            theme: None,
+                        })
+                        .unwrap();
+                });
+                let second = scope.spawn(|| {
+                    ready.wait();
+                    theme
+                        .change(ConfigChange {
+                            language: None,
+                            theme: Some(Theme::Dark),
+                        })
+                        .unwrap();
+                });
+                first.join().unwrap();
+                second.join().unwrap();
+            });
+            assert_eq!(
+                at(&path).read().unwrap(),
+                Config {
+                    language: Language::Ja,
+                    theme: Theme::Dark
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn missing_settings_use_defaults_and_unknown_keys_are_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let file = at(&path);
+        assert_eq!(file.read().unwrap(), Config::default());
+        let original = "language = 'ja'\nunknown = 'Keep this'\n";
+        fs::write(&path, original).unwrap();
+        assert!(matches!(
+            file.change(ConfigChange {
+                language: None,
+                theme: Some(Theme::Dark)
+            }),
+            Err(ConfigError::Unreadable { .. })
+        ));
+        assert_eq!(fs::read_to_string(path).unwrap(), original);
     }
 }

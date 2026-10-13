@@ -2,9 +2,9 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod app;
-mod atomic_file;
 mod clock;
 pub mod config;
+mod files;
 pub mod location;
 pub mod store;
 

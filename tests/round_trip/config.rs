@@ -84,3 +84,32 @@ fn config_is_not_written_into_topic_data() {
         );
     }
 }
+
+#[test]
+fn simultaneous_switches_in_two_server_processes_preserve_each_other() {
+    let env = Env::new();
+    let first = env.start("language", &[]);
+    let second = env.start("theme", &[]);
+    for _ in 0..8 {
+        assert_eq!(
+            first.set_config(json!({"language":"en", "theme":"system"})),
+            200
+        );
+        let ready = std::sync::Barrier::new(2);
+        std::thread::scope(|scope| {
+            let language = scope.spawn(|| {
+                ready.wait();
+                first.set_config(json!({"language":"ja"}))
+            });
+            let theme = scope.spawn(|| {
+                ready.wait();
+                second.set_config(json!({"theme":"dark"}))
+            });
+            assert_eq!(language.join().unwrap(), 200);
+            assert_eq!(theme.join().unwrap(), 200);
+        });
+        let config = second.config();
+        assert_eq!(config["language"], "ja");
+        assert_eq!(config["theme"], "dark");
+    }
+}

@@ -1,10 +1,9 @@
 //! The topic's files: the state, the lock against a second server, and the endpoint file the
 //! agent's commands use to find the running server.
 
-use std::fs::{self, File, OpenOptions, TryLockError};
+use std::fs::{self, File, TryLockError};
 use std::io::{ErrorKind, Write};
 use std::net::{IpAddr, SocketAddr};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -76,7 +75,7 @@ pub fn read_state(location: &TopicLocation) -> Result<Option<String>, ServerErro
 /// leaves either the old state or the new one.
 pub fn save(location: &TopicLocation, state: &StoredTopic) -> Result<(), ServerError> {
     let path = location.state_file();
-    crate::atomic_file::write(&path, state.to_json().as_bytes())
+    crate::files::atomic_write(&path, state.to_json().as_bytes())
         .map_err(|error| ServerError::io(&path, error))
 }
 
@@ -96,13 +95,7 @@ impl Lock {
         // The guard is never unlinked: contenders must keep locking the same inode even while
         // the PID marker is moved aside during stale-lock recovery.
         let guard_path = location.dir.join("lock.guard");
-        let guard = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .open(&guard_path)
+        let guard = crate::files::open_lock(&guard_path)
             .map_err(|error| ServerError::io(&guard_path, error))?;
         match guard.try_lock() {
             Ok(()) => {}
@@ -252,7 +245,7 @@ impl EndpointFile {
         let path = location.endpoint_file();
         let json = serde_json::to_string(endpoint)
             .expect("the endpoint holds only an address, a number and strings");
-        crate::atomic_file::write(&path, json.as_bytes())
+        crate::files::atomic_write(&path, json.as_bytes())
             .map_err(|error| ServerError::io(&path, error))?;
         Ok(Self { path })
     }

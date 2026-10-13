@@ -15,6 +15,9 @@ All notable changes to shoryo are recorded here. The version follows
 
 ### Fixed
 
+- Concurrent language and theme switches from different topic servers retain both changes,
+  instead of letting the last write restore the other setting to an older value.
+
 - Topic startup remains exclusive while stale PID markers are being recovered. An OS-backed
   guard serializes acquisition even when the visible PID marker is briefly absent.
 
