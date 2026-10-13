@@ -111,6 +111,7 @@ impl RoundInput {
 /// Why a round was not accepted. Returned to the agent, never shown to the person.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoundRefusal {
+    RoundNumberExhausted,
     Explanation(crate::ExplanationError),
     PreviousRoundNotSubmitted {
         round: u32,
@@ -135,6 +136,7 @@ pub enum RoundRefusal {
 impl fmt::Display for RoundRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RoundNumberExhausted => write!(f, "no more round numbers can be allocated"),
             Self::Explanation(error) => error.fmt(f),
             Self::PreviousRoundNotSubmitted { round } => {
                 write!(f, "round {round} has not been sent yet")
@@ -167,7 +169,13 @@ impl Topic {
     /// leaves the topic as it was; the server owns the one copy of the state.
     pub fn apply_round(&mut self, input: RoundInput) -> Result<u32, RoundRefusal> {
         self.check_round(&input)?;
-        let number = self.rounds.last().map_or(1, |round| round.number + 1);
+        let number = match self.rounds.last() {
+            None => 1,
+            Some(round) => round
+                .number
+                .checked_add(1)
+                .ok_or(RoundRefusal::RoundNumberExhausted)?,
+        };
 
         if let Some(title) = input.title {
             self.title = title;
