@@ -10,6 +10,34 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("a note being composed when another client submits shows only the actual sent note", async ({ shoryo, page, context }) => {
+  await setup(shoryo, page);
+  await shoryo.op({ op: "note", question: "q1", text: "base" });
+  const field = q(page).locator('[data-field="note"] textarea');
+  await expect(field).toHaveValue("base"); await field.focus();
+  await field.evaluate(el => el.setSelectionRange(4, 4));
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Input.imeSetComposition", { text: "にほん", selectionStart: 3, selectionEnd: 3 });
+  await expect(field).toHaveValue("baseにほん");
+  await expect.poll(async () => (await (await fetch(`${shoryo.url}api/view`)).json()).topic.rounds[0].questions[0].answer.note).toBe("baseにほん");
+  await shoryo.op({ op: "note", question: "q1", text: "remote answer" });
+  await shoryo.submit();
+  const sentField = q(page.locator('[data-panel="current"]')).locator('[data-field="note"] textarea');
+  await expect(sentField).toBeDisabled();
+  await expect(sentField).toHaveValue("remote answer");
+  const before = await (await fetch(`${shoryo.url}api/view`)).json();
+  expect(before.sent_answers["1"][0].note).toBe("remote answer");
+  await cdp.send("Input.insertText", { text: "日本" });
+  await sentField.blur();
+  await page.waitForTimeout(450);
+  await expect(sentField).toHaveValue("remote answer");
+  const after = await (await fetch(`${shoryo.url}api/view`)).json();
+  expect(after.topic).toEqual(before.topic);
+  await page.getByRole("tab", { name: "Past rounds", exact: true }).click();
+  await expect(page.locator('[data-panel="past"] [data-past-question="q1"] [data-field="note"] textarea')).toHaveValue("remote answer");
+  await cdp.detach();
+});
+
 test("a replacement editor after real IME class migration displays the latest body before stamping", async ({ shoryo, page, context }, testInfo) => {
   await setup(shoryo, page);
   await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });

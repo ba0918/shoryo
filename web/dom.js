@@ -64,7 +64,8 @@ function retainEditor(current, next, editor, replacement) {
   for (const [name, handler] of events) current.addEventListener(name, handler);
   listeners.set(current, events);
   if (current === editor) {
-    if (next.hasAttribute("data-sync-value") && !composingEditors.has(current) && current.value !== next.value) {
+    // A disabled sent field must show the record, not preserve an editable IME buffer.
+    if (next.hasAttribute("data-sync-value") && (next.disabled || !composingEditors.has(current)) && current.value !== next.value) {
       const { selectionStart, selectionEnd, selectionDirection } = current;
       current.value = next.value;
       current.setSelectionRange(Math.min(selectionStart, current.value.length), Math.min(selectionEnd, current.value.length), selectionDirection);
