@@ -2,7 +2,7 @@
 //! events the agent waits for (`docs/spec/server.md`, "待つ", "返す", "終える";
 //! `docs/spec/screen.md`, "今のラウンド").
 
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
@@ -226,7 +226,15 @@ impl Topic {
 
     /// Forgets the events the agent says it has received.
     pub fn acknowledge(&mut self, ids: &[EventId]) {
-        self.events.retain(|event| !ids.contains(&event.id));
+        match ids {
+            [] => {}
+            [id] => self.events.retain(|event| event.id != *id),
+            _ => {
+                let acknowledged: HashSet<_> = ids.iter().copied().collect();
+                self.events
+                    .retain(|event| !acknowledged.contains(&event.id));
+            }
+        }
     }
 
     /// Whether the agent may wait for events now.
