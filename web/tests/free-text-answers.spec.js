@@ -10,6 +10,41 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("a failed custom save survives another tab moving its question between regions", async ({ shoryo, page, context }) => {
+  await setup(shoryo, page);
+  await other(q(page)).check();
+  const second = await context.newPage(); await second.goto(shoryo.url);
+  await page.route("**/api/op", async route => {
+    if (route.request().postDataJSON().op === "free_text") await route.abort("failed");
+    else await route.continue();
+  });
+  await custom(q(page)).fill("recover across regions"); await custom(q(page)).blur();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await q(second).locator('[data-action="swap"]').click();
+  await expect(page.locator('[data-provisional-row="q1"]')).toBeVisible();
+  await expect(custom(q(page))).toHaveValue("recover across regions");
+  await page.unroute("**/api/op");
+  await q(page).locator('[data-action="stamp"]').click();
+  await expect(q(page).locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "person");
+  expect((await (await fetch(`${shoryo.url}api/view`)).json()).expected_answers[0].free_text).toBe("recover across regions");
+});
+
+test("another client's submission retains a separate recoverable draft without leaking it into the next round", async ({ shoryo, page }) => {
+  await setup(shoryo, page);
+  await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });
+  await shoryo.op({ op: "free_text", question: "q1", text: "actually saved" });
+  await page.route("**/api/op", async route => { await route.abort("failed"); });
+  await custom(q(page)).fill("never sent recoverable body"); await custom(q(page)).blur();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await shoryo.submit();
+  await expect(page.locator('[data-panel="current"] [data-sent-answer]')).toHaveText("actually saved");
+  await expect(page.getByRole("textbox").and(page.locator("[readonly]"))).toHaveValue("never sent recoverable body");
+  await shoryo.round({ subject: "Next", questions: [question("q3", "Fresh question?")] });
+  await expect(q(page, "q3")).toBeVisible();
+  await expect(q(page, "q3")).not.toContainText("never sent recoverable body");
+  await expect(page.getByRole("textbox").and(page.locator("[readonly]"))).toHaveValue("never sent recoverable body");
+});
+
 test("save completion is awaited before stamping and timers cannot lift the new stamp", async ({ shoryo, page }) => {
   await setup(shoryo, page);
   await other(q(page)).check();

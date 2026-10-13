@@ -21,10 +21,10 @@ import { DiagramParts } from "./explanation-viewport.js";
 
 export class ProvisionalRow extends Component {
   /// `past` draws a question of a past round: read only.
-  constructor(emit, { past = false } = {}) {
+  constructor(emit, { past = false, drafts = new AnswerDrafts(emit) } = {}) {
     super(emit);
     this.past = past;
-    this.customDraft = new AnswerDrafts(emit);
+    this.customDraft = drafts;
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;

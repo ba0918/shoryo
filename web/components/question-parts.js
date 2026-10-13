@@ -174,7 +174,12 @@ function otherOption(question, emit) {
 
 export class AnswerDrafts {
   constructor(emit) { this.emit = emit; this.dirty = new Map(); this.timer = null; this.pending = null; }
-  update(question) { this.question = question; }
+  update(question) {
+    this.question = question;
+    this.available = !question.locked;
+    if (!this.available) clearTimeout(this.timer);
+  }
+  retire() { this.available = false; clearTimeout(this.timer); }
   value(kind, saved) { return this.dirty.has(kind) ? this.dirty.get(kind) : saved; }
   edit(kind, text) {
     this.dirty.set(kind, text);
@@ -183,12 +188,14 @@ export class AnswerDrafts {
   }
   save() {
     clearTimeout(this.timer);
+    if (!this.available) return Promise.resolve(this.dirty.size === 0);
     if (this.pending) return this.pending;
     this.pending = this.flush().finally(() => { this.pending = null; });
     return this.pending;
   }
   async flush() {
     while (this.dirty.size) {
+      if (!this.available) return false;
       const [kind, text] = this.dirty.entries().next().value;
       const saved = await this.emit({ type: "save-draft", op: { op: kind, question: this.question.id, text } });
       if (!saved) return false;

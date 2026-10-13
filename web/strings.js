@@ -2,6 +2,9 @@
 // uses the glossary's words (CONTEXT.md). Text the LLM wrote never passes through here.
 
 const en = {
+  "draft.unsent": "Unsaved drafts — not sent",
+  "draft.answer": "Unsaved answer draft",
+  "draft.note": "Unsaved note draft",
   "card.other": "Other (write my answer)",
   "card.free-text": "My answer",
   "card.empty-answer": "Write an answer, or ask to be asked again next round, before approving.",
@@ -214,6 +217,9 @@ const en = {
 };
 
 const ja = {
+  "draft.unsent": "未保存の下書き（送った答えには含まれない）",
+  "draft.answer": "未保存の回答",
+  "draft.note": "未保存の補足",
   "card.other": "その他（自分の回答を書く）",
   "card.free-text": "自分の回答",
   "card.empty-answer": "回答を書くか、先送りにしてから判子を押してね。",

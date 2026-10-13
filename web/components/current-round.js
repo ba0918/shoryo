@@ -6,6 +6,18 @@ import { Card } from "./card.js";
 import { ProvisionalRow } from "./provisional.js";
 import { Fixes } from "./fixes.js";
 import { ResultView } from "./result.js";
+import { AnswerDrafts } from "./question-parts.js";
+
+class RecoverableDrafts extends Component {
+  draw({ entries, lang }) {
+    const t = translator(lang);
+    return h("section", { hidden: entries.length === 0 },
+      h("h2", {}, t("draft.unsent")),
+      entries.map(({ question, kind, text }) => h("label", { class: "note" },
+        h("span", {}, `${question}: ${t(kind === "note" ? "draft.note" : "draft.answer")}`),
+        h("textarea", { rows: 3, value: text, readonly: true }))));
+  }
+}
 
 class SendBar extends Component {
   draw(bar) {
@@ -54,6 +66,11 @@ export class CurrentRound {
   }
 
   constructor(emit) {
+    this.drafts = new Map();
+    const draftsFor = id => {
+      if (!this.drafts.has(id)) this.drafts.set(id, new AnswerDrafts(emit));
+      return this.drafts.get(id);
+    };
     this.empty = h("p", { class: "empty" });
     this.cardBox = h("div", { class: "cards" });
     this.rowBox = h("div", { class: "provisional-rows" });
@@ -71,9 +88,10 @@ export class CurrentRound {
     this.send = new SendBar(emit);
     this.result = new ResultView(emit);
     this.fixes = new Fixes(emit);
-    this.cards = new KeyedList(this.cardBox, () => new Card(emit));
-    this.rows = new KeyedList(this.rowBox, () => new ProvisionalRow(emit));
-    this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.result.el, this.cardBox, this.list, this.send.el);
+    this.cards = new KeyedList(this.cardBox, id => new Card(emit, { drafts: draftsFor(id) }));
+    this.rows = new KeyedList(this.rowBox, id => new ProvisionalRow(emit, { drafts: draftsFor(id) }));
+    this.recovery = new RecoverableDrafts(emit);
+    this.el = h("div", { class: "current-round" }, this.empty, this.fixes.el, this.result.el, this.cardBox, this.list, this.send.el, this.recovery.el);
   }
 
   /// `round` is null before the first round; `lang` is the screen's language.
@@ -88,6 +106,16 @@ export class CurrentRound {
     this.result.update(round?.result ?? null);
     this.cards.update((round?.human ?? []).map((q) => ({ key: q.id, data: q })));
     this.rows.update((round?.provisional ?? []).map((q) => ({ key: q.id, data: q })));
+    const active = new Set([...(round?.human ?? []), ...(round?.provisional ?? [])].map(q => q.id));
+    for (const [id, drafts] of this.drafts) {
+      if (!active.has(id)) {
+        drafts.retire();
+        if (drafts.dirty.size === 0) this.drafts.delete(id);
+      }
+    }
+    this.recovery.update({ lang, entries: [...this.drafts.values()]
+      .filter(drafts => !drafts.available)
+      .flatMap(drafts => [...drafts.dirty].map(([kind, text]) => ({ question: drafts.question.text, kind, text }))) });
     this.send.update(round ? round.send : { round: 0, locked: true, unstamped: 0, label: "send.all", lang });
     this.send.el.hidden = !round?.showSend;
   }
