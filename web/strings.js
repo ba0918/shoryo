@@ -2,6 +2,11 @@
 // uses the glossary's words (CONTEXT.md). Text the LLM wrote never passes through here.
 
 const en = {
+  "card.other": "Other (write my answer)",
+  "card.free-text": "My answer",
+  "card.empty-answer": "Write an answer, or ask to be asked again next round, before approving.",
+  "refusal.empty_free_text": "Write an answer before approving ({questions}).",
+  "refusal.answers_changed": "Answers changed. Confirm the latest answers before sending again.",
   "part.enlarge": "Enlarge diagram",
   "part.viewer": "Diagram viewer",
   "part.whole": "Whole",
@@ -209,6 +214,11 @@ const en = {
 };
 
 const ja = {
+  "card.other": "その他（自分の回答を書く）",
+  "card.free-text": "自分の回答",
+  "card.empty-answer": "回答を書くか、先送りにしてから判子を押してね。",
+  "refusal.empty_free_text": "判子を押す前に回答を書いてね（{questions}）。",
+  "refusal.answers_changed": "答えが変わったので、最新の答えを確認してからもう一度送ってね。",
   "part.enlarge": "図を大きく見る",
   "part.viewer": "図の拡大表示",
   "part.whole": "全体",

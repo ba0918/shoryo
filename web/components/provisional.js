@@ -4,6 +4,7 @@ import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {
   chainLine,
+  CustomDraft,
   consequence,
   deferSwitch,
   details,
@@ -23,6 +24,7 @@ export class ProvisionalRow extends Component {
   constructor(emit, { past = false } = {}) {
     super(emit);
     this.past = past;
+    this.customDraft = new CustomDraft(emit);
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
@@ -81,6 +83,7 @@ export class ProvisionalRow extends Component {
         this.open ? null : consequence(question),
         h("div", { class: "row-stamp" }, stampButton(question, this.emit, this.stampTime())),
       ),
+      this.open ? null : this.customDraft.draw(question),
       pastAnswer(question, this.emit),
       this.open
         ? h(
@@ -95,6 +98,7 @@ export class ProvisionalRow extends Component {
             chainLine(question, this.emit),
             details(question, this.emit, this.codeParts, this.diagramParts),
             optionList(question, this.emit, true, this.codeParts, this.diagramParts),
+            this.customDraft.draw(question),
             consequence(question),
             noteField(question, this.emit),
             this.threadFor(question),
@@ -112,6 +116,7 @@ export class ProvisionalRow extends Component {
             "data-focus": `provisional-toggle-${question.id}`,
             "aria-expanded": String(this.open),
             onclick: () => {
+              this.customDraft.save();
               this.open = !this.open;
               this.redraw();
             },
@@ -136,5 +141,10 @@ export class ProvisionalRow extends Component {
     this.codeParts.end();
     this.diagramParts.end();
     return element;
+  }
+
+  update(question) {
+    this.customDraft.update(question);
+    return super.update(question);
   }
 }

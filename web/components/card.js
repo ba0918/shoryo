@@ -6,6 +6,7 @@ import { Component, h } from "../dom.js";
 import { translator } from "../strings.js";
 import {
   chainLine,
+  CustomDraft,
   consequence,
   deferSwitch,
   details,
@@ -24,6 +25,7 @@ export class Card extends Component {
   constructor(emit, { past = false } = {}) {
     super(emit);
     this.past = past;
+    this.customDraft = new CustomDraft(emit);
     this.open = false;
     this.thread = { open: null, expanded: false, follows: null };
     this.timeShown = false;
@@ -51,6 +53,7 @@ export class Card extends Component {
   }
 
   toggle() {
+    this.customDraft.save();
     this.open = !this.open;
     this.redraw();
   }
@@ -101,6 +104,7 @@ export class Card extends Component {
           "div",
           { class: "card-answer" },
           optionList(question, this.emit, this.open, this.codeParts, this.diagramParts),
+          this.customDraft.draw(question),
           consequence(question),
           noteField(question, this.emit),
         ),
@@ -133,5 +137,10 @@ export class Card extends Component {
     this.codeParts.end();
     this.diagramParts.end();
     return element;
+  }
+
+  update(question) {
+    this.customDraft.update(question);
+    return super.update(question);
   }
 }

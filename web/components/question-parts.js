@@ -47,7 +47,7 @@ export function optionList(question, emit, open, codeParts, diagramParts) {
     { class: "options" },
     h("legend", { class: "visually-hidden" }, t("card.options")),
     question.options.map((option) => {
-      const chosen = option.index === question.selected;
+      const chosen = question.method !== "custom" && option.index === question.selected;
       return h(
         "div",
         { class: `option${chosen ? " chosen" : ""}` },
@@ -74,6 +74,7 @@ export function optionList(question, emit, open, codeParts, diagramParts) {
         open ? h("div", { class: "option-description" }, explanation(option.description, question.lang, `${question.round}-${question.id}-option-${option.index}`, emit, codeParts, diagramParts)) : null,
       );
     }),
+    otherOption(question, emit),
   );
 }
 
@@ -87,12 +88,12 @@ export function optionSegments(question, emit) {
     question.options.map((option) =>
       h(
         "label",
-        { class: `segment${option.index === question.selected ? " chosen" : ""}` },
+        { class: `segment${question.method !== "custom" && option.index === question.selected ? " chosen" : ""}` },
         h("input", {
           type: "radio",
           name: `option-${question.id}`,
           value: String(option.index),
-          checked: option.index === question.selected,
+          checked: question.method !== "custom" && option.index === question.selected,
           "data-focus": `segment-${question.id}-${option.index}`,
           onchange: () => emit({ type: "op", op: { op: "choose", question: question.id, option: option.index } }),
         }),
@@ -100,11 +101,13 @@ export function optionSegments(question, emit) {
         option.recommended ? h("span", { class: "badge recommended", "data-mark": "recommended" }, t("card.recommended")) : null,
       ),
     ),
+    otherOption(question, emit),
   );
 }
 
 /// この答えだと: the consequence of the option chosen now, as a tinted band.
 export function consequence(question) {
+  if (question.method === "custom") return null;
   const chosen = question.options.find((option) => option.index === question.selected);
   const t = translator(question.lang);
   return h(
@@ -141,6 +144,7 @@ export function details(question, emit, codeParts, diagramParts) {
 /// The note sent with the answer, labelled as such, under the answer. A past question shows
 /// it only when it was sent with one.
 export function noteField(question, emit) {
+  if (question.method === "custom") return null;
   if (question.past && question.note === "") return null;
   const t = translator(question.lang);
   return h(
@@ -156,6 +160,44 @@ export function noteField(question, emit) {
       onchange: (event) => noteSaver(event.target, question, emit).now(event.target.value),
     }),
   );
+}
+
+function otherOption(question, emit) {
+  return h("label", { class: "option-choice" }, h("input", {
+    type: "radio", name: `option-${question.id}`, value: "custom",
+    checked: question.method === "custom", disabled: question.locked,
+    "data-focus": `other-${question.id}`,
+    onchange: () => emit({ type: "op", op: { op: "answer_method", question: question.id, method: "custom" } }),
+  }), h("span", {}, translator(question.lang)("card.other")));
+}
+
+export class CustomDraft {
+  constructor(emit) { this.emit = emit; this.dirty = null; this.timer = null; }
+  update(question) {
+    this.question = question;
+    if (question.free_text === this.dirty) this.dirty = null;
+  }
+  edit(text) {
+    this.dirty = text;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.save(), 400);
+  }
+  save() {
+    clearTimeout(this.timer);
+    if (this.dirty !== null) this.emit({ type: "op", op: { op: "free_text", question: this.question.id, text: this.dirty } });
+  }
+  draw(question) {
+    if (question.method !== "custom") return null;
+    const t = translator(question.lang);
+    return h("div", { class: "note", "data-field": "free-text" },
+      h("label", {}, h("span", { class: "note-label" }, t("card.free-text")), h("textarea", {
+        rows: 3, value: this.dirty ?? question.free_text, disabled: question.locked,
+        "data-focus": `free-text-${question.id}`,
+        "aria-describedby": question.emptyCustom ? `empty-${question.id}` : undefined,
+        oninput: event => this.edit(event.target.value), onchange: () => this.save(),
+      })),
+      question.emptyCustom ? h("p", { id: `empty-${question.id}`, "data-empty-answer": true }, t("card.empty-answer")) : null);
+  }
 }
 
 /// 先送りのラベル. A past question has none; its deferral is one of its marks.
