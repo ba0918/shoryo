@@ -102,7 +102,9 @@ pub struct Started {
 pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result<(), ServerError> {
     let lock = Lock::take(&options.location)?;
     let state = store::load(&options.location)?;
+    // Each topic serializes its state; a CPU-sized pool per topic multiplies idle threads.
     let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
         .enable_all()
         .build()
         .map_err(ServerError::Runtime)?;
