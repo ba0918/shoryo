@@ -629,13 +629,14 @@ impl Topic {
             }
         }
         for event in &self.events {
-            if let EventKind::Submitted { answers, .. } = &event.kind {
+            if let EventKind::Submitted { round, answers } = &event.kind {
                 for answer in answers {
                     answer.validate()?;
                     let q = self
                         .rounds
                         .iter()
-                        .flat_map(|r| &r.questions)
+                        .filter(|candidate| candidate.number == *round)
+                        .flat_map(|candidate| &candidate.questions)
                         .find(|q| q.id == answer.question)
                         .ok_or_else(|| OperationRefusal::InvalidAnswer {
                             question: answer.question.clone(),

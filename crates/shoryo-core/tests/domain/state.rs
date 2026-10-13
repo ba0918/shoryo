@@ -133,3 +133,22 @@ fn stored_decisions_without_content_are_refused_before_they_can_be_read() {
     assert!(Topic::from_json(&stored.to_string()).is_err());
     assert!(serde_json::from_value::<Decision>(stored["records"]["decisions"][0].clone()).is_err());
 }
+
+#[test]
+fn stored_submissions_cannot_take_answers_from_another_round() {
+    let mut topic = crate::common::topic_from(vec![
+        serde_json::json!({"subject":"First", "questions":[crate::common::question("q1", &[])]}),
+        serde_json::json!({"subject":"Second", "questions":[crate::common::question("q2", &[])]}),
+    ]);
+    crate::common::submit_current(&mut topic).unwrap();
+    assert_eq!(Topic::from_json(&topic.to_json()).unwrap(), topic);
+
+    for declared_round in [2, 99] {
+        let mut stored = serde_json::to_value(&topic).unwrap();
+        stored["events"][0]["round"] = serde_json::json!(declared_round);
+        let error = Topic::from_json(&stored.to_string()).unwrap_err();
+        assert!(matches!(error, shoryo_core::LoadError::Answer(
+            shoryo_core::OperationRefusal::InvalidAnswer { question }
+        ) if question == QuestionId::new("q1")));
+    }
+}
