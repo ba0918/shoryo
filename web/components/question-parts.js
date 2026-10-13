@@ -213,6 +213,7 @@ export class AnswerDrafts {
     return h("div", { class: "note", "data-field": "free-text" },
       h("label", {}, h("span", { class: "note-label" }, t("card.free-text")), h("textarea", {
         rows: 3, value: this.value("free_text", question.free_text), disabled: question.locked,
+        "data-sync-value": !this.dirty.has("free_text"),
         "data-focus": `free-text-${question.id}`,
         "aria-describedby": question.emptyCustom ? `empty-${question.id}` : undefined,
         oninput: event => this.edit("free_text", event.target.value), onchange: () => this.save(),

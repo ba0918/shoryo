@@ -10,6 +10,23 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("a clean focused custom field shows a second tab's latest body before it can be stamped", async ({ shoryo, page, context }) => {
+  await setup(shoryo, page);
+  await shoryo.op({ op: "answer_method", question: "q1", method: "custom" });
+  await shoryo.op({ op: "free_text", question: "q1", text: "before body" });
+  await expect(custom(q(page))).toHaveValue("before body");
+  await custom(q(page)).focus();
+  await custom(q(page)).evaluate(el => { el.setSelectionRange(2, 2); window.cleanFocusedEditor = el; });
+  const second = await context.newPage(); await second.goto(shoryo.url);
+  await custom(q(second)).fill("latest body"); await custom(q(second)).blur();
+  await expect(custom(q(page))).toHaveValue("latest body");
+  expect(await custom(q(page)).evaluate(el => [el === window.cleanFocusedEditor, el === document.activeElement, el.selectionStart])).toEqual([true, true, 2]);
+  await q(page).locator('[data-action="stamp"]').click();
+  await expect(q(page).locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "person");
+  const view = await (await fetch(`${shoryo.url}api/view`)).json();
+  expect(view.expected_answers[0].free_text).toBe("latest body");
+});
+
 test("restamping includes a reedit made while another question's save is held", async ({ shoryo, page }) => {
   await setup(shoryo, page); await other(q(page)).check();
   await custom(q(page)).fill("first"); await custom(q(page)).blur();
