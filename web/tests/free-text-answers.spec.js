@@ -85,7 +85,7 @@ test("a failed focused note is recoverable but is never displayed as another cli
   await expect(page.getByRole("alert")).toBeVisible();
   await shoryo.submit();
   const sent = q(page.locator('[data-panel="current"]'));
-  await expect(sent.locator('[data-action="stamp"]')).toHaveClass(/fixed/);
+  await expect(sent.locator('[data-field="note"] textarea')).toBeDisabled();
   await expect(sent.locator('[data-field="note"] textarea')).toHaveValue("");
   await expect(page.getByRole("textbox").and(page.locator("[readonly]"))).toHaveValue("not actually sent");
   await page.getByRole("tab", { name: "Past rounds", exact: true }).click();
