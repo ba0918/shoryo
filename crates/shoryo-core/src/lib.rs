@@ -18,8 +18,8 @@ pub use round::{
     RoundRefusal,
 };
 pub use state::{
-    Answer, Ask, AskState, Choice, Class, Decision, DecisionChange, DecisionContent, Delegated,
-    Fix, InReview, LoadError, NodeRef, Origin, Question, Records, Rejected, Reply,
+    Answer, AnswerMethod, Ask, AskState, Choice, Class, Decision, DecisionChange, DecisionContent,
+    Delegated, Fix, InReview, LoadError, NodeRef, Origin, Question, Records, Rejected, Reply,
     ReviewConclusion, ReviewOutcome, Revision, Round, RoundRecords, SentAs, Stamp, Timestamp,
     Topic, Undecided,
 };

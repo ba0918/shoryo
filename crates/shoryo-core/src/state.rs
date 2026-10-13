@@ -120,6 +120,10 @@ pub struct Choice {
 /// The answer as it stands: the pre-submit state until the round is sent, the answer after.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Answer {
+    #[serde(default)]
+    pub method: AnswerMethod,
+    #[serde(default)]
+    pub free_text: String,
     /// Index into the question's options.
     pub selected: usize,
     pub note: String,
@@ -128,6 +132,14 @@ pub struct Answer {
     pub stamp: Option<Stamp>,
     /// When the person last pressed the stamp; only the person's stamp has one.
     pub stamped_at: Option<Timestamp>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnswerMethod {
+    #[default]
+    Choice,
+    Custom,
 }
 
 /// A moment as the server's clock read it when it accepted something, in UTC. The domain
@@ -309,6 +321,7 @@ struct Version {
 /// The stored state could not be read.
 #[derive(Debug)]
 pub enum LoadError {
+    Answer(crate::OperationRefusal),
     Json(serde_json::Error),
     Explanation(crate::ExplanationError),
 }
@@ -317,6 +330,7 @@ impl std::fmt::Display for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "the topic's state is not valid: ")?;
         match self {
+            Self::Answer(error) => error.fmt(f),
             Self::Json(error) => error.fmt(f),
             Self::Explanation(error) => error.fmt(f),
         }
@@ -350,6 +364,7 @@ impl Topic {
         topic
             .validate_explanations()
             .map_err(LoadError::Explanation)?;
+        topic.validate_answers().map_err(LoadError::Answer)?;
         Ok(topic)
     }
 
@@ -408,6 +423,8 @@ impl Answer {
     pub fn initial(selected: usize, class: Class) -> Self {
         Self {
             selected,
+            method: AnswerMethod::Choice,
+            free_text: String::new(),
             note: String::new(),
             deferred: false,
             stamp: Stamp::initial(class),

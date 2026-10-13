@@ -70,6 +70,8 @@ fn state_round_trips_through_json() {
         ..Records::default()
     };
     topic.finished_picture = Some("a = Store".into());
+    topic.rounds[0].questions[0].answer.stamp = Some(shoryo_core::Stamp::Person);
+    topic.rounds[0].questions[0].answer.stamped_at = topic.rounds[0].sent_at.clone();
 
     let loaded = Topic::from_json(&topic.to_json()).unwrap();
 
