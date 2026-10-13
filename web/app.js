@@ -287,7 +287,8 @@ function dialogData(shown) {
     return detail ? { kind: "decision", data: detail, lang: shown.lang } : null;
   }
   if (dialog?.kind === "confirm-send") {
-    return { kind: "confirm-send", data: dialog.data, lang: shown.lang };
+    const data = { ...dialog.data, lang: shown.lang, reviews: confirmData(shown).reviews };
+    return { kind: "confirm-send", data, lang: shown.lang };
   }
   if (dialog?.kind === "confirm-review") {
     return { kind: "confirm-review", data: reviewConfirmData(shown, dialog.decision, dialog.resultWording), lang: shown.lang };

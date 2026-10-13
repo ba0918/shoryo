@@ -10,6 +10,24 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+for (const initiallyRequested of [false, true]) {
+  test(`result confirmation reflects a review ${initiallyRequested ? "withdrawn" : "added"} while open`, async ({ shoryo, page }) => {
+    await shoryo.round({ subject: "First", questions: [question("q1", "First answer?")] });
+    await shoryo.submit();
+    await shoryo.round({ subject: "Result", records: { decisions: [decision("d1", "Visible policy", "q1")] } });
+    if (initiallyRequested) await shoryo.op({ op: "request_review", decision: "d1" });
+    await page.goto(shoryo.url); await page.locator('[data-action="send"]').click();
+    await expect(confirm(page)).toBeVisible();
+    await shoryo.op({ op: initiallyRequested ? "stop_review" : "request_review", decision: "d1" });
+    if (initiallyRequested) await expect(confirm(page)).not.toContainText("Visible policy");
+    else await expect(confirm(page)).toContainText("Visible policy");
+    await confirm(page).locator('[data-action="confirm-send"]').click();
+    await expect(page.locator("[data-wait-footer]")).toBeVisible();
+    const view = await (await fetch(`${shoryo.url}api/view`)).json();
+    expect(view.topic.rounds.at(-1).sent_as).toBe(initiallyRequested ? "proceeded" : "review_requested");
+  });
+}
+
 test("a failed custom save survives another tab moving its question between regions", async ({ shoryo, page, context }) => {
   await setup(shoryo, page);
   await other(q(page)).check();
