@@ -153,8 +153,9 @@ export function noteField(question, drafts) {
     h("span", { class: "note-label" }, t("card.note")),
     h("textarea", {
       rows: 1,
-      value: drafts.value("note", question.note),
+      value: question.locked ? question.note : drafts.value("note", question.note),
       disabled: question.locked,
+      "data-sync-value": question.locked,
       "data-focus": `note-${question.id}`,
       oninput: (event) => drafts.edit("note", event.target.value),
       onchange: () => drafts.save(),

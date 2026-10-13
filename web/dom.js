@@ -57,7 +57,14 @@ function retainEditor(current, next, editor, replacement) {
   const events = listeners.get(next) ?? [];
   for (const [name, handler] of events) current.addEventListener(name, handler);
   listeners.set(current, events);
-  if (current === editor) return;
+  if (current === editor) {
+    if (next.hasAttribute("data-sync-value") && current.value !== next.value) {
+      const { selectionStart, selectionEnd, selectionDirection } = current;
+      current.value = next.value;
+      current.setSelectionRange(Math.min(selectionStart, current.value.length), Math.min(selectionEnd, current.value.length), selectionDirection);
+    }
+    return;
+  }
 
   const branch = [...current.childNodes].find(child => child === editor || child.contains?.(editor));
   let cursor = current.firstChild;

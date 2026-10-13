@@ -10,6 +10,23 @@ const custom = scope => scope.locator('[data-field="free-text"] textarea');
 const other = scope => scope.getByRole("radio", { name: "Other (write my answer)", exact: true });
 const confirm = page => page.locator("[data-confirm-send]");
 
+test("a failed focused note is recoverable but is never displayed as another client's sent note", async ({ shoryo, page }) => {
+  await setup(shoryo, page);
+  await page.route("**/api/op", async route => {
+    if (route.request().postDataJSON().op === "note") await route.abort("failed"); else await route.continue();
+  });
+  await q(page).locator('[data-field="note"] textarea').fill("not actually sent");
+  await expect(page.getByRole("alert")).toBeVisible();
+  await shoryo.submit();
+  const sent = q(page.locator('[data-panel="current"]'));
+  await expect(sent.locator('[data-action="stamp"]')).toHaveClass(/fixed/);
+  await expect(sent.locator('[data-field="note"] textarea')).toHaveValue("");
+  await expect(page.getByRole("textbox").and(page.locator("[readonly]"))).toHaveValue("not actually sent");
+  await page.getByRole("tab", { name: "Past rounds", exact: true }).click();
+  const past = page.locator('[data-panel="past"] [data-past-question="q1"]');
+  await expect(past.locator('[data-field="note"]')).toHaveCount(0);
+});
+
 for (const initiallyRequested of [false, true]) {
   test(`result confirmation reflects a review ${initiallyRequested ? "withdrawn" : "added"} while open`, async ({ shoryo, page }) => {
     await shoryo.round({ subject: "First", questions: [question("q1", "First answer?")] });
