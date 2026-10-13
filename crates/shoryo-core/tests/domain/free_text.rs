@@ -27,6 +27,46 @@ fn custom(text: &str) -> Topic {
 }
 
 #[test]
+fn custom_projection_refuses_preapproval_and_invalid_retained_options_without_mutation() {
+    let mut topic = custom("valid");
+    topic.rounds[0].questions[0].answer.stamp = Some(shoryo_core::Stamp::PreApproved);
+    let before = topic.clone();
+    assert!(
+        topic
+            .apply(
+                serde_json::from_value(json!({"op":"submit","round":1})).unwrap(),
+                any_time()
+            )
+            .is_err()
+    );
+    assert_eq!(topic, before);
+    topic.rounds[0].questions[0].answer.stamp = Some(shoryo_core::Stamp::Person);
+    topic.rounds[0].questions[0].answer.selected = 99;
+    let before = topic.clone();
+    assert!(
+        topic
+            .apply(
+                serde_json::from_value(json!({"op":"submit","round":1})).unwrap(),
+                any_time()
+            )
+            .is_err()
+    );
+    assert_eq!(topic, before);
+}
+
+#[test]
+fn byte_order_mark_is_a_nonblank_custom_body() {
+    let mut topic = custom("\u{feff}");
+    apply(
+        &mut topic,
+        json!({"op":"stamp","question":"q1","stamped":true}),
+    );
+    apply(&mut topic, json!({"op":"submit","round":1}));
+    let event = serde_json::to_value(topic.pending_events().last().unwrap()).unwrap();
+    assert_eq!(event["answers"][0]["free_text"], "\u{feff}");
+}
+
+#[test]
 fn changed_custom_text_requires_a_new_stamp_but_identical_saves_do_not() {
     let mut topic = custom("one");
     apply(

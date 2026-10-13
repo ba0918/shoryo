@@ -562,6 +562,11 @@ impl Round {
                     });
                 }
                 let custom = q.answer.method == AnswerMethod::Custom;
+                if custom && q.answer.stamp != Some(Stamp::Person) {
+                    return Err(OperationRefusal::InvalidAnswer {
+                        question: q.id.clone(),
+                    });
+                }
                 Ok(SentAnswer {
                     question: q.id.clone(),
                     class: q.class,

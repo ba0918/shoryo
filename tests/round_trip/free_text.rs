@@ -2,6 +2,52 @@ use super::harness::{Env, Server, files_under, first_round};
 use serde_json::{Value, json};
 
 #[test]
+fn blank_custom_and_contradictory_guards_leave_real_storage_unchanged() {
+    let env = Env::new();
+    let server = env.start("answers", &[]);
+    env.run(&["round", "answers"], &first_round());
+    server.operate(json!({"op":"answer_method","question":"q1","method":"custom"}));
+    server.operate(json!({"op":"free_text","question":"q1","text":"\u{85}　"}));
+    let before = server.view();
+    for op in [
+        json!({"op":"stamp","question":"q1","stamped":true}),
+        json!({"op":"submit","round":1}),
+    ] {
+        assert_eq!(server.operate(op), 409);
+        assert_eq!(server.view()["topic"], before["topic"]);
+        assert_eq!(server.view()["version"], before["version"]);
+    }
+    server.operate(json!({"op":"free_text","question":"q1","text":"answer\nconditions"}));
+    server.stamp_all();
+    let before = server.view();
+    let state = files_under(&env.data)
+        .into_iter()
+        .find(|p| p.ends_with("answers/state.json"))
+        .unwrap();
+    let bytes = std::fs::read(&state).unwrap();
+    let mut invalid = before["expected_answers"].clone();
+    invalid[0]["deferred"] = json!(true);
+    assert_eq!(
+        server.operate(json!({"op":"submit","round":1,"expected_answers":invalid})),
+        409
+    );
+    assert_eq!(std::fs::read(&state).unwrap(), bytes);
+    assert_eq!(server.view()["version"], before["version"]);
+    assert_eq!(
+        server.operate(
+            json!({"op":"submit","round":1,"expected_answers":before["expected_answers"]})
+        ),
+        200
+    );
+    let sent = env.run(&["wait", "answers", "--timeout", "0"], "");
+    let sent: Value = serde_json::from_slice(&sent.stdout).unwrap();
+    assert_eq!(
+        sent["events"][0]["answers"][0]["free_text"],
+        "answer\nconditions"
+    );
+}
+
+#[test]
 fn concurrent_edit_and_guarded_submit_accept_only_the_locked_answer() {
     let env = Env::new();
     let server = env.start("answers", &[]);
