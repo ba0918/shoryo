@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures.js";
-import { question } from "./rounds.js";
+import { question, decision } from "./rounds.js";
 
 async function setup(shoryo, page) {
   await shoryo.round({ subject: "Own answers", questions: [question("q1", "Your answer?"), question("q2", "Small choice?", { cls: "provisional" })] });
@@ -237,4 +237,50 @@ test("blank custom explains refusal but deferral may be stamped", async ({ shory
   await scope.getByRole("switch").press("Space");
   await scope.locator('[data-action="stamp"]').click();
   await expect(scope.locator('[data-action="stamp"]')).toHaveAttribute("data-stamp", "person");
+});
+
+test("sent custom bodies stay literal and read-only in history and both map contexts after acknowledgment and restart", async ({ shoryo, page }) => {
+  await setup(shoryo, page);
+  const body = "  <img src=x onerror=alert(1)>\nsecond line  ";
+  await q(page).locator('[data-field="note"] textarea').fill("inactive note");
+  await other(q(page)).check(); await custom(q(page)).fill(body);
+  await q(page).locator('[data-action="stamp"]').click();
+  await page.locator('[data-action="send"]').click();
+  await confirm(page).locator('[data-action="confirm-send"]').click();
+  await expect(page.locator("[data-wait-footer]")).toBeVisible();
+  await expect(q(page.locator('[data-panel="current"]')).locator("[data-sent-answer]")).toHaveText(body);
+  await expect(custom(q(page.locator('[data-panel="current"]')))).toHaveCount(0);
+  await page.getByRole("tab", { name: "Map", exact: true }).click();
+  await page.locator('[data-map-node="q:q1"]').focus();
+  await expect(page.locator("[data-map-hover]")).toContainText(body);
+  const received = await shoryo.wait();
+  await shoryo.waitAfter(received.map(e => e.id), 0);
+  await shoryo.round({ subject: "Next", questions: [question("q3", "Next question?")], records: { decisions: [decision("d1", "Own answer decision", "q1")] } });
+  await shoryo.restart(); await page.goto(shoryo.url);
+  await page.getByRole("tab", { name: "Past rounds", exact: true }).click();
+  const history = page.locator('[data-panel="past"] [data-past-question="q1"]');
+  await expect(history.locator("[data-chosen] dd")).toHaveText(body);
+  await expect(history).not.toContainText("inactive note");
+  await expect(history.locator("img")).toHaveCount(0);
+  await expect(history.locator("[data-chosen] dd")).toHaveCSS("white-space", "pre-wrap");
+  await page.getByRole("tab", { name: "Map", exact: true }).click();
+  await page.locator('[data-map-node="d:d1"]').focus();
+  await expect(page.locator("[data-map-hover]")).toContainText(body);
+  await expect(page.locator("[data-map-hover] img")).toHaveCount(0);
+});
+
+test("custom deferral confirmation and sent display exclude retained body and note", async ({ shoryo, page }) => {
+  await setup(shoryo, page);
+  await q(page).locator('[data-field="note"] textarea').fill("inactive note");
+  await other(q(page)).check(); await custom(q(page)).fill("retained custom draft");
+  await q(page).getByRole("switch").focus(); await q(page).getByRole("switch").press("Space");
+  await q(page).locator('[data-action="stamp"]').click();
+  await page.locator('[data-action="send"]').click();
+  await expect(confirm(page)).not.toContainText("retained custom draft");
+  await expect(confirm(page)).not.toContainText("inactive note");
+  await expect(confirm(page).locator('[data-mark="deferred"]')).toBeVisible();
+  await confirm(page).locator('[data-action="confirm-send"]').click();
+  await expect(page.locator("[data-wait-footer]")).toBeVisible();
+  await expect(q(page.locator('[data-panel="current"]'))).not.toContainText("retained custom draft");
+  await expect(custom(q(page.locator('[data-panel="current"]')))).toHaveCount(0);
 });

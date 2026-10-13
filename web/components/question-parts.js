@@ -198,6 +198,7 @@ export class AnswerDrafts {
   }
   draw(question) {
     if (question.method !== "custom") return null;
+    if (question.locked) return question.sentBody === null ? null : h("p", { class: "sent-answer", "data-sent-answer": true }, question.sentBody);
     const t = translator(question.lang);
     return h("div", { class: "note", "data-field": "free-text" },
       h("label", {}, h("span", { class: "note-label" }, t("card.free-text")), h("textarea", {

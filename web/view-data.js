@@ -45,6 +45,7 @@ function stampedAt(round, answer) {
 /// prerequisites are shown with; by default their current content.
 export function questionData(view, round, question, locked, landed = null, asOf = Infinity) {
   const topic = view.topic;
+  const sent = sentAnswer(view, round, question);
   return {
     lang: view.lang,
     round: round.number,
@@ -61,9 +62,10 @@ export function questionData(view, round, question, locked, landed = null, asOf 
     options: question.options.map((option, index) => ({ index, ...option })),
     selected: question.answer.selected,
     method: question.answer.method ?? "choice",
-    free_text: question.answer.free_text ?? "",
+    free_text: sent ? sent.free_text ?? "" : question.answer.free_text ?? "",
+    sentBody: sent ? displayAnswer(question, sent) : null,
     emptyCustom: question.answer.method === "custom" && !question.answer.deferred && /^\p{White_Space}*$/u.test(question.answer.free_text ?? ""),
-    note: question.answer.note,
+    note: sent ? sent.note : question.answer.note,
     deferred: question.answer.deferred,
     stamp: question.answer.stamp,
     stampedAt: stampedAt(round, question.answer),
@@ -71,6 +73,21 @@ export function questionData(view, round, question, locked, landed = null, asOf 
     locked,
     landed: question.id === landed,
   };
+}
+
+function sentAnswer(view, round, question) {
+  return view.sent_answers?.[round.number]?.find(answer => answer.question === question.id) ?? null;
+}
+
+function displayAnswer(question, answer) {
+  if (!answer) return null;
+  return answer.deferred ? null : answer.free_text ?? question.options[answer.choice]?.text ?? null;
+}
+
+function draftAnswerText(question) {
+  return question.answer.method === "custom"
+    ? question.answer.free_text
+    : question.options[question.answer.selected]?.text ?? null;
 }
 
 export function currentRoundData(view, landed = null) {
@@ -154,13 +171,14 @@ export function confirmData(view) {
     questions: (view.expected_answers ?? []).map((answer) => {
       const question = round.questions.find(q => q.id === answer.question);
       return {
-      id: question.id,
-      text: question.text,
-      answer: answer.deferred ? null : answer.free_text ?? question.options[answer.choice]?.text ?? "",
-      deferred: answer.deferred,
-      note: answer.note,
-      stamp: answer.stamp,
-    }; }),
+        id: question.id,
+        text: question.text,
+        answer: displayAnswer(question, answer),
+        deferred: answer.deferred,
+        note: answer.note,
+        stamp: answer.stamp,
+      };
+    }),
     reviews: topic.records.in_review
       .map((entry) => findDecision(topic, entry.decision))
       .filter((decision) => decision !== null)
@@ -314,7 +332,7 @@ export function pastRoundsData(view, selected, landed = null) {
         data: {
           ...questionData(view, chosen, question, true, landed, chosen.number),
           past: {
-            chosen: question.answer.deferred ? null : question.options[question.answer.selected].text,
+            chosen: displayAnswer(question, sentAnswer(view, chosen, question)),
             recommended: question.options.find((option) => option.recommended)?.text ?? "",
             decisions: decidedBy(topic, question.id).map((decision) =>
               decisionItemData(view, decision, { asDecided: true }),
@@ -396,8 +414,10 @@ export function decisionsTabData(view) {
 
 function answerText(view, question, round) {
   if (!round.submitted) return null;
-  if (question.answer.deferred) return translator(view.lang)("map.asked-again");
-  return question.options[question.answer.selected]?.text ?? null;
+  const sent = sentAnswer(view, round, question);
+  if (!sent) return null;
+  if (sent.deferred) return translator(view.lang)("map.asked-again");
+  return displayAnswer(question, sent);
 }
 
 /// Where a jump to a question lands: its card in the current round, or the past round.
@@ -432,7 +452,7 @@ function nodeDetail(view, node) {
       return {
         text: null,
         question: node.label,
-        answer: found ? found.question.options[found.question.answer.selected]?.text ?? null : null,
+        answer: found ? (found.round.submitted ? answerText(view, found.question, found.round) : draftAnswerText(found.question)) : null,
       };
   }
 }
