@@ -36,3 +36,41 @@ fn content_type(path: &str) -> &'static str {
         _ => "application/octet-stream",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embedded_screen_assets_are_available_with_their_media_types() {
+        assert!(
+            Screen::iter().next().is_some(),
+            "the binary must contain the screen"
+        );
+        for path in Screen::iter() {
+            let asset = file(&path).expect("every embedded asset is retrievable");
+            let expected = match path.rsplit_once('.').map(|(_, extension)| extension) {
+                Some("html") => "text/html; charset=utf-8",
+                Some("css") => "text/css; charset=utf-8",
+                Some("js") => "text/javascript; charset=utf-8",
+                Some("svg") => "image/svg+xml",
+                Some("json") => "application/json",
+                _ => "application/octet-stream",
+            };
+            assert_eq!(asset.content_type, expected, "wrong media type: {path}");
+        }
+    }
+
+    #[test]
+    fn test_fixtures_and_paths_outside_the_screen_are_not_served() {
+        assert!(Screen::iter().all(|path| !path.starts_with("tests/")));
+        for path in [
+            "tests/fixtures.js",
+            "../Cargo.toml",
+            "/etc/passwd",
+            "missing-asset.js",
+        ] {
+            assert!(file(path).is_none(), "unexpected asset: {path}");
+        }
+    }
+}
