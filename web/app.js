@@ -528,6 +528,9 @@ function handle(event) {
       return answerOperation(event.op);
     case "save-draft":
       return enqueue(event.op);
+    case "draft-unavailable":
+      ui.error = { key: "refusal.round_submitted" };
+      break;
     case "tab":
       ui.tab = event.tab;
       ui.landed = null;

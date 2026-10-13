@@ -178,9 +178,13 @@ const MAX_DRAFT_SAVE_ATTEMPTS = 8;
 export class AnswerDrafts {
   constructor(emit) { this.emit = emit; this.dirty = new Map(); this.timer = null; this.pending = null; }
   update(question) {
+    const wasAvailable = this.available;
     this.question = question;
     this.available = !question.locked;
-    if (!this.available) clearTimeout(this.timer);
+    if (!this.available) {
+      clearTimeout(this.timer);
+      if (wasAvailable && this.dirty.size) queueMicrotask(() => this.emit({ type: "draft-unavailable" }));
+    }
   }
   retire() { this.available = false; clearTimeout(this.timer); }
   value(kind, saved) { return this.dirty.has(kind) ? this.dirty.get(kind) : saved; }
