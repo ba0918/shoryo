@@ -46,7 +46,10 @@ pub fn router(shared: Arc<Shared>, secret: &str) -> Router {
             post(agent::reply).layer(DefaultBodyLimit::max(EXPLANATION_REQUEST_BYTES)),
         )
         .route(&format!("{base}/api/end"), post(agent::end))
-        .route(&format!("{base}/api/result"), get(agent::result))
+        .route(
+            &format!("{base}/api/result"),
+            get(agent::result).post(agent::selected_result),
+        )
         .route(&format!("{base}/api/stop"), post(agent::stop))
         .route(
             &format!("{base}/{{*file}}"),

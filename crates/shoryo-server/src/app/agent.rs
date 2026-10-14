@@ -108,6 +108,16 @@ pub(super) async fn result(State(shared): State<Arc<Shared>>) -> Response {
     ([(header::CONTENT_TYPE, "application/json")], body).into_response()
 }
 
+pub(super) async fn selected_result(State(shared): State<Arc<Shared>>, body: String) -> ApiResult {
+    let selection = parse::<shoryo_core::ResultSelection>(&body)?;
+    let body = shared
+        .lock()
+        .topic
+        .selected_result(&selection)
+        .map_err(|error| ApiError::new(StatusCode::NOT_FOUND, error))?;
+    Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
+}
+
 pub(super) async fn stop(State(shared): State<Arc<Shared>>) -> ApiResult {
     shared.shutdown.send_replace(true);
     ok(json!({}))

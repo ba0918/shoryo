@@ -30,8 +30,17 @@ impl StoredTopic {
 
 /// Reads the topic's state, or starts a new one when there is none yet.
 pub fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
-    match fs::read_to_string(location.state_file()) {
-        Ok(json) => {
+    Ok(load_existing(location)?.unwrap_or_else(|| StoredTopic {
+        repository: location.repository.display().to_string(),
+        name: location.name.to_string(),
+        topic: Topic::new("", ""),
+    }))
+}
+
+/// Reads and validates an existing topic without inventing an empty topic when absent.
+pub fn load_existing(location: &TopicLocation) -> Result<Option<StoredTopic>, ServerError> {
+    match read_state(location)? {
+        Some(json) => {
             let state: StoredTopic =
                 serde_json::from_str(&json).map_err(|error| ServerError::CorruptState {
                     path: location.state_file(),
@@ -51,14 +60,9 @@ pub fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
                     path: location.state_file(),
                     reason: error.to_string(),
                 })?;
-            Ok(state)
+            Ok(Some(state))
         }
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(StoredTopic {
-            repository: location.repository.display().to_string(),
-            name: location.name.to_string(),
-            topic: Topic::new("", ""),
-        }),
-        Err(error) => Err(ServerError::io(location.state_file(), error)),
+        None => Ok(None),
     }
 }
 

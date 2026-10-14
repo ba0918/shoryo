@@ -5,7 +5,17 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+### Added
+
+- `result --current` reads exact current records and agreement state without the full topic
+  history. `--round N` and `--decision ID` retrieve selected history online or offline; the
+  unfiltered `result` and persisted format are unchanged.
+
 ### Changed
+
+- The shoryo skill sends only new or changed decisions, changed record lists and changed
+  pictures, and reads current records before requesting selected history for specification writing.
+  Unchanged pictures no longer need to be regenerated for every round.
 
 - **BREAKING** The Rust domain API's `Topic::allocate_ask_id` and `Topic::allocate_event_id`
   return `Result<_, IdExhaustion>` instead of an ID directly. Callers must handle exhaustion;

@@ -54,8 +54,19 @@ enum Commands {
     },
     /// End the topic.
     End { topic: String },
-    /// Print the topic's whole data as JSON.
-    Result { topic: String },
+    /// Print current records, selected history, or the whole topic as JSON.
+    Result {
+        topic: String,
+        /// Print current records without questions, explanations or old decision versions.
+        #[arg(long, conflicts_with_all = ["round", "decision"])]
+        current: bool,
+        /// Print one complete round, including its questions, answers and explanations.
+        #[arg(long, conflicts_with = "decision")]
+        round: Option<u32>,
+        /// Print one decision with its full content history.
+        #[arg(long)]
+        decision: Option<String>,
+    },
     /// Stop the topic's server.
     Stop { topic: String },
 }
@@ -118,8 +129,26 @@ fn run(command: Commands) -> Result<(), String> {
             client::connect(&locate(&topic)?)?.post("end", String::new())?;
             Ok(())
         }
-        Commands::Result { topic } => {
-            print!("{}", client::result(&locate(&topic)?)?);
+        Commands::Result {
+            topic,
+            current,
+            round,
+            decision,
+        } => {
+            let selection = if current {
+                Some(shoryo_server::ResultSelection::Current {})
+            } else if let Some(number) = round {
+                Some(shoryo_server::ResultSelection::Round { number })
+            } else {
+                decision.map(|id| shoryo_server::ResultSelection::Decision {
+                    id: shoryo_server::DecisionId::new(id),
+                })
+            };
+            let location = locate(&topic)?;
+            match selection {
+                Some(selection) => println!("{}", client::selected_result(&location, &selection)?),
+                None => print!("{}", client::result(&location)?),
+            }
             Ok(())
         }
         Commands::Stop { topic } => {

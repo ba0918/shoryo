@@ -5,6 +5,7 @@ mod explanation;
 mod explanation_validation;
 mod ids;
 mod operations;
+mod result;
 mod round;
 mod state;
 mod views;
@@ -13,6 +14,7 @@ pub use explanation::{Part, Role};
 pub use explanation_validation::{ExplanationError, ExplanationRule};
 pub use ids::{AskId, DecisionId, EventId, IdExhaustion, QuestionId};
 pub use operations::{Event, EventKind, Operation, OperationRefusal, SentAnswer};
+pub use result::{ResultReadError, ResultSelection};
 pub use round::{
     DecidedBy, DecisionInput, FixInput, InputError, QuestionInput, RecordsInput, RoundInput,
     RoundRefusal,

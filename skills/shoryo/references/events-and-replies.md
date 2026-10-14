@@ -77,8 +77,29 @@ Unknown fields and old `text`/`diagram` reply inputs are refused.
 
 ## The result
 
+Start with `shoryo result <topic> --current` when writing a specification or resuming. It returns
+`title`, `original_request`, `ended`, `latest_round`, `pending_events` (the unacknowledged count),
+and `records`. Decision entries contain `id`, `name`, `text`, `origin`, `origin_round` and `pre_approved`; their
+text is the exact latest content, not a generated summary. The other records are `not_building`,
+`undecided`, `delegated`, `rejected` and `in_review`, unchanged from stored data.
+
+`latest_round` is `null` before any round, otherwise `{number, submitted, sent_as, question_count}`.
+It reports state, not approval: an unsent round, a question round or a result sent with
+`sent_as: "review_requested"` is not permission to proceed. Check the workflow's convergence
+conditions and outstanding in-review marks. Current decisions never include unsent answer drafts.
+The event count is not proof of unhandled work (handled events may still await acknowledgment);
+use the normal wait/ack loop, rather than treating a read as acknowledgment.
+
+When context is missing, use `shoryo result <topic> --decision ID` to read that decision's complete
+history and origin, then `--round N` for the relevant questions, answers, replies and picture.
+Use `origin_round` in the current records to locate the source; it can differ from the history's
+first effective round. It is `null` if the source question is absent from the stored topic;
+do not infer a round or agreement in that case. Selectors return the corresponding stored object
+without other rounds or decisions.
+All result forms work after the server stops. Unknown selectors fail, never broaden the output.
+
 `shoryo result` prints the topic's whole data: the same JSON that is stored. The parts a
-workflow reads to write a specification:
+workflow can read when a selective result is insufficient:
 
 | Field | Meaning |
 |---|---|

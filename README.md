@@ -30,6 +30,10 @@ The brainstorm workflow that uses shoryo chooses the questions and writes the sp
 from shoryo's result data. The browser does not call a model API
 itself. The agent exchanges questions, answers and replies through the CLI.
 
+The agent sends changed records and pictures rather than regenerating unchanged content.
+For specification writing, `shoryo result <topic> --current` reads exact current records;
+selected history is available when needed. See the [command reference](skills/shoryo/references/commands.md).
+
 ## Install
 
 ### Binary

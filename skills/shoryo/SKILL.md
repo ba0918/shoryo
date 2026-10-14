@@ -64,8 +64,9 @@ questions. A provisional question becomes an answer only when it is sent. Silenc
 Write every question with: its text; one line on why it is decided now; the decisions it rests
 on; the background needed to read it; options, exactly one recommended, each with a description
 and its consequence (この答えだと). Give every decision a short name — it is what chains and the
-map show — and every round a subject, which heads its column on the map. Send the updated
-records and the redrawn finished picture with every round.
+map show — and every round a subject, which heads its column on the map. Generate and send
+only new or changed decisions. Omit unchanged record lists, title, original request and finished
+picture; shoryo retains them. A changed list replaces the whole list; `[]` clears it.
 
 shoryo adds Other (write my answer) to every question, including folded provisional rows.
 Do not add an Other option or invent a consequence for a person's own answer; your options
@@ -152,7 +153,7 @@ The screen shows it as the result; the format is in `references/round.md` ("The 
 
 - An empty `submitted` for that round, with no `review_requested` pending (none received since,
   or each withdrawn by `review_stopped`), means "proceed with this result": return to the
-  workflow, which writes the specification from `shoryo result`.
+  workflow, which writes the specification from `shoryo result <topic> --current`.
 - With review requests pending, the person pressed "Send review requests": ask those decisions
   again in the next round, as under "Review requests" above, and send a result round again once
   they are settled.
@@ -171,17 +172,25 @@ If the topic was ended, sending the round reopens it.
 
 ## The finished picture
 
-Redraw the finished picture with every round: one diagram of what the topic will end up as.
+Send the finished picture initially and redraw it only when the pictured structure or labels
+change: one diagram of what the topic will end up as. Omit it when unchanged; shoryo preserves
+it in the new round's snapshot. Do not use an empty string as an omission.
 Put each decision at the place it belongs, in a few words; leave places not decided yet as empty
 slots (`id = ? label`). It is a picture, not a list of decisions. The format is in
 `references/diagram.md`.
 
 ## Ending
 
+For specification writing or resuming, read current records first with `result <topic> --current`.
+They are not a declaration of final agreement: check the latest round's send status and in-review
+marks. If reasons or original answers are needed, retrieve only the referenced round or decision
+history (`--round N` or `--decision ID`), as described in `references/events-and-replies.md`.
+Use the unfiltered `result` only when the task needs the entire stored topic.
+
 When the workflow has finished up to approval, run `shoryo end <topic>`. Sending the last round
 does not end the topic, and `end` is refused while a round is unsent. After ending, the page
-stays readable; `shoryo result <topic>` gives the workflow the whole data, and works after the
-server is stopped too. Run `shoryo stop <topic>` when the topic's server is no longer needed. Do
+stays readable; `shoryo result <topic> --current` gives the workflow the current records, and works
+after the server is stopped too. Run `shoryo stop <topic>` when the topic's server is no longer needed. Do
 not delete the topic's data; that is the person's decision.
 
 ## Evidence
@@ -189,4 +198,5 @@ not delete the topic's data; that is the person's decision.
 - After each round: the line `shoryo round` printed, and nothing else about the round in the
   conversation.
 - Before the next round: the `wait` output whose `submitted` event the records were updated from.
-- At the end: the exit status of `shoryo end`, and `shoryo result` output handed to the workflow.
+- At the end: the exit status of `shoryo end`, and current result output handed to the workflow,
+  with any selected history needed to interpret it.

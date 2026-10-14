@@ -103,6 +103,28 @@ pub fn result(location: &TopicLocation) -> Result<String, String> {
         .ok_or_else(|| format!("topic {} has no data yet", location.name))
 }
 
+pub fn selected_result(
+    location: &TopicLocation,
+    selection: &shoryo_server::ResultSelection,
+) -> Result<String, String> {
+    if let Some(endpoint) = store::read_endpoint(location).map_err(|error| error.to_string())? {
+        let request = serde_json::to_string(selection)
+            .expect("result selections contain only strings and a round number");
+        return Client {
+            agent: agent(),
+            endpoint,
+        }
+        .post("result", request)
+        .map(|value| value.to_string());
+    }
+    store::load_existing(location)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("topic {} has no data yet", location.name))?
+        .topic
+        .selected_result(selection)
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

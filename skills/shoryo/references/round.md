@@ -16,7 +16,7 @@ refused, so a misspelt field name fails loudly instead of being ignored.
 | `records` | no | The records, updated with the previous round's answers (below). |
 | `review_conclusions` | no | For each decision the person asked to review: `{ "decision", "outcome": "unchanged" \| "changed" }`. |
 | `confirmed` | no | Points you checked are still right after a decision they rest on changed: `{ "decision": id }` or `{ "question": id }`. |
-| `finished_picture` | no | The finished picture as diagram text (see the diagram reference). Send it with every round. |
+| `finished_picture` | no | The finished picture as diagram text (see the diagram reference). Send it initially and when it changes; omission retains the preceding picture. |
 
 ### A question
 
@@ -49,12 +49,15 @@ Do not add it to create a free-text field, recommend it, or write a consequence 
 | `in_review` | Ignored: the in-review marks belong to the person. |
 
 Each list other than `decisions` replaces the stored list when present, and leaves it as it was
-when absent. Send the whole list whenever one entry changes.
+when absent. Send the whole list whenever one entry changes; use `[]` to clear it. Do not resend
+unchanged lists, decisions or topic metadata. Omission is not deletion: decisions cannot be
+deleted with this format. Do not send empty text or `null` as a substitute for omission.
 
 ## The result round
 
-When the topic has converged, send a round with no `questions`: the last records and the
-finished picture. The screen shows it as the result — the finished picture, the decisions
+When the topic has converged, send a round with no `questions` and only the records or picture
+that changed. If neither changed, `{"subject":"Result"}` is sufficient. The screen retains
+the latest records and picture and shows them as the result — the finished picture, the decisions
 (those sent pre-approved marked 代決), not building, rejected options, undecided and delegated —
 with a "Proceed with this result" button, and 見直す beside each decision. The person sends
 it as an ordinary `submitted` event with no answers.
@@ -213,7 +216,7 @@ changed a decision, the review changed `d2`, and a point resting on `d1` is conf
 ```
 
 The result round, after the review round was sent and nothing is left to ask: no questions,
-the last records and the finished picture.
+one new decision, and no resending of the unchanged undecided list or finished picture.
 
 ```json round
 {
@@ -221,11 +224,7 @@ the last records and the finished picture.
   "records": {
     "decisions": [
       { "id": "d4", "name": "Review complete", "text": "The review found nothing more to change.", "decided_by": { "question": "q4" } }
-    ],
-    "undecided": [
-      { "text": "Whether to compress old topics", "decider": "the person" }
     ]
-  },
-  "finished_picture": "agent = Agent\nshoryo = shoryo\nstore = topic.json\nwho = Person deletes\n| agent | shoryo | store |\n| .     | .      | who   |\nagent -> shoryo : rounds\nshoryo -> agent : answers\nshoryo -> store : saves\nwho -> store : deletes"
+  }
 }
 ```
