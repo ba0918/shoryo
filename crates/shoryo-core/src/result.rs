@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+mod current;
 mod details;
 
-use crate::{
-    AskId, DecisionId, Delegated, InReview, OperationRefusal, Origin, QuestionId, Rejected, SentAs,
-    Topic, Undecided,
-};
+use crate::{AskId, DecisionId, OperationRefusal, QuestionId, Topic};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -55,47 +53,7 @@ impl Topic {
                 .find(|ask| ask.id == *id)
                 .map(json)
                 .ok_or(ResultReadError::AskNotFound(*id)),
-            ResultSelection::Current {} => Ok(json(&Current {
-                title: &self.title,
-                original_request: &self.original_request,
-                ended: self.ended,
-                latest_round: self.current_round().map(|round| RoundStatus {
-                    number: round.number,
-                    submitted: round.submitted,
-                    sent_as: round.sent_as,
-                    question_count: round.questions.len(),
-                }),
-                pending_events: self.pending_events().len(),
-                records: CurrentRecords {
-                    decisions: self
-                        .records
-                        .decisions
-                        .iter()
-                        .map(|decision| CurrentDecision {
-                            id: &decision.id,
-                            name: &decision.current().name,
-                            text: &decision.current().text,
-                            origin: &decision.origin,
-                            origin_round: match &decision.origin {
-                                Origin::Question(id) => self
-                                    .rounds
-                                    .iter()
-                                    .find(|round| {
-                                        round.questions.iter().any(|question| question.id == *id)
-                                    })
-                                    .map(|round| round.number),
-                                Origin::FixRound(number) => Some(*number),
-                            },
-                            pre_approved: self.decided_pre_approved(&decision.id),
-                        })
-                        .collect(),
-                    not_building: &self.records.not_building,
-                    undecided: &self.records.undecided,
-                    delegated: &self.records.delegated,
-                    rejected: &self.records.rejected,
-                    in_review: &self.records.in_review,
-                },
-            })),
+            ResultSelection::Current {} => Ok(current::result(self)),
             ResultSelection::Round { number } => self
                 .rounds
                 .iter()
@@ -116,44 +74,6 @@ impl Topic {
 fn json(value: &impl Serialize) -> String {
     serde_json::to_string(value)
         .expect("result projections contain only JSON-compatible topic fields")
-}
-
-#[derive(Serialize)]
-struct Current<'a> {
-    title: &'a str,
-    original_request: &'a str,
-    ended: bool,
-    latest_round: Option<RoundStatus>,
-    pending_events: usize,
-    records: CurrentRecords<'a>,
-}
-
-#[derive(Serialize)]
-struct RoundStatus {
-    number: u32,
-    submitted: bool,
-    sent_as: Option<SentAs>,
-    question_count: usize,
-}
-
-#[derive(Serialize)]
-struct CurrentRecords<'a> {
-    decisions: Vec<CurrentDecision<'a>>,
-    not_building: &'a [String],
-    undecided: &'a [Undecided],
-    delegated: &'a [Delegated],
-    rejected: &'a [Rejected],
-    in_review: &'a [InReview],
-}
-
-#[derive(Serialize)]
-struct CurrentDecision<'a> {
-    id: &'a DecisionId,
-    name: &'a str,
-    text: &'a str,
-    origin: &'a Origin,
-    origin_round: Option<u32>,
-    pre_approved: bool,
 }
 
 #[cfg(test)]
