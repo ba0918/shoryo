@@ -5,6 +5,8 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-14
+
 ### Added
 
 - `result --current` reads exact current records and agreement state without the full topic
@@ -15,6 +17,10 @@ All notable changes to shoryo are recorded here. The version follows
   without expanding its conversation chain. These selectors also work offline.
 
 ### Changed
+
+- Map traversal and column ordering, bulk event acknowledgment and persisted-answer validation
+  avoid repeated full scans or unnecessary copies. Topic servers use two runtime workers rather
+  than creating a CPU-sized worker pool for each topic.
 
 - The shoryo skill sends only new or changed decisions, changed record lists and changed
   pictures, and reads current records before requesting selected history for specification writing.
@@ -131,6 +137,7 @@ The first release.
 - Releases carry a static Linux x86_64 binary that mise's github backend can install
   (`mise use -g github:ba0918/shoryo`).
 
-[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ba0918/shoryo/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ba0918/shoryo/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ba0918/shoryo/releases/tag/v0.1.0
