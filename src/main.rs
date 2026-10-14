@@ -7,9 +7,9 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use shoryo_server::location::{TopicLocation, TopicName};
-use shoryo_server::{ServeOptions, serve};
+use shoryo_server::{AskId, DecisionId, QuestionId, ResultSelection, ServeOptions, serve};
 
 /// Run brainstorm rounds on a local browser screen instead of the chat.
 #[derive(Parser)]
@@ -55,30 +55,59 @@ enum Commands {
     /// End the topic.
     End { topic: String },
     /// Print current records, selected history, or the whole topic as JSON.
-    #[command(group(clap::ArgGroup::new("selection").args(["current", "round", "decision", "answer", "question", "ask"]).multiple(false)))]
-    Result {
-        topic: String,
-        /// Print current records without questions, explanations or old decision versions.
-        #[arg(long)]
-        current: bool,
-        /// Print one complete round, including its questions, answers and explanations.
-        #[arg(long)]
-        round: Option<u32>,
-        /// Print one decision with its full content history.
-        #[arg(long)]
-        decision: Option<String>,
-        /// Print only a question's sent answer and links to related asks.
-        #[arg(long)]
-        answer: Option<String>,
-        /// Print one complete question, including its background, options and drafts.
-        #[arg(long)]
-        question: Option<String>,
-        /// Print one ask and its reply, without expanding follow-up chains.
-        #[arg(long)]
-        ask: Option<u64>,
-    },
+    Result(ResultArgs),
     /// Stop the topic's server.
     Stop { topic: String },
+}
+
+#[derive(Args)]
+#[group(skip)]
+#[command(group(clap::ArgGroup::new("selection").args(["current", "round", "decision", "answer", "question", "ask"]).multiple(false)))]
+struct ResultArgs {
+    topic: String,
+    /// Print current records without questions, explanations or old decision versions.
+    #[arg(long)]
+    current: bool,
+    /// Print one complete round, including its questions, answers and explanations.
+    #[arg(long)]
+    round: Option<u32>,
+    /// Print one decision with its full content history.
+    #[arg(long)]
+    decision: Option<String>,
+    /// Print only a question's sent answer and links to related asks.
+    #[arg(long)]
+    answer: Option<String>,
+    /// Print one complete question, including its background, options and drafts.
+    #[arg(long)]
+    question: Option<String>,
+    /// Print one ask and its reply, without expanding follow-up chains.
+    #[arg(long)]
+    ask: Option<u64>,
+}
+
+impl ResultArgs {
+    fn into_request(self) -> (String, Option<ResultSelection>) {
+        let selection = if self.current {
+            Some(ResultSelection::Current {})
+        } else if let Some(number) = self.round {
+            Some(ResultSelection::Round { number })
+        } else if let Some(id) = self.decision {
+            Some(ResultSelection::Decision {
+                id: DecisionId::new(id),
+            })
+        } else if let Some(id) = self.answer {
+            Some(ResultSelection::Answer {
+                id: QuestionId::new(id),
+            })
+        } else if let Some(id) = self.question {
+            Some(ResultSelection::Question {
+                id: QuestionId::new(id),
+            })
+        } else {
+            self.ask.map(|id| ResultSelection::Ask { id: AskId(id) })
+        };
+        (self.topic, selection)
+    }
 }
 
 fn main() -> ExitCode {
@@ -139,36 +168,8 @@ fn run(command: Commands) -> Result<(), String> {
             client::connect(&locate(&topic)?)?.post("end", String::new())?;
             Ok(())
         }
-        Commands::Result {
-            topic,
-            current,
-            round,
-            decision,
-            answer,
-            question,
-            ask,
-        } => {
-            let selection = if current {
-                Some(shoryo_server::ResultSelection::Current {})
-            } else if let Some(number) = round {
-                Some(shoryo_server::ResultSelection::Round { number })
-            } else if let Some(id) = decision {
-                Some(shoryo_server::ResultSelection::Decision {
-                    id: shoryo_server::DecisionId::new(id),
-                })
-            } else if let Some(id) = answer {
-                Some(shoryo_server::ResultSelection::Answer {
-                    id: shoryo_server::QuestionId::new(id),
-                })
-            } else if let Some(id) = question {
-                Some(shoryo_server::ResultSelection::Question {
-                    id: shoryo_server::QuestionId::new(id),
-                })
-            } else {
-                ask.map(|id| shoryo_server::ResultSelection::Ask {
-                    id: shoryo_server::AskId(id),
-                })
-            };
+        Commands::Result(args) => {
+            let (topic, selection) = args.into_request();
             let location = locate(&topic)?;
             match selection {
                 Some(selection) => println!("{}", client::selected_result(&location, &selection)?),
