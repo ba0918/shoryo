@@ -4,29 +4,7 @@ use crate::state::{Answer, AnswerMethod, Question, Round, Stamp, Topic};
 impl Round {
     pub fn sent_answers(&self) -> Result<Vec<SentAnswer>, OperationRefusal> {
         self.check_sent_answers()?;
-        Ok(self
-            .questions
-            .iter()
-            .map(|q| {
-                let custom = q.answer.method == AnswerMethod::Custom;
-                SentAnswer {
-                    question: q.id.clone(),
-                    class: q.class,
-                    choice: (!q.answer.deferred && !custom).then_some(q.answer.selected),
-                    free_text: (!q.answer.deferred && custom).then(|| q.answer.free_text.clone()),
-                    note: if custom {
-                        String::new()
-                    } else {
-                        q.answer.note.clone()
-                    },
-                    deferred: q.answer.deferred,
-                    stamp: q
-                        .answer
-                        .stamp
-                        .expect("all stamps were validated before projection"),
-                }
-            })
-            .collect())
+        self.questions.iter().map(Question::sent_answer).collect()
     }
 
     fn check_sent_answers(&self) -> Result<(), OperationRefusal> {
@@ -64,6 +42,35 @@ impl Answer {
 }
 
 impl Question {
+    pub(crate) fn sent_answer(&self) -> Result<SentAnswer, OperationRefusal> {
+        if self.answer.empty_custom_body() {
+            return Err(OperationRefusal::EmptyFreeText {
+                questions: vec![self.id.clone()],
+            });
+        }
+        let stamp = self
+            .answer
+            .stamp
+            .ok_or_else(|| OperationRefusal::Unstamped {
+                questions: vec![self.id.clone()],
+            })?;
+        self.check_answer()?;
+        let custom = self.answer.method == AnswerMethod::Custom;
+        Ok(SentAnswer {
+            question: self.id.clone(),
+            class: self.class,
+            choice: (!self.answer.deferred && !custom).then_some(self.answer.selected),
+            free_text: (!self.answer.deferred && custom).then(|| self.answer.free_text.clone()),
+            note: if custom {
+                String::new()
+            } else {
+                self.answer.note.clone()
+            },
+            deferred: self.answer.deferred,
+            stamp,
+        })
+    }
+
     fn check_answer(&self) -> Result<(), OperationRefusal> {
         if self.answer.selected >= self.options.len() {
             return Err(OperationRefusal::UnknownOption {

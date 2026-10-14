@@ -183,8 +183,10 @@ slots (`id = ? label`). It is a picture, not a list of decisions. The format is 
 
 For specification writing or resuming, read current records first with `result <topic> --current`.
 They are not a declaration of final agreement: check the latest round's send status and in-review
-marks. If reasons or original answers are needed, retrieve only the referenced round or decision
-history (`--round N` or `--decision ID`), as described in `references/events-and-replies.md`.
+marks. For an original answer or reason, use `--answer QID` for the origin question first.
+Read `--question QID` only when its full context is needed, and `--ask ID` for a particular reply.
+Use `--decision ID` for decision history, or `--round N` when the whole round or picture is needed,
+as described in `references/events-and-replies.md`. Do not fetch an entire round for one answer.
 Use the unfiltered `result` only when the task needs the entire stored topic.
 
 When the workflow has finished up to approval, run `shoryo end <topic>`. Sending the last round

@@ -10,6 +10,9 @@ All notable changes to shoryo are recorded here. The version follows
 - `result --current` reads exact current records and agreement state without the full topic
   history. `--round N` and `--decision ID` retrieve selected history online or offline; the
   unfiltered `result` and persisted format are unchanged.
+- `result --answer QID` retrieves a sent answer without unrelated background or drafts;
+  `--question QID` retrieves full question context, and `--ask ID` retrieves one ask and reply
+  without expanding its conversation chain. These selectors also work offline.
 
 ### Changed
 

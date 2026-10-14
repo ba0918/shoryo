@@ -114,7 +114,16 @@ pub(super) async fn selected_result(State(shared): State<Arc<Shared>>, body: Str
         .lock()
         .topic
         .selected_result(&selection)
-        .map_err(|error| ApiError::new(StatusCode::NOT_FOUND, error))?;
+        .map_err(|error| {
+            let status = match &error {
+                shoryo_core::ResultReadError::InvalidAnswer(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                shoryo_core::ResultReadError::RoundNotFound(_)
+                | shoryo_core::ResultReadError::DecisionNotFound(_)
+                | shoryo_core::ResultReadError::QuestionNotFound(_)
+                | shoryo_core::ResultReadError::AskNotFound(_) => StatusCode::NOT_FOUND,
+            };
+            ApiError::new(status, error)
+        })?;
     Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
 }
 

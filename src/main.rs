@@ -55,17 +55,27 @@ enum Commands {
     /// End the topic.
     End { topic: String },
     /// Print current records, selected history, or the whole topic as JSON.
+    #[command(group(clap::ArgGroup::new("selection").args(["current", "round", "decision", "answer", "question", "ask"]).multiple(false)))]
     Result {
         topic: String,
         /// Print current records without questions, explanations or old decision versions.
-        #[arg(long, conflicts_with_all = ["round", "decision"])]
+        #[arg(long)]
         current: bool,
         /// Print one complete round, including its questions, answers and explanations.
-        #[arg(long, conflicts_with = "decision")]
+        #[arg(long)]
         round: Option<u32>,
         /// Print one decision with its full content history.
         #[arg(long)]
         decision: Option<String>,
+        /// Print only a question's sent answer and links to related asks.
+        #[arg(long)]
+        answer: Option<String>,
+        /// Print one complete question, including its background, options and drafts.
+        #[arg(long)]
+        question: Option<String>,
+        /// Print one ask and its reply, without expanding follow-up chains.
+        #[arg(long)]
+        ask: Option<u64>,
     },
     /// Stop the topic's server.
     Stop { topic: String },
@@ -134,14 +144,29 @@ fn run(command: Commands) -> Result<(), String> {
             current,
             round,
             decision,
+            answer,
+            question,
+            ask,
         } => {
             let selection = if current {
                 Some(shoryo_server::ResultSelection::Current {})
             } else if let Some(number) = round {
                 Some(shoryo_server::ResultSelection::Round { number })
-            } else {
-                decision.map(|id| shoryo_server::ResultSelection::Decision {
+            } else if let Some(id) = decision {
+                Some(shoryo_server::ResultSelection::Decision {
                     id: shoryo_server::DecisionId::new(id),
+                })
+            } else if let Some(id) = answer {
+                Some(shoryo_server::ResultSelection::Answer {
+                    id: shoryo_server::QuestionId::new(id),
+                })
+            } else if let Some(id) = question {
+                Some(shoryo_server::ResultSelection::Question {
+                    id: shoryo_server::QuestionId::new(id),
+                })
+            } else {
+                ask.map(|id| shoryo_server::ResultSelection::Ask {
+                    id: shoryo_server::AskId(id),
                 })
             };
             let location = locate(&topic)?;

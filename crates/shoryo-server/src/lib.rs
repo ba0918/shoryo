@@ -16,7 +16,7 @@ use config::ConfigFile;
 use location::TopicLocation;
 use store::{Endpoint, EndpointFile, Lock};
 
-pub use shoryo_core::{DecisionId, ResultSelection};
+pub use shoryo_core::{AskId, DecisionId, QuestionId, ResultSelection};
 
 #[derive(Debug)]
 pub enum ServerError {

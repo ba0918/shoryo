@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{DecisionId, Delegated, InReview, Origin, Rejected, SentAs, Topic, Undecided};
+mod details;
+
+use crate::{
+    AskId, DecisionId, Delegated, InReview, OperationRefusal, Origin, QuestionId, Rejected, SentAs,
+    Topic, Undecided,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -8,12 +13,18 @@ pub enum ResultSelection {
     Current {},
     Round { number: u32 },
     Decision { id: DecisionId },
+    Answer { id: QuestionId },
+    Question { id: QuestionId },
+    Ask { id: AskId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResultReadError {
     RoundNotFound(u32),
     DecisionNotFound(DecisionId),
+    QuestionNotFound(QuestionId),
+    AskNotFound(AskId),
+    InvalidAnswer(OperationRefusal),
 }
 
 impl std::fmt::Display for ResultReadError {
@@ -21,6 +32,9 @@ impl std::fmt::Display for ResultReadError {
         match self {
             Self::RoundNotFound(number) => write!(f, "round {number} does not exist"),
             Self::DecisionNotFound(id) => write!(f, "decision {id} does not exist"),
+            Self::QuestionNotFound(id) => write!(f, "question {id} does not exist"),
+            Self::AskNotFound(id) => write!(f, "ask {id} does not exist"),
+            Self::InvalidAnswer(error) => error.fmt(f),
         }
     }
 }
@@ -30,6 +44,17 @@ impl std::error::Error for ResultReadError {}
 impl Topic {
     pub fn selected_result(&self, selection: &ResultSelection) -> Result<String, ResultReadError> {
         match selection {
+            ResultSelection::Answer { id } => details::answer(self, id),
+            ResultSelection::Question { id } => {
+                details::question(self, id).map(|(_, question)| json(question))
+            }
+            ResultSelection::Ask { id } => self
+                .rounds
+                .iter()
+                .flat_map(|round| &round.asks)
+                .find(|ask| ask.id == *id)
+                .map(json)
+                .ok_or(ResultReadError::AskNotFound(*id)),
             ResultSelection::Current {} => Ok(json(&Current {
                 title: &self.title,
                 original_request: &self.original_request,

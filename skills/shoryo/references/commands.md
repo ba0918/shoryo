@@ -18,6 +18,9 @@ A topic name uses letters, digits, `.`, `_` and `-` only.
 | `shoryo result <topic> --current` | Current record content and agreement state; use first for specification writing or resuming. No question bodies, old versions or picture. | Compact JSON, without summarizing the record text. |
 | `shoryo result <topic> --round N` | One complete round, including questions, answers, asks and the picture snapshot. | That round as JSON. |
 | `shoryo result <topic> --decision ID` | One decision, including its original source and all content versions. | That decision as JSON. |
+| `shoryo result <topic> --answer QID` | One sent answer with its question text, selected option meaning, send state and related ask IDs. Unsent answers have no body. | Answer receipt JSON, without backgrounds or replies. |
+| `shoryo result <topic> --question QID` | One full question, including background, all options and retained drafts. | That stored question as JSON; not proof that its drafts were sent. |
+| `shoryo result <topic> --ask ID` | One ask and its reply/state. Follow-up chains are not expanded. | That stored ask as JSON. |
 | `shoryo stop <topic>` | Stops the topic's server. | Nothing. |
 | `shoryo --version` | The installed version. | `shoryo <version>` |
 
@@ -27,7 +30,7 @@ A refused or failed command prints `shoryo: <reason>` on stderr and exits with s
 and reopens the topic.
 
 Result selectors are mutually exclusive and work online and offline. Unknown round numbers or
-decision IDs fail instead of returning the full topic. A missing topic is not created by reading.
+decision/question/ask IDs fail instead of returning the full topic. A missing topic is not created by reading.
 
 ## Where the data lives
 

@@ -90,8 +90,22 @@ conditions and outstanding in-review marks. Current decisions never include unse
 The event count is not proof of unhandled work (handled events may still await acknowledgment);
 use the normal wait/ack loop, rather than treating a read as acknowledgment.
 
-When context is missing, use `shoryo result <topic> --decision ID` to read that decision's complete
-history and origin, then `--round N` for the relevant questions, answers, replies and picture.
+For an original answer or reason, use `shoryo result <topic> --answer QID`, taking QID from the
+decision's `origin.question`. The receipt contains `question`, `text`, `round`, `submitted`,
+`sent_at`, `answer`, `selected_option` and `asks`. `answer` has the same shape and interpretation
+as one submitted-event answer. `selected_option` contains only `text` and `consequence` for a
+sent choice; it is `null` for custom answers and deferrals. Both are `null` before submission,
+even if the person stamped a draft. Do not treat an unsent answer as agreement.
+
+The receipt omits backgrounds, option descriptions, other options and replies. `asks` contains
+only `{id, follows, status}` for this question, with status `waiting`, `replied` or `no_reply`.
+Read `--ask ID` for the specific ask and reply you need; it returns the stored ask object without
+automatically including its preceding or following conversations. Read `--question QID` only
+when the complete question context is needed. It returns the stored question including retained
+drafts, so consult the receipt's send state before interpreting those drafts as answers.
+
+Use `--decision ID` for the decision's complete history, and `--round N` when the entire round
+or picture is needed. Do not retrieve a whole round merely to read one answer's reason.
 Use `origin_round` in the current records to locate the source; it can differ from the history's
 first effective round. It is `null` if the source question is absent from the stored topic;
 do not infer a round or agreement in that case. Selectors return the corresponding stored object
