@@ -15,8 +15,7 @@ pub struct TopicName(String);
 
 impl TopicName {
     pub fn parse(name: &str) -> Result<Self, ServerError> {
-        let allowed = |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-');
-        if name.is_empty() || name == "." || name == ".." || !name.chars().all(allowed) {
+        if name.is_empty() || name == "." || name == ".." || !name.chars().all(is_name_char) {
             return Err(ServerError::InvalidTopicName(name.to_string()));
         }
         Ok(Self(name.to_string()))
@@ -31,6 +30,11 @@ impl fmt::Display for TopicName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
+}
+
+/// The characters a directory name of shoryo's data may use.
+fn is_name_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')
 }
 
 /// The files of one topic.
@@ -95,15 +99,52 @@ fn repository_key(path: &Path) -> String {
         .unwrap_or_default();
     let safe: String = last
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if is_name_char(c) { c } else { '_' })
         .collect();
     let digest = Sha256::digest(path.as_os_str().as_encoded_bytes());
     let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
     format!("{safe}-{}", &hex[..12])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn topic_names_that_could_leave_their_directory_are_refused() {
+        for name in [
+            "", ".", "..", "a/b", "../a", "/a", "a\\b", "a b", "名前", "a\0b",
+        ] {
+            assert!(
+                matches!(
+                    TopicName::parse(name),
+                    Err(ServerError::InvalidTopicName(_))
+                ),
+                "accepted {name:?}"
+            );
+        }
+        for name in ["store", "a.b_c-D9", "..a", "a.."] {
+            assert_eq!(TopicName::parse(name).unwrap().as_str(), name);
+        }
+    }
+
+    #[test]
+    fn repository_keys_stay_the_same_so_existing_topics_are_found_again() {
+        assert_eq!(
+            repository_key(Path::new("/repos/a/shoryo")),
+            "shoryo-a172c28308d0"
+        );
+        assert_eq!(
+            repository_key(Path::new("/repos/b/日本 語")),
+            "____-49d821fa30f2"
+        );
+    }
+
+    #[test]
+    fn repositories_with_the_same_name_get_different_keys() {
+        assert_ne!(
+            repository_key(Path::new("/repos/a/shoryo")),
+            repository_key(Path::new("/repos/b/shoryo"))
+        );
+    }
 }
