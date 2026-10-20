@@ -78,30 +78,26 @@ fn legacy_label(label: &str, path: &str) -> Checked {
     length(path, label, 0, 512)
 }
 
-fn token(value: &str) -> bool {
+fn is_token(value: &str) -> bool {
     !value.is_empty() && !value.chars().any(char::is_whitespace)
 }
 
 fn legacy_definition(line: &str) -> Option<(&str, &str)> {
     line.match_indices('=').rev().find_map(|(i, _)| {
         let name = line[..i].trim();
-        token(name).then_some((name, &line[i + 1..]))
+        is_token(name).then_some((name, &line[i + 1..]))
     })
 }
 
 fn legacy_edge(line: &str) -> Option<(&str, &str, &str)> {
-    line.match_indices("->")
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .find_map(|(i, _)| {
-            let from = line[..i].trim();
-            let tail = line[i + 2..].trim();
-            let (to, label) = tail
-                .char_indices()
-                .find(|(i, c)| *i > 0 && *c == ':')
-                .map_or((tail, ""), |(j, _)| (&tail[..j], &tail[j + 1..]));
-            let to = to.trim();
-            (token(from) && token(to)).then_some((from, to, label))
-        })
+    line.rmatch_indices("->").find_map(|(i, _)| {
+        let from = line[..i].trim();
+        let tail = line[i + 2..].trim();
+        let (to, label) = tail
+            .char_indices()
+            .find(|(i, c)| *i > 0 && *c == ':')
+            .map_or((tail, ""), |(j, _)| (&tail[..j], &tail[j + 1..]));
+        let to = to.trim();
+        (is_token(from) && is_token(to)).then_some((from, to, label))
+    })
 }
