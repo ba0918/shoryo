@@ -41,11 +41,7 @@ impl Topic {
             .map(|decision| decision.id.clone())
             .collect();
         let map = self.map();
-        let paths = map
-            .nodes
-            .iter()
-            .map(|node| (node.key.clone(), map.path(&node.key)))
-            .collect();
+        let paths = map.paths();
         ScreenView {
             chains,
             map,

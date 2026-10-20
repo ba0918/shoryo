@@ -1,7 +1,7 @@
 //! Views the screen draws, computed from the state: prerequisite chains, the map, the path
 //! through it and the review marks (`docs/spec/screen.md`, "前提の行", "地図").
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::Serialize;
 
@@ -265,12 +265,38 @@ impl Map {
     /// 道筋: the selected node, every node reachable back through prerequisites, and the
     /// options rejected in the questions along the way.
     pub fn path(&self, selected: &str) -> Vec<String> {
+        PathIndex::new(self).path(selected)
+    }
+
+    /// 道筋 from every node, by node key. The screen receives all of them with each change,
+    /// so the index they search is built once, not once per node.
+    pub(crate) fn paths(&self) -> BTreeMap<String, Vec<String>> {
+        let index = PathIndex::new(self);
+        self.nodes
+            .iter()
+            .map(|node| (node.key.clone(), index.path(&node.key)))
+            .collect()
+    }
+}
+
+/// What finding a 道筋 needs from the map.
+struct PathIndex<'a> {
+    /// The first node with each key.
+    nodes: HashMap<&'a str, &'a MapNode>,
+    /// The prerequisites of each node, in the order of the map's solid edges.
+    prerequisites: HashMap<&'a str, Vec<&'a str>>,
+    /// The rejected options in map order, with the question each was rejected in.
+    rejected: Vec<(&'a QuestionId, &'a str)>,
+}
+
+impl<'a> PathIndex<'a> {
+    fn new(map: &'a Map) -> Self {
         let mut nodes = HashMap::new();
-        for node in &self.nodes {
+        for node in &map.nodes {
             nodes.entry(node.key.as_str()).or_insert(node);
         }
         let mut prerequisites: HashMap<&str, Vec<&str>> = HashMap::new();
-        for edge in &self.edges {
+        for edge in &map.edges {
             if !edge.dashed {
                 prerequisites
                     .entry(edge.to.as_str())
@@ -278,33 +304,42 @@ impl Map {
                     .push(&edge.from);
             }
         }
+        let rejected = map
+            .nodes
+            .iter()
+            .filter(|node| node.kind == NodeKind::Rejected)
+            .filter_map(|node| Some((node.question_id.as_ref()?, node.key.as_str())))
+            .collect();
+        Self {
+            nodes,
+            prerequisites,
+            rejected,
+        }
+    }
+
+    fn path<'s>(&'s self, selected: &'s str) -> Vec<String> {
         let mut visited = HashSet::new();
         let mut on_path = Vec::new();
         let mut stack = vec![selected];
         while let Some(key) = stack.pop() {
-            if !nodes.contains_key(key) || !visited.insert(key) {
+            if !self.nodes.contains_key(key) || !visited.insert(key) {
                 continue;
             }
-            if let Some(previous) = prerequisites.get(key) {
+            if let Some(previous) = self.prerequisites.get(key) {
                 stack.extend(previous.iter().copied());
             }
             on_path.push(key);
         }
         let questions: HashSet<&QuestionId> = on_path
             .iter()
-            .filter_map(|key| nodes.get(key))
+            .filter_map(|key| self.nodes.get(key))
             .filter_map(|node| node.question_id.as_ref())
             .collect();
         let rejected = self
-            .nodes
+            .rejected
             .iter()
-            .filter(|node| node.kind == NodeKind::Rejected)
-            .filter(|node| {
-                node.question_id
-                    .as_ref()
-                    .is_some_and(|q| questions.contains(q))
-            })
-            .map(|node| node.key.as_str());
+            .filter(|(question, _)| questions.contains(question))
+            .map(|(_, key)| *key);
         on_path
             .into_iter()
             .chain(rejected)
