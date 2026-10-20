@@ -42,23 +42,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn embedded_screen_assets_are_available_with_their_media_types() {
+    fn media_types_follow_the_file_extension() {
+        for (path, expected) in [
+            ("index.html", "text/html; charset=utf-8"),
+            ("style.css", "text/css; charset=utf-8"),
+            ("components/card.js", "text/javascript; charset=utf-8"),
+            ("icon.svg", "image/svg+xml"),
+            ("data.json", "application/json"),
+            ("archive.tar.gz", "application/octet-stream"),
+            ("README", "application/octet-stream"),
+        ] {
+            assert_eq!(content_type(path), expected, "{path}");
+        }
+    }
+
+    #[test]
+    fn every_embedded_asset_is_served_with_a_known_media_type() {
         assert!(
             Screen::iter().next().is_some(),
             "the binary must contain the screen"
         );
+        // Browsers refuse module scripts and style sheets sent as octet-stream.
         for path in Screen::iter() {
             let asset = file(&path).expect("every embedded asset is retrievable");
-            let expected = match path.rsplit_once('.').map(|(_, extension)| extension) {
-                Some("html") => "text/html; charset=utf-8",
-                Some("css") => "text/css; charset=utf-8",
-                Some("js") => "text/javascript; charset=utf-8",
-                Some("svg") => "image/svg+xml",
-                Some("json") => "application/json",
-                _ => "application/octet-stream",
-            };
-            assert_eq!(asset.content_type, expected, "wrong media type: {path}");
+            assert_ne!(
+                asset.content_type, "application/octet-stream",
+                "unknown media type: {path}"
+            );
         }
+        assert_eq!(
+            file("index.html").map(|asset| asset.content_type),
+            Some("text/html; charset=utf-8")
+        );
     }
 
     #[test]
