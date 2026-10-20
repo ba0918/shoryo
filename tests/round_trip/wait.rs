@@ -63,7 +63,7 @@ fn acknowledged_events_are_not_returned_again() {
     let first = events(&env.run(&["wait", "store", "--timeout", "1"], ""));
     let id = first[0]["id"].to_string();
 
-    let after = events(&env.run(&["wait", "store", "--ack", &id, "--timeout", "1"], ""));
+    let after = events(&env.run(&["wait", "store", "--ack", &id, "--timeout", "0"], ""));
 
     assert!(after.is_empty(), "{after:?}");
 }

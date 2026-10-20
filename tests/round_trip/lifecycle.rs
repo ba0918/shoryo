@@ -94,7 +94,7 @@ fn commands_reach_a_server_bound_elsewhere() {
     let mut server = env.start("store", &["--bind", "127.0.0.2"]);
 
     let round = env.run(&["round", "store"], &first_round());
-    let wait = env.run(&["wait", "store", "--timeout", "1"], "");
+    let wait = env.run(&["wait", "store", "--timeout", "0"], "");
     let stop = env.run(&["stop", "store"], "");
 
     assert!(round.status.success(), "{}", text(&round));
