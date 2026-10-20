@@ -166,13 +166,21 @@ fn commands_reach_a_server_bound_elsewhere() {
 #[test]
 fn port_flag_fixes_the_port() {
     let env = Env::new();
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .expect("a free port can be found")
-        .local_addr()
-        .expect("the port is known")
-        .port();
-
-    let server = env.start("store", &["--port", &port.to_string()]);
+    // A port found free can be taken by another process before the server binds it, so a
+    // refused start is retried on another free port.
+    let (server, port) = (0..5)
+        .find_map(|_| {
+            let port = std::net::TcpListener::bind("127.0.0.1:0")
+                .expect("a free port can be found")
+                .local_addr()
+                .expect("the port is known")
+                .port();
+            let server = env
+                .try_start("store", &["--port", &port.to_string()])
+                .ok()?;
+            Some((server, port))
+        })
+        .expect("the server starts on a free port within five tries");
 
     assert!(server.url.contains(&format!(":{port}/")), "{}", server.url);
 }
