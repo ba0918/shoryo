@@ -398,6 +398,9 @@ test("reconnecting_announces_each_round_received_while_disconnected_and_can_open
   await entries.first().click();
   await expect(tab(page, "current")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-panel=current] [data-result]')).toBeInViewport();
+  // The page keeps reconnecting through the route; let a handler in flight finish before the
+  // request fixture it reads the view with is disposed at the end of the test.
+  await page.unrouteAll({ behavior: "wait" });
 });
 
 test("reply_below_the_viewport_shows_a_toast_and_back_restores_the_scroll_anchor", async ({ shoryo, page }) => {
