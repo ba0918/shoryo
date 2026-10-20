@@ -29,11 +29,7 @@ impl Lock {
             Ok(()) => {}
             Err(TryLockError::Error(error)) => return Err(ServerError::io(&guard_path, error)),
             Err(TryLockError::WouldBlock) => {
-                if let Some(pid) = fs::read_to_string(&path)
-                    .ok()
-                    .and_then(|pid| pid.trim().parse::<u32>().ok())
-                    .filter(|pid| process_exists(*pid))
-                {
+                if let Some(pid) = running_holder(&path) {
                     return Err(already_running(location, pid));
                 }
                 return Err(ServerError::io(
@@ -60,11 +56,8 @@ impl Lock {
                 }
                 Err(error) => return Err(ServerError::io(&path, error)),
             };
-            let Ok(pid) = seen.trim().parse::<u32>() else {
-                return Err(ServerError::UnreadableLock {
-                    topic: location.name.to_string(),
-                    path,
-                });
+            let Some(pid) = parse_pid(&seen) else {
+                return Err(unreadable_lock(location, path));
             };
             if process_exists(pid) {
                 return Err(already_running(location, pid));
@@ -106,12 +99,9 @@ fn replace_stale(
         Ok(moved) => {
             let restored =
                 fs::hard_link(&aside, lock).map_err(|error| ServerError::io(lock, error));
-            match (restored, moved.trim().parse::<u32>()) {
-                (Ok(()), Ok(pid)) => Err(already_running(location, pid)),
-                (Ok(()), Err(_)) => Err(ServerError::UnreadableLock {
-                    topic: location.name.to_string(),
-                    path: lock.to_path_buf(),
-                }),
+            match (restored, parse_pid(&moved)) {
+                (Ok(()), Some(pid)) => Err(already_running(location, pid)),
+                (Ok(()), None) => Err(unreadable_lock(location, lock.to_path_buf())),
                 (Err(error), _) => Err(error),
             }
         }
@@ -128,14 +118,33 @@ fn already_running(location: &TopicLocation, pid: u32) -> ServerError {
     }
 }
 
+fn unreadable_lock(location: &TopicLocation, path: PathBuf) -> ServerError {
+    ServerError::UnreadableLock {
+        topic: location.name.to_string(),
+        path,
+    }
+}
+
 impl Drop for Lock {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
     }
 }
 
+/// The process the lock at `path` names, while that process runs.
+pub(super) fn running_holder(path: &Path) -> Option<u32> {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| parse_pid(&text))
+        .filter(|pid| process_exists(*pid))
+}
+
+fn parse_pid(text: &str) -> Option<u32> {
+    text.trim().parse().ok()
+}
+
 // The release targets Linux only, where a running process has a directory under /proc.
-pub(super) fn process_exists(pid: u32) -> bool {
+fn process_exists(pid: u32) -> bool {
     Path::new("/proc").join(pid.to_string()).exists()
 }
 

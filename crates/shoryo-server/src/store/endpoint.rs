@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::lock::process_exists;
+use super::lock::running_holder;
 use crate::ServerError;
 use crate::location::TopicLocation;
 
@@ -60,11 +60,7 @@ impl Drop for EndpointFile {
 /// The endpoint of the topic's running server, or `None` when no server runs.
 pub fn read_endpoint(location: &TopicLocation) -> Result<Option<Endpoint>, ServerError> {
     let path = location.endpoint_file();
-    let running = fs::read_to_string(location.lock_file())
-        .ok()
-        .and_then(|pid| pid.trim().parse::<u32>().ok())
-        .is_some_and(process_exists);
-    if !running {
+    if running_holder(&location.lock_file()).is_none() {
         return Ok(None);
     }
     match fs::read_to_string(&path) {
