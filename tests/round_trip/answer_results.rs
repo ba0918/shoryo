@@ -62,11 +62,6 @@ fn sent_choice_keeps_exact_reason_and_consequence_without_explanations() {
     let question = env.result("answers", &["--question", "q1"]);
     assert_eq!(question, before["rounds"][0]["questions"][0]);
     assert_eq!(env.result("answers", &[]), before);
-    eprintln!(
-        "answer bytes={}, round bytes={}",
-        answer.to_string().len(),
-        before["rounds"][0].to_string().len()
-    );
     assert!(env.run(&["stop", "answers"], "").status.success());
     server.finish();
     assert_eq!(env.result("answers", &["--answer", "q1"]), answer);

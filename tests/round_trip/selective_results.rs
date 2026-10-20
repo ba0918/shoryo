@@ -80,12 +80,11 @@ fn current_records_keep_exact_content_and_agreement_state_without_history() {
     assert!(current["records"]["decisions"][0].get("history").is_none());
     assert!(current.get("finished_picture").is_none());
     let full = env.result("records", &[]);
-    eprintln!(
-        "fixture JSON bytes: full={}, current={}",
-        full.to_string().len(),
-        current.to_string().len()
+    let (current_bytes, full_bytes) = (current.to_string().len(), full.to_string().len());
+    assert!(
+        current_bytes * 4 < full_bytes,
+        "current records take {current_bytes} bytes against {full_bytes} for the whole topic"
     );
-    assert!(current.to_string().len() * 4 < full.to_string().len());
     assert_eq!(
         server.view()["topic"],
         before,
