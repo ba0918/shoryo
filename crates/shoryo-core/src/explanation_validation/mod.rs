@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use serde::Serialize;
 
 use crate::explanation::{Canvas, Message, Part, Point};
+use crate::state::Choice;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExplanationError {
@@ -154,12 +155,32 @@ fn messages(path: &str, values: &[Message], ids: &HashSet<&str>) -> Checked {
     Ok(())
 }
 
-pub(crate) fn validate_parts(
-    parts: &[Part],
-    path: &str,
-    minimum: usize,
+/// A question's background, then each option's description. `question` names the question
+/// in error paths; `budget` is shared by every question of the round.
+pub(crate) fn validate_question(
+    question: &str,
+    background: &[Part],
+    options: &[Choice],
     budget: &mut usize,
 ) -> Checked {
+    validate_parts(background, &format!("{question} background"), 0, budget)?;
+    for (i, option) in options.iter().enumerate() {
+        validate_parts(
+            &option.description,
+            &format!("{question} option {i} description"),
+            0,
+            budget,
+        )?;
+    }
+    Ok(())
+}
+
+/// A reply's parts: at least one, with a byte budget of its own.
+pub(crate) fn validate_reply(parts: &[Part], path: &str) -> Checked {
+    validate_parts(parts, path, 1, &mut 0)
+}
+
+fn validate_parts(parts: &[Part], path: &str, minimum: usize, budget: &mut usize) -> Checked {
     bound(path, parts.len(), minimum, 32)?;
     for (i, part) in parts.iter().enumerate() {
         let path = format!("{path}.part[{i}]");

@@ -389,31 +389,18 @@ impl Topic {
         for round in &self.rounds {
             let mut budget = 0;
             for question in &round.questions {
-                crate::explanation_validation::validate_parts(
+                crate::explanation_validation::validate_question(
+                    &format!("round {} question {}", round.number, question.id),
                     &question.background,
-                    &format!("round {} question {} background", round.number, question.id),
-                    0,
+                    &question.options,
                     &mut budget,
                 )?;
-                for (i, option) in question.options.iter().enumerate() {
-                    crate::explanation_validation::validate_parts(
-                        &option.description,
-                        &format!(
-                            "round {} question {} option {i} description",
-                            round.number, question.id
-                        ),
-                        0,
-                        &mut budget,
-                    )?;
-                }
             }
             for ask in &round.asks {
                 if let AskState::Replied(reply) = &ask.state {
-                    crate::explanation_validation::validate_parts(
+                    crate::explanation_validation::validate_reply(
                         &reply.parts,
                         &format!("round {} ask {} reply", round.number, ask.id),
-                        1,
-                        &mut 0,
                     )?;
                 }
             }

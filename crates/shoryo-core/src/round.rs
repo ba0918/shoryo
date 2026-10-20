@@ -247,22 +247,13 @@ impl Topic {
 
         let mut budget = 0;
         for question in &input.questions {
-            crate::explanation_validation::validate_parts(
+            crate::explanation_validation::validate_question(
+                &format!("question {}", question.id),
                 &question.background,
-                &format!("question {} background", question.id),
-                0,
+                &question.options,
                 &mut budget,
             )
             .map_err(RoundRefusal::Explanation)?;
-            for (i, option) in question.options.iter().enumerate() {
-                crate::explanation_validation::validate_parts(
-                    &option.description,
-                    &format!("question {} option {i} description", question.id),
-                    0,
-                    &mut budget,
-                )
-                .map_err(RoundRefusal::Explanation)?;
-            }
         }
 
         for question in &input.questions {

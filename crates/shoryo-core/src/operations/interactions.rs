@@ -8,7 +8,7 @@ impl Topic {
         if self.ended {
             return Err(OperationRefusal::TopicEnded);
         }
-        crate::explanation_validation::validate_parts(&reply.parts, "reply", 1, &mut 0)
+        crate::explanation_validation::validate_reply(&reply.parts, "reply")
             .map_err(OperationRefusal::Explanation)?;
         let found = self
             .rounds
