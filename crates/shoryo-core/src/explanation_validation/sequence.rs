@@ -5,6 +5,11 @@ use super::{
 };
 use crate::explanation::{Canvas, Participant, SequenceEvent, SequenceLayout};
 
+// The screen's placement of participants without `x` (`web/explanation-sequence.js`): the
+// order check must judge the centres the screen will draw, so these follow the screen.
+const FIRST_CENTER: u32 = 124;
+const DEFAULT_PARTICIPANT_GAP: u32 = 220;
+
 pub(super) fn validate(
     title: &str,
     participants: &[Participant],
@@ -16,7 +21,9 @@ pub(super) fn validate(
     nonblank(&format!("{path}.title"), title, 120)?;
     bound(&format!("{path}.participants"), participants.len(), 1, 12)?;
     bound(&format!("{path}.events"), events.len(), 1, 96)?;
-    let gap = layout.and_then(|l| l.participant_gap).unwrap_or(220);
+    let gap = layout
+        .and_then(|l| l.participant_gap)
+        .unwrap_or(DEFAULT_PARTICIPANT_GAP);
     if let Some(l) = layout {
         for (name, value) in [
             ("participant_gap", l.participant_gap),
@@ -37,7 +44,7 @@ pub(super) fn validate(
         }
         nonblank(&format!("{ppath}.label"), &p.label, 512)?;
         number(&format!("{ppath}.x"), p.x, 0, 8192)?;
-        let center = p.x.unwrap_or(124 + i as u32 * gap);
+        let center = p.x.unwrap_or(FIRST_CENTER + i as u32 * gap);
         if previous.is_some_and(|x| center <= x) {
             return Err(fail(&format!("{ppath}.x"), ExplanationRule::Order));
         }
