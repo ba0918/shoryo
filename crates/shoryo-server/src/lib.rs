@@ -216,4 +216,15 @@ mod tests {
             assert_eq!(page_host(address), address);
         }
     }
+
+    #[test]
+    fn url_secrets_carry_sixteen_random_bytes() {
+        let first = secret().unwrap();
+        let second = secret().unwrap();
+        for value in [&first, &second] {
+            assert_eq!(value.len(), 32, "{value}");
+            assert!(value.chars().all(|c| c.is_ascii_hexdigit()), "{value}");
+        }
+        assert_ne!(first, second);
+    }
 }
