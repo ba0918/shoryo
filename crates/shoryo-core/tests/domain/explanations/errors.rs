@@ -1,6 +1,9 @@
-use super::{flow, input, sequence};
-use serde_json::json;
-use shoryo_core::{ExplanationError, ExplanationRule, RoundInput, RoundRefusal, Topic};
+use super::{accept, flow, input, sequence};
+use serde_json::{Value, json};
+use shoryo_core::{
+    AskId, ExplanationError, ExplanationRule, LoadError, Operation, QuestionId, RoundInput,
+    RoundRefusal, Topic,
+};
 
 #[test]
 fn invalid_diagrams_report_the_failed_rule_and_location_without_changing_the_topic() {
@@ -39,5 +42,58 @@ fn invalid_diagrams_report_the_failed_rule_and_location_without_changing_the_top
             }))
         );
         assert_eq!(topic, before);
+    }
+}
+
+#[test]
+fn invalid_stored_explanations_report_their_round_and_location() {
+    let mut topic = accept(json!([{"type":"text","body":"Fine"}]));
+    topic
+        .apply(
+            Operation::Ask {
+                question: QuestionId::new("q1"),
+                text: "Why?".into(),
+                follows: None,
+            },
+            crate::common::any_time(),
+        )
+        .unwrap();
+    topic
+        .reply(
+            AskId(1),
+            serde_json::from_value(json!({"parts":[{"type":"text","body":"Because."}]})).unwrap(),
+        )
+        .unwrap();
+    let stored: Value = serde_json::from_str(&topic.to_json()).unwrap();
+    for (pointer, location) in [
+        (
+            "/rounds/0/questions/0/background/0/body",
+            "round 1 question q1 background.part[0].body",
+        ),
+        (
+            "/rounds/0/questions/0/options/0/description",
+            "round 1 question q1 option 0 description.part[0].body",
+        ),
+        (
+            "/rounds/0/asks/0/state/parts/0/body",
+            "round 1 ask 1 reply.part[0].body",
+        ),
+    ] {
+        let mut corrupt = stored.clone();
+        let too_long = json!("x".repeat(16385));
+        *corrupt.pointer_mut(pointer).unwrap() = if pointer.ends_with("description") {
+            json!([{"type":"text","body":too_long}])
+        } else {
+            too_long
+        };
+        let error = Topic::from_json(&corrupt.to_string()).unwrap_err();
+        assert!(
+            matches!(
+                &error,
+                LoadError::Explanation(ExplanationError { path, rule: ExplanationRule::Bounds { .. } })
+                    if path == location
+            ),
+            "{location}: {error:?}"
+        );
     }
 }
