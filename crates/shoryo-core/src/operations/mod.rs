@@ -224,6 +224,8 @@ impl Topic {
                 }
             }
             Operation::SwapClass { question } => {
+                // Checked before allocating so an unknown question uses up no event ID, and
+                // looked up again because allocating borrows the whole topic.
                 self.open_question(&question)?;
                 let event = self.allocate_event_id()?;
                 let q = self.open_question(&question)?;
