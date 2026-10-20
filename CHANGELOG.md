@@ -5,6 +5,21 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+### Changed
+
+- The page's view of a topic finds the path from every map node with one shared index instead
+  of rebuilding it for each node, so changes reach open pages sooner on topics with many
+  decisions. The view's content is unchanged.
+
+- **BREAKING** The Rust domain API checks a stored topic through `Topic::validate`.
+  `Topic::validate_explanations`, `Topic::validate_answers` and `Topic::allocate_event_id` are no
+  longer public, and `Topic::allocate_ask_id`, `QuestionId::as_str` and `DecisionId::as_str` are
+  removed; identifiers print through `Display`. `LoadError` displays only its reason, without the
+  "the topic's state is not valid" prefix. `Topic::screen_view` returns the views the page
+  receives with each change. `shoryo-server` no longer exposes its `config` module or
+  `store::load`, `store::save`, `store::Lock` and `store::EndpointFile`. The binary, its commands
+  and the stored JSON format are unchanged.
+
 ## [0.1.3] - 2026-10-20
 
 ### Fixed
