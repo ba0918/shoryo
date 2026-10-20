@@ -272,6 +272,9 @@ pub enum Role {
     Confirmed,
 }
 
+/// Reads an optional field that may be left out but not written as `null`. With serde's
+/// default an explicit `null` would silently mean "not given"; the agent's input must say
+/// what it means, so `null` is refused like any other value of the wrong type.
 fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
