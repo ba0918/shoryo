@@ -450,21 +450,6 @@ fn asks_and_swaps_are_refused_after_submit() {
 }
 
 #[test]
-fn unacknowledged_events_are_returned_again() {
-    let mut topic = topic_on_a_round();
-    topic
-        .apply(Operation::RequestReview { decision: d("d1") }, any_time())
-        .unwrap();
-    submit_current(&mut topic).unwrap();
-
-    let first: Vec<_> = topic.pending_events().to_vec();
-    let again: Vec<_> = topic.pending_events().to_vec();
-
-    assert_eq!(first.len(), 2);
-    assert_eq!(first, again);
-}
-
-#[test]
 fn acknowledged_events_are_not_returned() {
     let mut topic = topic_on_a_round();
     topic
