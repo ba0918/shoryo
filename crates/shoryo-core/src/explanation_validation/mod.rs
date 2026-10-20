@@ -74,9 +74,15 @@ fn bound(path: &str, actual: usize, min: usize, max: usize) -> Checked {
     }
 }
 
-fn text(path: &str, value: &str, min: usize, max: usize, nonblank: bool) -> Checked {
-    bound(path, value.chars().count(), min, max)?;
-    if nonblank && value.trim().is_empty() {
+/// A string of `min..=max` characters, which may be only whitespace.
+fn length(path: &str, value: &str, min: usize, max: usize) -> Checked {
+    bound(path, value.chars().count(), min, max)
+}
+
+/// A string of 1..=`max` characters that is not only whitespace.
+fn nonblank(path: &str, value: &str, max: usize) -> Checked {
+    length(path, value, 1, max)?;
+    if value.trim().is_empty() {
         Err(fail(path, ExplanationRule::Blank))
     } else {
         Ok(())
@@ -84,7 +90,7 @@ fn text(path: &str, value: &str, min: usize, max: usize, nonblank: bool) -> Chec
 }
 
 fn id(path: &str, value: &str) -> Checked {
-    text(path, value, 1, 64, true)?;
+    nonblank(path, value, 64)?;
     let mut chars = value.chars();
     if !chars.next().is_some_and(|c| c.is_ascii_alphabetic())
         || !chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
@@ -136,7 +142,7 @@ fn message(
 ) -> Checked {
     reference(&format!("{path}.from"), from, ids)?;
     reference(&format!("{path}.to"), to, ids)?;
-    text(&format!("{path}.label"), label, 1, 512, true)?;
+    nonblank(&format!("{path}.label"), label, 512)?;
     number(&format!("{path}.gap_after"), gap, 16, 512)
 }
 
@@ -204,17 +210,17 @@ fn string_bytes(value: &serde_json::Value) -> usize {
 
 fn validate_part(part: &Part, path: &str) -> Checked {
     match part {
-        Part::Text { body } => text(&format!("{path}.body"), body, 0, 16384, false),
+        Part::Text { body } => length(&format!("{path}.body"), body, 0, 16384),
         Part::Code {
             body,
             language,
             title,
             role: _,
         } => {
-            text(&format!("{path}.body"), body, 0, 32768, false)?;
-            text(&format!("{path}.language"), language, 1, 64, true)?;
+            length(&format!("{path}.body"), body, 0, 32768)?;
+            nonblank(&format!("{path}.language"), language, 64)?;
             if let Some(title) = title {
-                text(&format!("{path}.title"), title, 1, 120, true)?;
+                nonblank(&format!("{path}.title"), title, 120)?;
             }
             Ok(())
         }
@@ -223,8 +229,8 @@ fn validate_part(part: &Part, path: &str) -> Checked {
             source,
             role: _,
         } => {
-            text(&format!("{path}.title"), title, 1, 120, true)?;
-            text(&format!("{path}.source"), source, 1, 32768, false)?;
+            nonblank(&format!("{path}.title"), title, 120)?;
+            length(&format!("{path}.source"), source, 1, 32768)?;
             legacy::validate(source, &format!("{path}.source"))
         }
         Part::Sequence {

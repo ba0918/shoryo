@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use super::{Checked, ExplanationRule, bound, canvas, fail, id, message, messages, number, text};
+use super::{
+    Checked, ExplanationRule, bound, canvas, fail, id, message, messages, nonblank, number,
+};
 use crate::explanation::{Canvas, Participant, SequenceEvent, SequenceLayout};
 
 pub(super) fn validate(
@@ -11,7 +13,7 @@ pub(super) fn validate(
     area: Option<&Canvas>,
     path: &str,
 ) -> Checked {
-    text(&format!("{path}.title"), title, 1, 120, true)?;
+    nonblank(&format!("{path}.title"), title, 120)?;
     bound(&format!("{path}.participants"), participants.len(), 1, 12)?;
     bound(&format!("{path}.events"), events.len(), 1, 96)?;
     let gap = layout.and_then(|l| l.participant_gap).unwrap_or(220);
@@ -33,7 +35,7 @@ pub(super) fn validate(
         if !ids.insert(p.id.as_str()) {
             return Err(fail(&format!("{ppath}.id"), ExplanationRule::Duplicate));
         }
-        text(&format!("{ppath}.label"), &p.label, 1, 512, true)?;
+        nonblank(&format!("{ppath}.label"), &p.label, 512)?;
         number(&format!("{ppath}.x"), p.x, 0, 8192)?;
         let center = p.x.unwrap_or(124 + i as u32 * gap);
         if previous.is_some_and(|x| center <= x) {
@@ -63,7 +65,7 @@ pub(super) fn validate(
             } => {
                 frames += 1;
                 count += values.len();
-                text(&format!("{epath}.condition"), condition, 1, 512, true)?;
+                nonblank(&format!("{epath}.condition"), condition, 512)?;
                 messages(&format!("{epath}.messages"), values, &ids)?;
                 number(&format!("{epath}.gap_after"), *gap_after, 16, 512)?;
             }
@@ -76,13 +78,7 @@ pub(super) fn validate(
                 number(&format!("{epath}.gap_after"), *gap_after, 16, 512)?;
                 for (j, branch) in branches.iter().enumerate() {
                     let bpath = format!("{epath}.branches[{j}]");
-                    text(
-                        &format!("{bpath}.condition"),
-                        &branch.condition,
-                        1,
-                        512,
-                        true,
-                    )?;
+                    nonblank(&format!("{bpath}.condition"), &branch.condition, 512)?;
                     messages(&format!("{bpath}.messages"), &branch.messages, &ids)?;
                     count += branch.messages.len();
                 }

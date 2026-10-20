@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use super::{Checked, ExplanationRule, bound, canvas, fail, id, number, point, reference, text};
+use super::{
+    Checked, ExplanationRule, bound, canvas, fail, id, nonblank, number, point, reference,
+};
 use crate::explanation::{Canvas, FlowEdge, FlowKind, FlowNode};
 
 pub(super) fn validate(
@@ -10,7 +12,7 @@ pub(super) fn validate(
     area: Option<&Canvas>,
     path: &str,
 ) -> Checked {
-    text(&format!("{path}.title"), title, 1, 120, true)?;
+    nonblank(&format!("{path}.title"), title, 120)?;
     bound(&format!("{path}.nodes"), nodes.len(), 1, 32)?;
     bound(&format!("{path}.edges"), edges.len(), 0, 64)?;
     canvas(&format!("{path}.canvas"), area)?;
@@ -21,7 +23,7 @@ pub(super) fn validate(
         if !ids.insert(node.id.as_str()) {
             return Err(fail(&format!("{npath}.id"), ExplanationRule::Duplicate));
         }
-        text(&format!("{npath}.label"), &node.label, 1, 512, true)?;
+        nonblank(&format!("{npath}.label"), &node.label, 512)?;
         point(&format!("{npath}.position"), node.position.as_ref())?;
         number(&format!("{npath}.width"), node.width, 80, 640)?;
         number(&format!("{npath}.height"), node.height, 32, 640)?;
@@ -49,7 +51,7 @@ pub(super) fn validate(
             }
         }
         if let Some(label) = &edge.label {
-            text(&format!("{epath}.label.text"), &label.text, 1, 512, true)?;
+            nonblank(&format!("{epath}.label.text"), &label.text, 512)?;
             point(&format!("{epath}.label.position"), label.position.as_ref())?;
         }
     }

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::{Checked, ExplanationRule, bound, fail, text};
+use super::{Checked, ExplanationRule, bound, fail, length, nonblank};
 
 pub(super) fn validate(source: &str, path: &str) -> Checked {
     let mut ids = HashSet::new();
@@ -29,13 +29,13 @@ pub(super) fn validate(source: &str, path: &str) -> Checked {
             columns = Some(cells.len());
             for cell in cells {
                 if cell != "." && !cell.is_empty() {
-                    text(&lpath, cell, 1, 64, true)?;
+                    nonblank(&lpath, cell, 64)?;
                     references.push(cell);
                 }
             }
         } else if let Some((from, to, label)) = legacy_edge(line) {
             for value in [from, to] {
-                text(&lpath, value, 1, 64, true)?;
+                nonblank(&lpath, value, 64)?;
                 if value.chars().any(char::is_whitespace) {
                     return Err(fail(&lpath, ExplanationRule::LegacySyntax));
                 }
@@ -45,7 +45,7 @@ pub(super) fn validate(source: &str, path: &str) -> Checked {
             edges += 1;
         } else if let Some((name, label)) = legacy_definition(line) {
             let name = name.trim();
-            text(&format!("{lpath}.id"), name, 1, 64, true)?;
+            nonblank(&format!("{lpath}.id"), name, 64)?;
             if name.chars().any(char::is_whitespace) {
                 return Err(fail(&lpath, ExplanationRule::LegacySyntax));
             }
@@ -75,7 +75,7 @@ fn legacy_label(label: &str, path: &str) -> Checked {
     if label.contains(['\r', '\u{2028}', '\u{2029}']) {
         return Err(fail(path, ExplanationRule::LegacySyntax));
     }
-    text(path, label, 0, 512, false)
+    length(path, label, 0, 512)
 }
 
 fn token(value: &str) -> bool {
