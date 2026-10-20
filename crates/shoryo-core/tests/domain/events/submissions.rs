@@ -242,3 +242,127 @@ fn stale_or_malformed_confirmation_leaves_the_entire_topic_unchanged() {
     );
     assert_eq!(topic, before);
 }
+
+#[test]
+fn submit_sends_every_answer_at_once() {
+    let mut topic = topic_on_a_round();
+    topic
+        .apply(
+            Operation::Choose {
+                question: q("q3"),
+                option: 1,
+            },
+            any_time(),
+        )
+        .unwrap();
+
+    submit_current(&mut topic).unwrap();
+
+    let events = kinds(&topic);
+    let [EventKind::Submitted { round, answers }] = events.as_slice() else {
+        panic!("expected one submitted event, got {events:?}");
+    };
+    assert_eq!(*round, 2);
+    let choices: Vec<_> = answers.iter().map(|a| (&a.question, a.choice)).collect();
+    assert_eq!(choices, [(&q("q2"), Some(0)), (&q("q3"), Some(1))]);
+}
+
+#[test]
+fn deferred_question_is_not_an_answer() {
+    let mut topic = topic_on_a_round();
+    topic
+        .apply(
+            Operation::Defer {
+                question: q("q2"),
+                deferred: true,
+            },
+            any_time(),
+        )
+        .unwrap();
+
+    submit_current(&mut topic).unwrap();
+
+    let EventKind::Submitted { answers, .. } = kinds(&topic)[0] else {
+        panic!("expected the submitted event");
+    };
+    assert_eq!(answers[0].choice, None);
+    assert!(answers[0].deferred);
+}
+
+#[test]
+fn answers_are_refused_after_submit() {
+    let mut topic = topic_on_a_round();
+    submit_current(&mut topic).unwrap();
+
+    for operation in [
+        Operation::AnswerMethod {
+            question: q("q2"),
+            method: shoryo_core::AnswerMethod::Custom,
+        },
+        Operation::FreeText {
+            question: q("q2"),
+            text: "late".into(),
+        },
+        Operation::Choose {
+            question: q("q2"),
+            option: 1,
+        },
+        Operation::Note {
+            question: q("q2"),
+            text: "late".into(),
+        },
+        Operation::Defer {
+            question: q("q2"),
+            deferred: true,
+        },
+        Operation::Stamp {
+            question: q("q2"),
+            stamped: false,
+        },
+        Operation::Submit {
+            round: 2,
+            expected_answers: None,
+        },
+    ] {
+        assert_eq!(
+            topic.apply(operation, any_time()),
+            Err(OperationRefusal::RoundSubmitted)
+        );
+    }
+}
+
+#[test]
+fn asks_and_swaps_are_refused_after_submit() {
+    let mut topic = topic_on_a_round();
+    submit_current(&mut topic).unwrap();
+
+    let ask = topic.apply(
+        Operation::Ask {
+            question: q("q2"),
+            text: "late".into(),
+            follows: None,
+        },
+        any_time(),
+    );
+    let swap = topic.apply(Operation::SwapClass { question: q("q2") }, any_time());
+
+    assert_eq!(ask, Err(OperationRefusal::RoundSubmitted));
+    assert_eq!(swap, Err(OperationRefusal::RoundSubmitted));
+}
+
+#[test]
+fn submit_made_on_an_earlier_round_does_not_send_the_current_one() {
+    let mut topic = topic_on_a_round();
+
+    let refused = topic.apply(
+        Operation::Submit {
+            round: 1,
+            expected_answers: None,
+        },
+        any_time(),
+    );
+
+    assert_eq!(refused, Err(OperationRefusal::NotCurrentRound { round: 1 }));
+    assert!(!topic.current_round().expect("round 2 is out").submitted);
+    assert!(topic.pending_events().is_empty());
+}
