@@ -106,9 +106,6 @@ fn escaped_text_budget_is_accepted_through_reply_cli_and_http() {
 
 #[test]
 fn invalid_historical_explanations_refuse_restart_without_overwrite() {
-    use std::process::Stdio;
-    use std::time::Duration;
-
     for (reply, aggregate) in [(false, false), (false, true), (true, false), (true, true)] {
         let env = Env::new();
         let server = env.start("store", &[]);
@@ -144,29 +141,12 @@ fn invalid_historical_explanations_refuse_restart_without_overwrite() {
         }
         let bytes = value.to_string();
         std::fs::write(&path, &bytes).unwrap();
-        let mut child = env
-            .command(&["start", "store"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut exited = false;
-        for _ in 0..30 {
-            if child.try_wait().unwrap().is_some() {
-                exited = true;
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        if !exited {
-            child.kill().unwrap();
-        }
-        let output = child.wait_with_output().unwrap();
+        let Err(output) = env.try_start("store", &[]) else {
+            panic!(
+                "invalid historical explanation started serving: reply={reply}, aggregate={aggregate}"
+            );
+        };
         assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
-        assert!(
-            exited,
-            "invalid historical explanation started serving: reply={reply}, aggregate={aggregate}"
-        );
         assert_eq!(output.status.code(), Some(1));
         assert!(
             !output.stderr.is_empty(),
@@ -361,7 +341,9 @@ fn old_explanation_state_refuses_start_without_overwrite() {
         }
         let bytes = value.to_string();
         std::fs::write(&path, &bytes).unwrap();
-        let output = env.run(&["start", "store"], "");
+        let Err(output) = env.try_start("store", &[]) else {
+            panic!("an old explanation state started serving: old_reply={old_reply}");
+        };
         assert_eq!(output.status.code(), Some(1));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
         let output = env.run(&["result", "store"], "");

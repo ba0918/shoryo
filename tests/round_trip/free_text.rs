@@ -207,21 +207,8 @@ fn custom_drafts_and_old_pending_answers_survive_real_restart() {
     restarted.finish();
     old["events"][0]["answers"][0]["choice"] = Value::Null;
     std::fs::write(&state, old.to_string()).unwrap();
-    use std::io::{BufRead, BufReader};
-    let mut corrupt = env
-        .command(&["start", "answers"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .unwrap();
-    let mut line = String::new();
-    BufReader::new(corrupt.stdout.take().unwrap())
-        .read_line(&mut line)
-        .unwrap();
-    let _ = corrupt.kill();
-    corrupt.wait().unwrap();
     assert!(
-        !line.contains("http://"),
+        env.try_start("answers", &[]).is_err(),
         "malformed answers must not start a server"
     );
 }

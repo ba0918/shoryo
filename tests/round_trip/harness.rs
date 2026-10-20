@@ -67,6 +67,17 @@ impl Env {
 
     /// Starts the server for `topic` and waits until it prints its URL.
     pub fn start(&self, topic: &str, extra: &[&str]) -> Server {
+        self.try_start(topic, extra).unwrap_or_else(|refused| {
+            panic!(
+                "the server did not start: {}",
+                String::from_utf8_lossy(&refused.stderr)
+            )
+        })
+    }
+
+    /// Starts the server for `topic`, or returns what it printed when it exits instead of
+    /// serving. Waits for its first line, not for a time, so a slow start is not a refusal.
+    pub fn try_start(&self, topic: &str, extra: &[&str]) -> Result<Server, Output> {
         let mut args = vec!["start", topic];
         args.extend_from_slice(extra);
         let mut child = self
@@ -79,20 +90,23 @@ impl Env {
         let mut first = String::new();
         stdout
             .read_line(&mut first)
-            .expect("the server prints a line");
-        let url = first
+            .expect("the server's output can be read");
+        let Some(url) = first
             .split_whitespace()
             .find(|word| word.starts_with("http://"))
-            .unwrap_or_else(|| panic!("the first line names the URL: {first:?}"))
-            .to_string();
+            .map(str::to_string)
+        else {
+            assert!(first.is_empty(), "the first line names no URL: {first:?}");
+            return Err(child.wait_with_output().expect("the server exits"));
+        };
         let stderr = child.stderr.take().expect("stderr is piped");
-        Server {
+        Ok(Server {
             child,
             url,
             first_line: first,
             stdout,
             stderr,
-        }
+        })
     }
 }
 
