@@ -324,3 +324,45 @@ fn map_columns_align_independent_prerequisite_chains_instead_of_crossing_them() 
     assert_eq!(row(0, "d:d1"), row(1, "d:d4"));
     assert_eq!(row(0, "d:d2"), row(1, "d:d3"));
 }
+
+#[test]
+fn screen_view_covers_every_question_and_node_and_keys_sent_answers_by_round() {
+    let mut rounds = chained_rounds();
+    rounds[0]["questions"][1]["class"] = json!("provisional");
+    let mut topic = topic_from(rounds);
+
+    let view = topic.screen_view();
+
+    let questions: Vec<String> = view.chains.keys().map(ToString::to_string).collect();
+    assert_eq!(questions, ["q1", "q2", "q3", "q4", "q5", "q6"]);
+    assert_eq!(view.chains[&QuestionId::new("q6")].len(), 2);
+    assert_eq!(view.paths.len(), view.map.nodes.len());
+    let mut path = view.paths["d:d2"].clone();
+    path.sort();
+    assert_eq!(path, ["d:d0", "d:d1", "d:d2", "d:d9"]);
+    assert_eq!(view.pre_approved, [DecisionId::new("d9")]);
+    assert_eq!(view.unstamped, [QuestionId::new("q6")]);
+    assert_eq!(view.expected_answers, None);
+    assert_eq!(
+        view.sent_answers.keys().copied().collect::<Vec<_>>(),
+        [1, 2, 3, 4]
+    );
+    assert_eq!(view.sent_answers[&1].len(), 2);
+
+    topic
+        .apply(
+            Operation::Stamp {
+                question: QuestionId::new("q6"),
+                stamped: true,
+            },
+            any_time(),
+        )
+        .unwrap();
+
+    let sendable = topic.screen_view();
+    assert!(sendable.unstamped.is_empty());
+    assert_eq!(
+        sendable.expected_answers.map(|answers| answers.len()),
+        Some(1)
+    );
+}

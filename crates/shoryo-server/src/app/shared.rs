@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use axum::http::StatusCode;
 use serde::Serialize;
-use shoryo_core::{ChainLink, DecisionId, Map, QuestionId, SentAnswer};
+use shoryo_core::{ChainLink, DecisionId, Map, QuestionId, ScreenView, SentAnswer};
 use tokio::sync::watch;
 
 use super::ApiError;
@@ -93,41 +93,25 @@ impl Shared {
     pub(super) fn view(&self) -> View {
         let agent = self.agent().view();
         let state = self.lock();
-        let topic = &state.topic;
-        let chains = topic
-            .rounds
-            .iter()
-            .flat_map(|round| &round.questions)
-            .map(|question| (question.id.clone(), topic.chains(&question.id)))
-            .collect();
-        let pre_approved = topic
-            .records
-            .decisions
-            .iter()
-            .filter(|decision| topic.decided_pre_approved(&decision.id))
-            .map(|decision| decision.id.clone())
-            .collect();
-        let map = topic.map();
-        let paths = map
-            .nodes
-            .iter()
-            .map(|node| (node.key.clone(), map.path(&node.key)))
-            .collect();
+        let ScreenView {
+            chains,
+            map,
+            paths,
+            unstamped,
+            pre_approved,
+            expected_answers,
+            sent_answers,
+        } = state.topic.screen_view();
         View {
             version: *self.version.borrow(),
             agent,
             map,
             paths,
             chains,
-            unstamped: topic.unstamped(),
+            unstamped,
             pre_approved,
-            expected_answers: topic.current_round().and_then(|r| r.sent_answers().ok()),
-            sent_answers: topic
-                .rounds
-                .iter()
-                .filter(|r| r.submitted)
-                .filter_map(|r| r.sent_answers().ok().map(|a| (r.number, a)))
-                .collect(),
+            expected_answers,
+            sent_answers,
             topic: state.clone(),
         }
     }
