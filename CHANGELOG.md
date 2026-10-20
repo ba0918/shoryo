@@ -5,6 +5,8 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-20
+
 ### Fixed
 
 - Flow Start and End nodes grow taller until their label clears the rounded ends. A label that
@@ -144,7 +146,8 @@ The first release.
 - Releases carry a static Linux x86_64 binary that mise's github backend can install
   (`mise use -g github:ba0918/shoryo`).
 
-[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/ba0918/shoryo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ba0918/shoryo/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ba0918/shoryo/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ba0918/shoryo/releases/tag/v0.1.0
