@@ -68,7 +68,8 @@ content determines the enclosing frame, never participant movement.
 
 Nodes: `{id,kind,label,position?,width?,height?}`, where kind is `start`, `end`, `process` or
 `decision`. Position `{x,y}` is the center. Defaults are `(160,100+i*160)`, width 180 (220 for
-decisions); heights derive from wrapped text with minimum 64 (96 for decisions). Terminals
+decisions); heights derive from wrapped text with minimum 64 (96 for decisions), then grow until
+the text fits the drawn shape, so a terminal whose label fills several lines is taller. Terminals
 are capsules with separate localized Start/End markers above the supplied label; processes
 are rectangles and decisions diamonds. Supplied dimensions/centers are not repaired.
 

@@ -1,4 +1,11 @@
 import { svgElement } from "./explanation-svg.js";
+import { containsBox } from "./explanation-collision.js";
+
+function fitHeight(shape, boxes) {
+  let height = shape.height;
+  while (height <= 640 && !boxes.every(box => containsBox({ ...shape, height }, box))) height += 1;
+  return height;
+}
 
 export function flowDrawing(part, draw, t) {
   const { metrics: m } = draw;
@@ -9,9 +16,16 @@ export function flowDrawing(part, draw, t) {
     const block = m.wrap(node.label, (node.kind === "decision" ? width / 2 : width) - 24 * s);
     const marker = terminal ? m.wrap(t(`part.node.${node.kind}`), width - 24 * s) : null;
     const contentHeight = block.height + (marker ? marker.height + 8 * s : 0);
-    const height = node.height ?? (terminal ? Math.max(64, contentHeight + 24 * s) : node.kind === "decision" ? Math.max(96, 2 * (contentHeight + 24 * s)) : Math.max(64, contentHeight + 24 * s));
+    const derived = terminal ? Math.max(64, contentHeight + 24 * s) : node.kind === "decision" ? Math.max(96, 2 * (contentHeight + 24 * s)) : Math.max(64, contentHeight + 24 * s);
+    const markerTop = -contentHeight / 2;
+    const blockTop = markerTop + (marker ? marker.height + 8 * s : 0);
+    // Fitted to the browser's line boxes, not to lines × 18: the validator measures those, and
+    // their height follows the font's ascent and descent rather than the line step.
+    const drawn = (text, top) => { const b = m.box(text); return { ...b, x: b.x - text.width / 2, y: b.y + top }; };
+    const boxes = [drawn(block, blockTop), ...(marker ? [drawn(marker, markerTop)] : [])];
+    const height = node.height ?? fitHeight({ kind: node.kind, x: 0, y: 0, width, height: derived }, boxes);
     if (height > 640) throw new Error(`Node ${node.id} derived height exceeds 640`);
-    return { ...node, x: node.position?.x ?? 160, y: node.position?.y ?? 100 + i * 160, width, height, block, marker, contentHeight };
+    return { ...node, x: node.position?.x ?? 160, y: node.position?.y ?? 100 + i * 160, width, height, block, marker, markerTop, blockTop };
   });
   const byId = new Map(nodes.map(n => [n.id, n]));
   for (const node of nodes) {
@@ -21,12 +35,8 @@ export function flowDrawing(part, draw, t) {
       ? svgElement("polygon", { ...attrs, points: `${x},${y - h / 2} ${x + w / 2},${y} ${x},${y + h / 2} ${x - w / 2},${y}`, class: "explanation-node" })
       : svgElement("rect", { ...attrs, x: x - w / 2, y: y - h / 2, width: w, height: h, ...(node.marker ? { rx: Math.min(w, h) / 2 } : {}) });
     draw.shape(node, element);
-    let top = y - node.contentHeight / 2;
-    if (node.marker) {
-      draw.text(node.marker, x - node.marker.width / 2, top, { "data-terminal-marker": node.id }, node.id);
-      top += node.marker.height + 8 * s;
-    }
-    draw.text(node.block, x - node.block.width / 2, top, { "data-node-label": node.id }, node.id);
+    if (node.marker) draw.text(node.marker, x - node.marker.width / 2, y + node.markerTop, { "data-terminal-marker": node.id }, node.id);
+    draw.text(node.block, x - node.block.width / 2, y + node.blockTop, { "data-node-label": node.id }, node.id);
   }
   function port(node, name) {
     switch (name) {

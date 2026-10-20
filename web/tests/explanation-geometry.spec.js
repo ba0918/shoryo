@@ -90,6 +90,38 @@ test("flow_shapes_and_conditions_preserve_connections", async ({ shoryo, page })
   await expect(scope.locator("[data-node-label]").first()).toHaveText("Same");
 });
 
+test("terminals_grow_until_lines_filling_their_width_clear_the_rounded_ends", async ({ shoryo, page }) => {
+  const fourLines = flow({ nodes: [{ id: "a", kind: "start", label: "Begin", position: { x: 160, y: 100 } }, { id: "b", kind: "end", label: "終わりのラベル".repeat(6), position: { x: 160, y: 400 } }], edges: [{ from: "a", to: "b" }] });
+  const threeLines = flow({ nodes: [{ id: "a", kind: "start", label: "あ".repeat(33) }], edges: [] });
+  const scope = await show(shoryo, page, [fourLines, threeLines]);
+  await expect(scope.locator('svg[role="img"]')).toHaveCount(2);
+  await expect(scope.locator("[data-layout-failure]")).toHaveCount(0);
+});
+
+test("terminals_fit_fonts_whose_line_box_is_taller_than_the_line_step", async ({ shoryo, page }) => {
+  await show(shoryo, page, [flow()]);
+  await page.addStyleTag({ content: '@font-face { font-family: "Tall"; src: local("IPAGothic"), local("Liberation Sans"), local("DejaVu Sans"), local("FreeSans"); ascent-override: 115%; descent-override: 35%; } .explanation-diagram { font-family: "Tall"; }' });
+  const lineBox = await page.evaluate(async () => {
+    await document.fonts.load('14px "Tall"');
+    const { svgElement } = await import("./explanation-svg.js");
+    const text = svgElement("text", { "dominant-baseline": "text-before-edge" }, "n");
+    const svg = svgElement("svg", { class: "explanation-diagram" }, text);
+    document.body.append(svg);
+    const height = text.getBBox().height;
+    svg.remove();
+    return height;
+  });
+  expect(lineBox).toBeGreaterThan(19);
+  await page.evaluate(async part => {
+    const { explanationDiagram } = await import("./components/explanation-diagram.js");
+    const host = explanationDiagram(part, "en");
+    host.id = "tall-font";
+    document.body.append(host);
+  }, flow({ nodes: [{ id: "a", kind: "start", label: "n".repeat(40) }], edges: [] }));
+  await expect(page.locator('#tall-font svg[role="img"]')).toBeVisible();
+  await expect(page.locator("#tall-font [data-layout-failure]")).toHaveCount(0);
+});
+
 test("flow_explicit_positions_ports_and_routes_are_preserved", async ({ shoryo, page }) => {
   const scope = await show(shoryo, page, [flow({ nodes: [{ id: "a", kind: "process", label: "A", position: { x: 200, y: 150 }, width: 200, height: 100 }, { id: "b", kind: "decision", label: "B", position: { x: 600, y: 350 }, width: 240, height: 120 }], edges: [{ from: "a", to: "b", from_port: "east", to_port: "west", via: [{ x: 400, y: 150 }, { x: 400, y: 350 }], label: { text: "Route", position: { x: 360, y: 100 } } }] })]);
   await expect(scope.locator("[data-edge]")).toHaveAttribute("d", "M 300 150 L 400 150 L 400 350 L 480 350");

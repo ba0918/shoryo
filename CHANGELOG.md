@@ -5,6 +5,13 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Flow Start and End nodes grow taller until their label clears the rounded ends. A label that
+  filled two or more lines could fail with "Label outside owning shape … containment failure",
+  depending on the reader's fonts, including fonts whose lines are taller than the drawing's line
+  step. Supplied node heights are unchanged.
+
 ## [0.1.2] - 2026-10-14
 
 ### Added

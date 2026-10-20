@@ -46,7 +46,12 @@ export function textMetrics(svg) {
     }
     return { lines, width: Math.max(0, ...lines.map(width)), height: lines.length * 18 * scale, original: value };
   }
-  return { scale, width, wrap, dispose: () => probe.remove() };
+  function box(block) {
+    probe.replaceChildren(...block.lines.map((line, index) => svgElement("tspan", { x: 0, y: index * 18 * scale }, line)));
+    const { x, y, width, height } = probe.getBBox();
+    return { x, y, width, height };
+  }
+  return { scale, width, wrap, box, dispose: () => probe.remove() };
 }
 
 export function drawing(svg, metrics) {
