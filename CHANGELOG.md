@@ -5,6 +5,8 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-20
+
 ### Changed
 
 - The page's view of a topic finds the path from every map node with one shared index instead
@@ -161,7 +163,8 @@ The first release.
 - Releases carry a static Linux x86_64 binary that mise's github backend can install
   (`mise use -g github:ba0918/shoryo`).
 
-[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/ba0918/shoryo/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ba0918/shoryo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ba0918/shoryo/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ba0918/shoryo/compare/v0.1.0...v0.1.1
