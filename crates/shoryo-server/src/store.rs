@@ -39,31 +39,20 @@ pub fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
 
 /// Reads and validates an existing topic without inventing an empty topic when absent.
 pub fn load_existing(location: &TopicLocation) -> Result<Option<StoredTopic>, ServerError> {
-    match read_state(location)? {
-        Some(json) => {
-            let state: StoredTopic =
-                serde_json::from_str(&json).map_err(|error| ServerError::CorruptState {
-                    path: location.state_file(),
-                    reason: error.to_string(),
-                })?;
-            state
-                .topic
-                .validate_explanations()
-                .map_err(|error| ServerError::CorruptState {
-                    path: location.state_file(),
-                    reason: error.to_string(),
-                })?;
-            state
-                .topic
-                .validate_answers()
-                .map_err(|error| ServerError::CorruptState {
-                    path: location.state_file(),
-                    reason: error.to_string(),
-                })?;
-            Ok(Some(state))
-        }
-        None => Ok(None),
-    }
+    let Some(json) = read_state(location)? else {
+        return Ok(None);
+    };
+    let corrupt = |reason: String| ServerError::CorruptState {
+        path: location.state_file(),
+        reason,
+    };
+    let state: StoredTopic =
+        serde_json::from_str(&json).map_err(|error| corrupt(error.to_string()))?;
+    state
+        .topic
+        .validate()
+        .map_err(|error| corrupt(error.to_string()))?;
+    Ok(Some(state))
 }
 
 /// The state file's text, if the topic has one.

@@ -108,7 +108,7 @@ impl SentAnswer {
 }
 
 impl Topic {
-    pub fn validate_answers(&self) -> Result<(), OperationRefusal> {
+    pub(crate) fn validate_answers(&self) -> Result<(), OperationRefusal> {
         for round in &self.rounds {
             for q in &round.questions {
                 q.check_answer()?;

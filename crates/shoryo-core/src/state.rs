@@ -342,7 +342,6 @@ pub enum LoadError {
 
 impl std::fmt::Display for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "the topic's state is not valid: ")?;
         match self {
             Self::Answer(error) => error.fmt(f),
             Self::Json(error) => error.fmt(f),
@@ -375,14 +374,18 @@ impl Topic {
 
     pub fn from_json(json: &str) -> Result<Self, LoadError> {
         let topic: Self = serde_json::from_str(json).map_err(LoadError::Json)?;
-        topic
-            .validate_explanations()
-            .map_err(LoadError::Explanation)?;
-        topic.validate_answers().map_err(LoadError::Answer)?;
+        topic.validate()?;
         Ok(topic)
     }
 
-    pub fn validate_explanations(&self) -> Result<(), crate::ExplanationError> {
+    /// Checks what reading the JSON cannot: the explanations' limits, then the answers.
+    pub fn validate(&self) -> Result<(), LoadError> {
+        self.validate_explanations()
+            .map_err(LoadError::Explanation)?;
+        self.validate_answers().map_err(LoadError::Answer)
+    }
+
+    fn validate_explanations(&self) -> Result<(), crate::ExplanationError> {
         for round in &self.rounds {
             let mut budget = 0;
             for question in &round.questions {
