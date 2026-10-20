@@ -11,18 +11,21 @@ pub struct Client {
 
 /// Finds the topic's running server.
 pub fn connect(location: &TopicLocation) -> Result<Client, String> {
-    let endpoint = store::read_endpoint(location)
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| {
-            format!(
-                "no server is running for topic {name}; start it with `shoryo start {name}`",
-                name = location.name
-            )
-        })?;
-    Ok(Client {
+    running(location)?.ok_or_else(|| {
+        format!(
+            "no server is running for topic {name}; start it with `shoryo start {name}`",
+            name = location.name
+        )
+    })
+}
+
+/// A client to the topic's server, or `None` when no server runs.
+fn running(location: &TopicLocation) -> Result<Option<Client>, String> {
+    let endpoint = store::read_endpoint(location).map_err(|error| error.to_string())?;
+    Ok(endpoint.map(|endpoint| Client {
         agent: agent(),
         endpoint,
-    })
+    }))
 }
 
 // The server is on this machine, so no proxy applies; and waiting has no time limit unless
@@ -91,12 +94,8 @@ fn server_error(answer: &Value) -> String {
 
 /// The topic's whole data: from the running server, or from the file when none runs.
 pub fn result(location: &TopicLocation) -> Result<String, String> {
-    if let Some(endpoint) = store::read_endpoint(location).map_err(|error| error.to_string())? {
-        return Client {
-            agent: agent(),
-            endpoint,
-        }
-        .get_text("result");
+    if let Some(client) = running(location)? {
+        return client.get_text("result");
     }
     store::read_state(location)
         .map_err(|error| error.to_string())?
@@ -107,15 +106,12 @@ pub fn selected_result(
     location: &TopicLocation,
     selection: &shoryo_server::ResultSelection,
 ) -> Result<String, String> {
-    if let Some(endpoint) = store::read_endpoint(location).map_err(|error| error.to_string())? {
+    if let Some(client) = running(location)? {
         let request = serde_json::to_string(selection)
             .expect("result selections contain only strings and a round number");
-        return Client {
-            agent: agent(),
-            endpoint,
-        }
-        .post("result", request)
-        .map(|value| value.to_string());
+        return client
+            .post("result", request)
+            .map(|value| value.to_string());
     }
     store::load_existing(location)
         .map_err(|error| error.to_string())?
