@@ -42,17 +42,6 @@ impl std::error::Error for ResultReadError {}
 impl Topic {
     pub fn selected_result(&self, selection: &ResultSelection) -> Result<String, ResultReadError> {
         match selection {
-            ResultSelection::Answer { id } => details::answer(self, id),
-            ResultSelection::Question { id } => {
-                details::question(self, id).map(|(_, question)| json(question))
-            }
-            ResultSelection::Ask { id } => self
-                .rounds
-                .iter()
-                .flat_map(|round| &round.asks)
-                .find(|ask| ask.id == *id)
-                .map(json)
-                .ok_or(ResultReadError::AskNotFound(*id)),
             ResultSelection::Current {} => Ok(current::result(self)),
             ResultSelection::Round { number } => self
                 .rounds
@@ -61,12 +50,18 @@ impl Topic {
                 .map(json)
                 .ok_or(ResultReadError::RoundNotFound(*number)),
             ResultSelection::Decision { id } => self
-                .records
-                .decisions
-                .iter()
-                .find(|decision| decision.id == *id)
+                .find_decision(id)
                 .map(json)
                 .ok_or_else(|| ResultReadError::DecisionNotFound(id.clone())),
+            ResultSelection::Answer { id } => details::answer(self, id),
+            ResultSelection::Question { id } => self
+                .find_question(id)
+                .map(|(_, question)| json(question))
+                .ok_or_else(|| ResultReadError::QuestionNotFound(id.clone())),
+            ResultSelection::Ask { id } => self
+                .find_ask(*id)
+                .map(json)
+                .ok_or(ResultReadError::AskNotFound(*id)),
         }
     }
 }

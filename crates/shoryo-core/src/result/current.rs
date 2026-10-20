@@ -26,11 +26,9 @@ pub(super) fn result(topic: &Topic) -> String {
                     text: &decision.current().text,
                     origin: &decision.origin,
                     origin_round: match &decision.origin {
-                        Origin::Question(id) => topic
-                            .rounds
-                            .iter()
-                            .find(|round| round.questions.iter().any(|question| question.id == *id))
-                            .map(|round| round.number),
+                        Origin::Question(id) => {
+                            topic.find_question(id).map(|(round, _)| round.number)
+                        }
                         Origin::FixRound(number) => Some(*number),
                     },
                     pre_approved: topic.decided_pre_approved(&decision.id),

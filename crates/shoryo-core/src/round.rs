@@ -354,7 +354,7 @@ impl Topic {
             .decision
             .filter(|id| changed.contains(id))
             .and_then(|id| {
-                let decision = self.records.decisions.iter().find(|d| d.id == id)?;
+                let decision = self.find_decision(&id)?;
                 Some(DecisionChange {
                     before: decision.content_as_of(number - 1).cloned(),
                     after: decision.current().clone(),

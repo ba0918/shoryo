@@ -442,6 +442,32 @@ impl Topic {
         self.next_event = next_event;
         Ok(ids)
     }
+
+    /// The question with `id`, and the round it was asked in.
+    pub(crate) fn find_question(&self, id: &QuestionId) -> Option<(&Round, &Question)> {
+        self.rounds.iter().find_map(|round| {
+            round
+                .questions
+                .iter()
+                .find(|question| &question.id == id)
+                .map(|question| (round, question))
+        })
+    }
+
+    pub(crate) fn find_decision(&self, id: &DecisionId) -> Option<&Decision> {
+        self.records
+            .decisions
+            .iter()
+            .find(|decision| &decision.id == id)
+    }
+
+    /// The ask with `id`, in whichever round it was asked.
+    pub(crate) fn find_ask(&self, id: AskId) -> Option<&Ask> {
+        self.rounds
+            .iter()
+            .flat_map(|round| &round.asks)
+            .find(|ask| ask.id == id)
+    }
 }
 
 impl Answer {

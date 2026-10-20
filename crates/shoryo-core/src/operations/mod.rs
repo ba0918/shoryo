@@ -388,7 +388,7 @@ impl Topic {
         if self.current_round().is_some_and(|round| round.submitted) {
             return Err(OperationRefusal::ReviewWhileRoundSent);
         }
-        if !self.records.decisions.iter().any(|d| d.id == decision) {
+        if self.find_decision(&decision).is_none() {
             return Err(OperationRefusal::UnknownDecision { decision });
         }
         if self.is_in_review(&decision) {

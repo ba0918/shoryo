@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use crate::ids::{DecisionId, QuestionId};
-use crate::state::{Decision, NodeRef, Origin, Question, Stamp, Topic};
+use crate::state::{Decision, NodeRef, Origin, Question, Round, Stamp, Topic};
 
 /// How many names a chain shows at most.
 const CHAIN_LENGTH: usize = 3;
@@ -71,7 +71,7 @@ impl Topic {
     /// 前提の行: for each direct prerequisite of the question, that decision followed back
     /// through the first prerequisite of the question it was decided in.
     pub fn chains(&self, question: &QuestionId) -> Vec<Vec<ChainLink>> {
-        let Some((question, _)) = self.find_question(question) else {
+        let Some((_, question)) = self.find_question(question) else {
             return Vec::new();
         };
         question
@@ -98,7 +98,7 @@ impl Topic {
             });
             next = self
                 .origin_question(decision)
-                .and_then(|(question, _)| question.premises.first().cloned())
+                .and_then(|(_, question)| question.premises.first().cloned())
                 .filter(|premise| !chain.iter().any(|link| &link.decision == premise));
         }
         chain
@@ -111,7 +111,7 @@ impl Topic {
             !decision.was_revised()
                 && self
                     .origin_question(decision)
-                    .is_some_and(|(question, _)| question.answer.stamp == Some(Stamp::PreApproved))
+                    .is_some_and(|(_, question)| question.answer.stamp == Some(Stamp::PreApproved))
         })
     }
 
@@ -127,14 +127,14 @@ impl Topic {
             nodes.push(MapNode {
                 kind: NodeKind::Decision,
                 label: decision.current().name.clone(),
-                question: origin.map(|(question, _)| question.text.clone()),
-                question_id: origin.map(|(question, _)| question.id.clone()),
+                question: origin.map(|(_, question)| question.text.clone()),
+                question_id: origin.map(|(_, question)| question.id.clone()),
                 round: self.decision_round(decision),
                 in_review: self.is_in_review(&decision.id),
                 review_mark: marked.contains(&NodeRef::Decision(decision.id.clone())),
                 key: key.clone(),
             });
-            if let Some((question, _)) = origin {
+            if let Some((_, question)) = origin {
                 edges.extend(premise_edges(question, &key, false));
             }
         }
@@ -162,14 +162,14 @@ impl Topic {
             nodes.push(MapNode {
                 kind: NodeKind::Rejected,
                 label: rejected.text.clone(),
-                question: origin.map(|(question, _)| question.text.clone()),
+                question: origin.map(|(_, question)| question.text.clone()),
                 question_id: Some(rejected.question.clone()),
-                round: origin.map_or(0, |(_, round)| round),
+                round: origin.map_or(0, |(round, _)| round.number),
                 in_review: false,
                 review_mark: false,
                 key: key.clone(),
             });
-            if let Some((question, _)) = origin {
+            if let Some((_, question)) = origin {
                 edges.extend(premise_edges(question, &key, true));
             }
         }
@@ -209,7 +209,7 @@ impl Topic {
                 .iter()
                 .filter(|decision| {
                     self.origin_question(decision)
-                        .is_some_and(|(question, _)| question.premises.contains(&revision.decision))
+                        .is_some_and(|(_, question)| question.premises.contains(&revision.decision))
                 })
                 .map(|decision| NodeRef::Decision(decision.id.clone()))
                 .chain(
@@ -233,24 +233,7 @@ impl Topic {
         marked
     }
 
-    fn find_question(&self, id: &QuestionId) -> Option<(&Question, u32)> {
-        self.rounds.iter().find_map(|round| {
-            round
-                .questions
-                .iter()
-                .find(|question| &question.id == id)
-                .map(|question| (question, round.number))
-        })
-    }
-
-    fn find_decision(&self, id: &DecisionId) -> Option<&Decision> {
-        self.records
-            .decisions
-            .iter()
-            .find(|decision| &decision.id == id)
-    }
-
-    fn origin_question(&self, decision: &Decision) -> Option<(&Question, u32)> {
+    fn origin_question(&self, decision: &Decision) -> Option<(&Round, &Question)> {
         match &decision.origin {
             Origin::Question(question) => self.find_question(question),
             Origin::FixRound(_) => None,
@@ -263,7 +246,7 @@ impl Topic {
             Origin::FixRound(round) => *round,
             Origin::Question(_) => self
                 .origin_question(decision)
-                .map_or_else(|| decision.decided_in(), |(_, round)| round),
+                .map_or_else(|| decision.decided_in(), |(round, _)| round.number),
         }
     }
 }

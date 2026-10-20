@@ -1,27 +1,12 @@
 use serde::Serialize;
 
 use super::{ResultReadError, json};
-use crate::{AskId, AskState, Question, QuestionId, Round, SentAnswer, Timestamp, Topic};
-
-pub(super) fn question<'a>(
-    topic: &'a Topic,
-    id: &QuestionId,
-) -> Result<(&'a Round, &'a Question), ResultReadError> {
-    topic
-        .rounds
-        .iter()
-        .find_map(|round| {
-            round
-                .questions
-                .iter()
-                .find(|question| question.id == *id)
-                .map(|question| (round, question))
-        })
-        .ok_or_else(|| ResultReadError::QuestionNotFound(id.clone()))
-}
+use crate::{AskId, AskState, QuestionId, SentAnswer, Timestamp, Topic};
 
 pub(super) fn answer(topic: &Topic, id: &QuestionId) -> Result<String, ResultReadError> {
-    let (round, question) = question(topic, id)?;
+    let (round, question) = topic
+        .find_question(id)
+        .ok_or_else(|| ResultReadError::QuestionNotFound(id.clone()))?;
     let sent = round
         .submitted
         .then(|| question.sent_answer())
