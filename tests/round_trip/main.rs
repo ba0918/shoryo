@@ -14,19 +14,10 @@ use std::io::{BufRead, BufReader};
 use std::process::Command;
 
 use harness::{
-    Env, Server, block_state_writes, clock_ms, files_under, first_round, stored_time, text,
+    Env, Server, block_state_writes, clock_ms, events, files_under, first_round, stored_time, text,
     wait_until,
 };
 use serde_json::{Value, json};
-
-fn events(output: &std::process::Output) -> Vec<Value> {
-    let parsed: Value =
-        serde_json::from_slice(&output.stdout).expect("wait prints the events as JSON");
-    parsed["events"]
-        .as_array()
-        .expect("the events are a list")
-        .clone()
-}
 
 #[test]
 fn version_prints_the_package_version() {
@@ -69,10 +60,7 @@ fn refused_save_leaves_the_state_as_it_was() {
     let env = Env::new();
     let server = env.start("store", &[]);
     env.run(&["round", "store"], &first_round());
-    let state = files_under(&env.data)
-        .into_iter()
-        .find(|path| path.ends_with("store/state.json"))
-        .expect("the round is stored");
+    let state = env.state_file("store");
     server.stamp_all();
     let before = std::fs::read(&state).expect("the state can be read");
     let blocked = block_state_writes(&state);

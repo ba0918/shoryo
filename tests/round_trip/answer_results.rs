@@ -1,14 +1,6 @@
 use crate::harness::{Env, Server, first_round, text};
 use serde_json::{Value, json};
 
-fn read(env: &Env, flags: &[&str]) -> Value {
-    let mut args = vec!["result", "answers"];
-    args.extend_from_slice(flags);
-    let output = env.run(&args, "");
-    assert!(output.status.success(), "{}", text(&output));
-    serde_json::from_slice(&output.stdout).expect("result is JSON")
-}
-
 fn topic(env: &Env) -> Server {
     let server = env.start("answers", &[]);
     let mut round: Value = serde_json::from_str(&first_round()).expect("valid fixture");
@@ -31,7 +23,7 @@ fn unsent_answers_do_not_expose_drafts_even_when_stamped() {
         200
     );
     server.stamp_all();
-    let answer = read(&env, &["--answer", "q1"]);
+    let answer = env.result("answers", &["--answer", "q1"]);
     assert_eq!(answer["submitted"], false);
     assert_eq!(answer["answer"], Value::Null);
     assert_eq!(answer["selected_option"], Value::Null);
@@ -49,8 +41,8 @@ fn sent_choice_keeps_exact_reason_and_consequence_without_explanations() {
         200
     );
     assert_eq!(server.submit(), 200);
-    let before = read(&env, &[]);
-    let answer = read(&env, &["--answer", "q1"]);
+    let before = env.result("answers", &[]);
+    let answer = env.result("answers", &["--answer", "q1"]);
     assert_eq!(answer["question"], "q1");
     assert_eq!(answer["round"], 1);
     assert_eq!(answer["submitted"], true);
@@ -67,9 +59,9 @@ fn sent_choice_keeps_exact_reason_and_consequence_without_explanations() {
     );
     assert!(!answer.to_string().contains("Unrelated background"));
     assert!(answer["selected_option"].get("description").is_none());
-    let question = read(&env, &["--question", "q1"]);
+    let question = env.result("answers", &["--question", "q1"]);
     assert_eq!(question, before["rounds"][0]["questions"][0]);
-    assert_eq!(read(&env, &[]), before);
+    assert_eq!(env.result("answers", &[]), before);
     eprintln!(
         "answer bytes={}, round bytes={}",
         answer.to_string().len(),
@@ -77,8 +69,8 @@ fn sent_choice_keeps_exact_reason_and_consequence_without_explanations() {
     );
     assert!(env.run(&["stop", "answers"], "").status.success());
     server.finish();
-    assert_eq!(read(&env, &["--answer", "q1"]), answer);
-    assert_eq!(read(&env, &["--question", "q1"]), question);
+    assert_eq!(env.result("answers", &["--answer", "q1"]), answer);
+    assert_eq!(env.result("answers", &["--question", "q1"]), question);
 }
 
 #[test]
@@ -107,7 +99,7 @@ fn custom_and_deferred_receipts_match_actual_submitted_events_without_inactive_d
             );
         }
         assert_eq!(server.submit(), 200);
-        let receipt = read(&env, &["--answer", "q1"]);
+        let receipt = env.result("answers", &["--answer", "q1"]);
         let wait = env.run(&["wait", "answers", "--timeout", "0"], "");
         assert!(wait.status.success(), "{}", text(&wait));
         let events: Value = serde_json::from_slice(&wait.stdout).unwrap();
@@ -140,21 +132,33 @@ fn related_asks_are_indexed_without_automatically_returning_replies_or_followup_
         server.operate(json!({"op":"ask","question":"q1","text":"And then?","follows":1})),
         200
     );
-    let receipt = read(&env, &["--answer", "q1"]);
+    let receipt = env.result("answers", &["--answer", "q1"]);
     assert_eq!(
         receipt["asks"],
         json!([{"id":1,"follows":null,"status":"replied"},{"id":2,"follows":1,"status":"waiting"}])
     );
     assert!(!receipt.to_string().contains("Exact reply conditions"));
-    let full = read(&env, &[]);
-    assert_eq!(read(&env, &["--ask", "1"]), full["rounds"][0]["asks"][0]);
-    assert_eq!(read(&env, &["--ask", "2"]), full["rounds"][0]["asks"][1]);
+    let full = env.result("answers", &[]);
+    assert_eq!(
+        env.result("answers", &["--ask", "1"]),
+        full["rounds"][0]["asks"][0]
+    );
+    assert_eq!(
+        env.result("answers", &["--ask", "2"]),
+        full["rounds"][0]["asks"][1]
+    );
     assert_eq!(server.submit(), 200);
     assert!(env.run(&["end", "answers"], "").status.success());
-    assert_eq!(read(&env, &["--ask", "2"])["state"]["status"], "no_reply");
+    assert_eq!(
+        env.result("answers", &["--ask", "2"])["state"]["status"],
+        "no_reply"
+    );
     assert!(env.run(&["stop", "answers"], "").status.success());
     server.finish();
-    assert_eq!(read(&env, &["--ask", "1"]), full["rounds"][0]["asks"][0]);
+    assert_eq!(
+        env.result("answers", &["--ask", "1"]),
+        full["rounds"][0]["asks"][0]
+    );
 }
 
 #[test]
@@ -174,7 +178,7 @@ fn choice_deferral_keeps_its_reason_but_never_exposes_the_inactive_custom_draft(
         200
     );
     assert_eq!(server.submit(), 200);
-    let receipt = read(&env, &["--answer", "q1"]);
+    let receipt = env.result("answers", &["--answer", "q1"]);
     assert_eq!(receipt["answer"]["deferred"], true);
     assert_eq!(receipt["answer"]["note"], "Decide after the trial");
     assert_eq!(receipt["answer"]["choice"], Value::Null);
@@ -195,7 +199,7 @@ fn sent_provisional_answers_preserve_the_preapproved_stamp() {
     );
     assert_eq!(server.send(), 200);
     assert_eq!(
-        read(&env, &["--answer", "q1"])["answer"]["stamp"],
+        env.result("answers", &["--answer", "q1"])["answer"]["stamp"],
         "pre_approved"
     );
 }

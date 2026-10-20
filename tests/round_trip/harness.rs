@@ -65,6 +65,24 @@ impl Env {
         child.wait_with_output().expect("the command finishes")
     }
 
+    /// The state file of `topic`, once its server has written one.
+    pub fn state_file(&self, topic: &str) -> PathBuf {
+        let suffix = Path::new(topic).join("state.json");
+        files_under(&self.data)
+            .into_iter()
+            .find(|path| path.ends_with(&suffix))
+            .unwrap_or_else(|| panic!("topic {topic} has a state file"))
+    }
+
+    /// What `result <topic> <flags>` prints, read as JSON; the command must succeed.
+    pub fn result(&self, topic: &str, flags: &[&str]) -> Value {
+        let mut args = vec!["result", topic];
+        args.extend_from_slice(flags);
+        let output = self.run(&args, "");
+        assert!(output.status.success(), "{}", text(&output));
+        serde_json::from_slice(&output.stdout).expect("result prints JSON")
+    }
+
     /// Starts the server for `topic` and waits until it prints its URL.
     pub fn start(&self, topic: &str, extra: &[&str]) -> Server {
         self.try_start(topic, extra).unwrap_or_else(|refused| {
@@ -170,14 +188,18 @@ impl Server {
             .expect("the view is JSON")
     }
 
+    /// Posts `body` to the API path `route`, as the page or a command does, and returns the
+    /// response unread.
+    pub fn post(&self, route: &str, body: &Value) -> ureq::http::Response<ureq::Body> {
+        Self::agent()
+            .post(format!("{}api/{route}", self.url))
+            .send(body.to_string())
+            .expect("the API answers")
+    }
+
     /// Performs one of the person's operations through the page API.
     pub fn operate(&self, operation: Value) -> u16 {
-        Self::agent()
-            .post(format!("{}api/op", self.url))
-            .send(operation.to_string())
-            .expect("the page API answers")
-            .status()
-            .as_u16()
+        self.post("op", &operation).status().as_u16()
     }
 
     /// The language and theme as the page reads them when it opens.
@@ -193,12 +215,7 @@ impl Server {
 
     /// Switches the language or the theme from the page; returns the status.
     pub fn set_config(&self, change: Value) -> u16 {
-        Self::agent()
-            .post(format!("{}api/config", self.url))
-            .send(change.to_string())
-            .expect("the page API answers")
-            .status()
-            .as_u16()
+        self.post("config", &change).status().as_u16()
     }
 
     /// Stamps every unstamped question of the current round, as the person does.
@@ -250,6 +267,16 @@ impl Drop for Server {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+/// The events `wait` printed.
+pub fn events(output: &Output) -> Vec<Value> {
+    let parsed: Value =
+        serde_json::from_slice(&output.stdout).expect("wait prints the events as JSON");
+    parsed["events"]
+        .as_array()
+        .expect("the events are a list")
+        .clone()
 }
 
 pub fn text(output: &Output) -> String {

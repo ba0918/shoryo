@@ -2,14 +2,6 @@ use serde_json::{Value, json};
 
 use crate::harness::{Env, Server, first_round, text};
 
-fn read(env: &Env, flags: &[&str]) -> Value {
-    let mut args = vec!["result", "records"];
-    args.extend_from_slice(flags);
-    let output = env.run(&args, "");
-    assert!(output.status.success(), "{}", text(&output));
-    serde_json::from_slice(&output.stdout).expect("result prints valid JSON")
-}
-
 fn recorded_topic(env: &Env) -> Server {
     let server = env.start("records", &[]);
     let mut first: Value = serde_json::from_str(&first_round()).expect("the round fixture is JSON");
@@ -55,7 +47,7 @@ fn current_records_keep_exact_content_and_agreement_state_without_history() {
         200
     );
     let before = server.view()["topic"].clone();
-    let current = read(&env, &["--current"]);
+    let current = env.result("records", &["--current"]);
     assert_eq!(
         current["records"]["decisions"][0]["text"],
         "Keep exact reasons, conditions, and 日本語."
@@ -87,7 +79,7 @@ fn current_records_keep_exact_content_and_agreement_state_without_history() {
     assert!(current["records"].get("revisions").is_none());
     assert!(current["records"]["decisions"][0].get("history").is_none());
     assert!(current.get("finished_picture").is_none());
-    let full = read(&env, &[]);
+    let full = env.result("records", &[]);
     eprintln!(
         "fixture JSON bytes: full={}, current={}",
         full.to_string().len(),
@@ -101,7 +93,7 @@ fn current_records_keep_exact_content_and_agreement_state_without_history() {
     );
     assert!(env.run(&["stop", "records"], "").status.success());
     server.finish();
-    assert_eq!(read(&env, &["--current"]), current);
+    assert_eq!(env.result("records", &["--current"]), current);
 }
 
 #[test]
@@ -117,13 +109,13 @@ fn current_records_show_only_the_latest_version_and_history_remains_retrievable(
             .status
             .success()
     );
-    let current = read(&env, &["--current"]);
+    let current = env.result("records", &["--current"]);
     assert_eq!(
         current["records"]["decisions"][0]["text"],
         "Updated exact condition"
     );
     assert!(!current.to_string().contains("Keep exact reasons"));
-    let decision = read(&env, &["--decision", "d1"]);
+    let decision = env.result("records", &["--decision", "d1"]);
     assert_eq!(decision["history"].as_array().unwrap().len(), 2);
     assert_eq!(
         decision["history"][0]["content"]["text"],
@@ -135,7 +127,7 @@ fn current_records_show_only_the_latest_version_and_history_remains_retrievable(
 fn a_new_topic_has_no_latest_round_and_no_invented_decisions() {
     let env = Env::new();
     let _server = env.start("records", &[]);
-    let current = read(&env, &["--current"]);
+    let current = env.result("records", &["--current"]);
     assert_eq!(current["latest_round"], Value::Null);
     assert_eq!(current["records"]["decisions"], json!([]));
     assert_eq!(current["pending_events"], 0);
@@ -146,27 +138,27 @@ fn current_records_report_result_submission_and_ended_state() {
     let env = Env::new();
     let server = recorded_topic(&env);
     assert_eq!(server.submit(), 200);
-    let current = read(&env, &["--current"]);
+    let current = env.result("records", &["--current"]);
     assert_eq!(current["latest_round"]["submitted"], true);
     assert_eq!(current["latest_round"]["question_count"], 0);
     assert_eq!(current["latest_round"]["sent_as"], "proceeded");
     assert!(env.run(&["end", "records"], "").status.success());
-    assert_eq!(read(&env, &["--current"])["ended"], true);
+    assert_eq!(env.result("records", &["--current"])["ended"], true);
 }
 
 #[test]
 fn selected_history_matches_full_data_online_and_after_stop() {
     let env = Env::new();
     let server = recorded_topic(&env);
-    let full = read(&env, &[]);
-    let round = read(&env, &["--round", "1"]);
-    let decision = read(&env, &["--decision", "d1"]);
+    let full = env.result("records", &[]);
+    let round = env.result("records", &["--round", "1"]);
+    let decision = env.result("records", &["--decision", "d1"]);
     assert_eq!(round, full["rounds"][0]);
     assert_eq!(decision, full["records"]["decisions"][0]);
     assert!(env.run(&["stop", "records"], "").status.success());
     server.finish();
-    assert_eq!(read(&env, &["--round", "1"]), round);
-    assert_eq!(read(&env, &["--decision", "d1"]), decision);
+    assert_eq!(env.result("records", &["--round", "1"]), round);
+    assert_eq!(env.result("records", &["--decision", "d1"]), decision);
 }
 
 #[test]
@@ -223,10 +215,7 @@ fn selective_http_reads_validate_the_request_and_unknown_ids_return_not_found() 
         (json!({"kind":"decision","id":"missing"}), 404),
         (json!({"kind":"unknown"}), 422),
     ] {
-        let mut response = Server::agent()
-            .post(format!("{}api/result", server.url))
-            .send(request.to_string())
-            .unwrap();
+        let mut response = server.post("result", &request);
         assert_eq!(response.status().as_u16(), expected);
         let error: Value = response.body_mut().read_json().unwrap();
         assert!(error["error"].is_string());
@@ -238,14 +227,14 @@ fn selective_http_reads_validate_the_request_and_unknown_ids_return_not_found() 
 fn omitted_updates_keep_records_and_picture_and_explicit_empty_lists_clear_them() {
     let env = Env::new();
     let server = recorded_topic(&env);
-    let original = read(&env, &[]);
+    let original = env.result("records", &[]);
     assert_eq!(server.submit(), 200);
     assert!(
         env.run(&["round", "records"], r#"{"subject":"Unchanged result"}"#)
             .status
             .success()
     );
-    let unchanged = read(&env, &[]);
+    let unchanged = env.result("records", &[]);
     assert_eq!(unchanged["records"], original["records"]);
     assert_eq!(unchanged["finished_picture"], original["finished_picture"]);
     assert_eq!(
@@ -254,7 +243,7 @@ fn omitted_updates_keep_records_and_picture_and_explicit_empty_lists_clear_them(
     );
     assert_eq!(server.submit(), 200);
     assert!(env.run(&["round", "records"], r#"{"subject":"Clear lists","records":{"not_building":[],"undecided":[],"delegated":[],"rejected":[]}}"#).status.success());
-    let cleared = read(&env, &[]);
+    let cleared = env.result("records", &[]);
     for key in ["not_building", "undecided", "delegated", "rejected"] {
         assert_eq!(cleared["records"][key], json!([]));
     }

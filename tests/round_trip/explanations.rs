@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use super::harness::{Env, Server, files_under, first_round, text};
+use super::harness::{Env, Server, first_round, text};
 
 fn parts() -> Value {
     json!([
@@ -20,13 +20,6 @@ fn round() -> String {
     value.to_string()
 }
 
-fn state(env: &Env) -> std::path::PathBuf {
-    files_under(&env.data)
-        .into_iter()
-        .find(|p| p.ends_with("store/state.json"))
-        .expect("synthetic state exists")
-}
-
 fn ask(server: &Server, follows: Option<u64>) -> u64 {
     assert_eq!(
         server.operate(json!({"op":"ask","question":"q1","text":"Why?","follows":follows})),
@@ -42,12 +35,7 @@ fn ask(server: &Server, follows: Option<u64>) -> u64 {
 }
 
 fn post(server: &Server, route: &str, body: Value) -> u16 {
-    Server::agent()
-        .post(format!("{}api/{route}", server.url))
-        .send(body.to_string())
-        .expect("local request")
-        .status()
-        .as_u16()
+    server.post(route, &body).status().as_u16()
 }
 
 fn full_text_budget(character: char) -> Value {
@@ -127,7 +115,7 @@ fn invalid_historical_explanations_refuse_restart_without_overwrite() {
         );
         assert!(env.run(&["stop", "store"], "").status.success());
         server.finish();
-        let path = state(&env);
+        let path = env.state_file("store");
         let mut value: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         let invalid = if aggregate {
             json!(vec![json!({"type":"text","body":"x".repeat(16384)}); 32])
@@ -191,7 +179,7 @@ fn restart_validates_each_round_and_reply_budget_independently() {
     let before = server.view()["topic"].clone();
     assert!(env.run(&["stop", "store"], "").status.success());
     server.finish();
-    let path = state(&env);
+    let path = env.state_file("store");
     let bytes = std::fs::read(&path).unwrap();
     let again = env.start("store", &[]);
     assert_eq!(again.view()["topic"], before);
@@ -231,7 +219,7 @@ fn invalid_round_or_reply_keeps_saved_bytes() {
     assert!(env.run(&["round", "store"], &round()).status.success());
     let id = ask(&server, None);
     assert_eq!(server.submit(), 200);
-    let path = state(&env);
+    let path = env.state_file("store");
     let bytes = std::fs::read(&path).unwrap();
     let before = server.view()["topic"].clone();
     for (part, status) in [
@@ -262,7 +250,7 @@ fn refused_part_save_keeps_previous_content() {
     let server = env.start("store", &[]);
     assert!(env.run(&["round", "store"], &round()).status.success());
     let id = ask(&server, None);
-    let path = state(&env);
+    let path = env.state_file("store");
     let bytes = std::fs::read(&path).unwrap();
     let before = server.view()["topic"].clone();
     let blocked = crate::harness::block_state_writes(&path);
@@ -331,7 +319,7 @@ fn old_explanation_state_refuses_start_without_overwrite() {
         }
         assert!(env.run(&["stop", "store"], "").status.success());
         server.finish();
-        let path = state(&env);
+        let path = env.state_file("store");
         let mut value: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         if old_reply {
             value["rounds"][0]["asks"][0]["state"] =
@@ -361,7 +349,7 @@ fn old_reply_input_is_refused() {
     let server = env.start("store", &[]);
     assert!(env.run(&["round", "store"], &round()).status.success());
     let id = ask(&server, None);
-    let path = state(&env);
+    let path = env.state_file("store");
     let before = std::fs::read(&path).unwrap();
     let output = env.run(
         &["reply", "store", &id.to_string()],
@@ -378,7 +366,7 @@ fn legacy_labels_outside_the_existing_line_grammar_are_refused_atomically() {
     assert!(env.run(&["round", "store"], &round()).status.success());
     let id = ask(&server, None);
     assert_eq!(server.submit(), 200);
-    let path = state(&env);
+    let path = env.state_file("store");
     let bytes = std::fs::read(&path).unwrap();
     let before = server.view()["topic"].clone();
     for separator in ['\r', '\u{2028}', '\u{2029}'] {
@@ -450,7 +438,7 @@ fn every_explanation_limit_refuses_real_cli_and_http_requests_atomically() {
     assert!(env.run(&["round", "store"], &round()).status.success());
     let id = ask(&server, None);
     assert_eq!(server.submit(), 200);
-    let file = state(&env);
+    let file = env.state_file("store");
     let bytes = std::fs::read(&file).unwrap();
     let content = server.view()["topic"].clone();
     let message =

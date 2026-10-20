@@ -1,4 +1,4 @@
-use super::harness::{Env, Server, files_under, first_round};
+use super::harness::{Env, first_round};
 use serde_json::{Value, json};
 
 #[test]
@@ -12,10 +12,7 @@ fn old_deferred_pending_event_keeps_its_id_note_and_acknowledgment_after_restart
     let pending = server.view()["topic"]["events"].clone();
     env.run(&["stop", "answers"], "");
     server.finish();
-    let path = files_under(&env.data)
-        .into_iter()
-        .find(|p| p.ends_with("answers/state.json"))
-        .unwrap();
+    let path = env.state_file("answers");
     let mut old: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     let answer = old["rounds"][0]["questions"][0]["answer"]
         .as_object_mut()
@@ -63,10 +60,7 @@ fn blank_custom_and_contradictory_guards_leave_real_storage_unchanged() {
     server.operate(json!({"op":"free_text","question":"q1","text":"answer\nconditions"}));
     server.stamp_all();
     let before = server.view();
-    let state = files_under(&env.data)
-        .into_iter()
-        .find(|p| p.ends_with("answers/state.json"))
-        .unwrap();
+    let state = env.state_file("answers");
     let bytes = std::fs::read(&state).unwrap();
     let mut invalid = before["expected_answers"].clone();
     invalid[0]["deferred"] = json!(true);
@@ -98,16 +92,10 @@ fn concurrent_edit_and_guarded_submit_accept_only_the_locked_answer() {
     server.stamp_all();
     let expected = server.view()["expected_answers"].clone();
     let barrier = std::sync::Barrier::new(2);
-    let url = &server.url;
     let statuses = std::thread::scope(|scope| {
         let edit = scope.spawn(|| {
             barrier.wait();
-            Server::agent()
-                .post(format!("{url}api/op"))
-                .send(json!({"op":"note","question":"q1","text":"changed"}).to_string())
-                .unwrap()
-                .status()
-                .as_u16()
+            server.operate(json!({"op":"note","question":"q1","text":"changed"}))
         });
         barrier.wait();
         let send = server.operate(json!({"op":"submit","round":1,"expected_answers":expected}));
@@ -138,15 +126,12 @@ fn guarded_send_refuses_changed_answers_without_saving_or_publishing() {
         200
     );
     let before = server.view();
-    let state = files_under(&env.data)
-        .into_iter()
-        .find(|p| p.ends_with("answers/state.json"))
-        .unwrap();
+    let state = env.state_file("answers");
     let bytes = std::fs::read(&state).unwrap();
-    let mut response = Server::agent()
-        .post(format!("{}api/op", server.url))
-        .send(json!({"op":"submit","round":1,"expected_answers":snapshot}).to_string())
-        .unwrap();
+    let mut response = server.post(
+        "op",
+        &json!({"op":"submit","round":1,"expected_answers":snapshot}),
+    );
     assert_eq!(response.status().as_u16(), 409);
     let refusal: Value = response.body_mut().read_json().unwrap();
     assert_eq!(refusal["refusal"]["kind"], "answers_changed");
@@ -181,10 +166,7 @@ fn custom_drafts_and_old_pending_answers_survive_real_restart() {
     assert_eq!(again.submit(), 200);
     env.run(&["stop", "answers"], "");
     again.finish();
-    let state = files_under(&env.data)
-        .into_iter()
-        .find(|p| p.ends_with("answers/state.json"))
-        .unwrap();
+    let state = env.state_file("answers");
     let mut old: Value = serde_json::from_slice(&std::fs::read(&state).unwrap()).unwrap();
     let answer = old["rounds"][0]["questions"][0]["answer"]
         .as_object_mut()
