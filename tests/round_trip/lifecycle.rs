@@ -108,6 +108,7 @@ fn port_flag_fixes_the_port() {
     let env = Env::new();
     // A port found free can be taken by another process before the server binds it, so a
     // refused start is retried on another free port.
+    let mut refusals = Vec::new();
     let (server, port) = (0..5)
         .find_map(|_| {
             let port = std::net::TcpListener::bind("127.0.0.1:0")
@@ -115,12 +116,15 @@ fn port_flag_fixes_the_port() {
                 .local_addr()
                 .expect("the port is known")
                 .port();
-            let server = env
-                .try_start("store", &["--port", &port.to_string()])
-                .ok()?;
-            Some((server, port))
+            match env.try_start("store", &["--port", &port.to_string()]) {
+                Ok(server) => Some((server, port)),
+                Err(refused) => {
+                    refusals.push(text(&refused));
+                    None
+                }
+            }
         })
-        .expect("the server starts on a free port within five tries");
+        .unwrap_or_else(|| panic!("no start on a free port within five tries: {refusals:?}"));
 
     assert!(server.url.contains(&format!(":{port}/")), "{}", server.url);
 }
