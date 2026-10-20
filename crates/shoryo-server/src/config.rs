@@ -101,6 +101,8 @@ impl ConfigFile {
     /// Applies a switch and writes the whole file through a temporary file and a rename, so a
     /// crash leaves the old file or the new one. An unreadable file is refused, untouched.
     pub fn change(&self, change: ConfigChange) -> Result<Config, ConfigError> {
+        // Read again under the lock below; this first read refuses an unreadable file before
+        // the directory or the lock file is created beside it.
         self.read()?;
         let path = self.path.as_deref().ok_or(ConfigError::NoConfigDirectory)?;
         let write = |target: &Path, error: std::io::Error| ConfigError::Write {
