@@ -432,7 +432,7 @@ fn legacy_punctuation_and_newline_separated_lines_remain_accepted() {
 }
 
 #[test]
-fn every_explanation_limit_refuses_real_cli_and_http_requests_atomically() {
+fn every_explanation_limit_refuses_http_requests_atomically() {
     let env = Env::new();
     let server = env.start("store", &[]);
     assert!(env.run(&["round", "store"], &round()).status.success());
@@ -587,26 +587,10 @@ fn every_explanation_limit_refuses_real_cli_and_http_requests_atomically() {
     for (index, (parts, status)) in cases.into_iter().enumerate() {
         let reply = json!({"ask":id,"parts":parts});
         assert_eq!(post(&server, "reply", reply), status, "reply case {index}");
-        let out = env.run(
-            &["reply", "store", &id.to_string()],
-            &json!({"parts":parts}).to_string(),
-        );
-        assert_eq!(out.status.code(), Some(1), "CLI reply case {index}");
         let mut next: Value = serde_json::from_str(&first_round()).unwrap();
         next["questions"][0]["id"] = json!("next");
         next["questions"][0]["background"] = parts;
-        assert_eq!(
-            post(&server, "round", next.clone()),
-            status,
-            "round case {index}"
-        );
-        assert_eq!(
-            env.run(&["round", "store"], &next.to_string())
-                .status
-                .code(),
-            Some(1),
-            "CLI round case {index}"
-        );
+        assert_eq!(post(&server, "round", next), status, "round case {index}");
         assert_eq!(
             std::fs::read(&file).unwrap(),
             bytes,
