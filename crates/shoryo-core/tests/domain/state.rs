@@ -1,6 +1,6 @@
 use shoryo_core::{
-    Answer, Choice, Class, Decision, DecisionContent, DecisionId, Origin, Question, QuestionId,
-    Records, Round, RoundRecords, Timestamp, Topic,
+    Answer, Choice, Class, Decision, DecisionContent, DecisionId, Operation, Origin, Question,
+    QuestionId, Records, Round, RoundRecords, Timestamp, Topic,
 };
 
 fn question(id: &str) -> Question {
@@ -105,14 +105,32 @@ fn decision_content_as_of_an_earlier_round_is_its_content_then() {
 
 #[test]
 fn ids_are_never_reused_in_a_topic() {
-    let mut topic = Topic::new("Data store", "Where should the data live?");
-    let first_ask = topic.allocate_ask_id().unwrap();
-    let first_event = topic.allocate_event_id().unwrap();
+    let ask = |topic: &mut Topic| {
+        topic
+            .apply(
+                Operation::Ask {
+                    question: QuestionId::new("q1"),
+                    text: "Why?".into(),
+                    follows: None,
+                },
+                crate::common::any_time(),
+            )
+            .unwrap();
+        let ask = topic.current_round().unwrap().asks.last().unwrap().id;
+        let event = topic.pending_events().last().unwrap().id;
+        (ask, event)
+    };
+    let mut topic = crate::common::topic_from(vec![serde_json::json!({
+        "subject": "Storage", "questions": [crate::common::question("q1", &[])],
+    })]);
+    let first = ask(&mut topic);
+    topic.acknowledge(&[first.1]);
 
     let mut reloaded = Topic::from_json(&topic.to_json()).unwrap();
+    let again = ask(&mut reloaded);
 
-    assert_ne!(reloaded.allocate_ask_id().unwrap(), first_ask);
-    assert_ne!(reloaded.allocate_event_id().unwrap(), first_event);
+    assert_ne!(again.0, first.0);
+    assert_ne!(again.1, first.1);
 }
 
 #[test]

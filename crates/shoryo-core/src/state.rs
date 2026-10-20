@@ -408,16 +408,8 @@ impl Topic {
         Ok(())
     }
 
-    /// Allocates an ask ID, or refuses without changing state when the counter is exhausted.
-    pub fn allocate_ask_id(&mut self) -> Result<AskId, IdExhaustion> {
-        let next = self.next_ask.checked_add(1).ok_or(IdExhaustion::Ask)?;
-        let id = AskId(self.next_ask);
-        self.next_ask = next;
-        Ok(id)
-    }
-
     /// Allocates an event ID, or refuses without changing state when the counter is exhausted.
-    pub fn allocate_event_id(&mut self) -> Result<EventId, IdExhaustion> {
+    pub(crate) fn allocate_event_id(&mut self) -> Result<EventId, IdExhaustion> {
         let next = self.next_event.checked_add(1).ok_or(IdExhaustion::Event)?;
         let id = EventId(self.next_event);
         self.next_event = next;

@@ -12,39 +12,6 @@ fn with_counter(topic: &Topic, counter: &str, next: u64) -> Topic {
     Topic::from_json(&stored.to_string()).expect("exhausted counters remain readable")
 }
 
-#[test]
-fn exhausted_ask_identifiers_are_refused_without_changing_the_counter() {
-    let mut topic = with_counter(&Topic::new("", ""), "next_ask", u64::MAX);
-    let before = topic.clone();
-    for _ in 0..2 {
-        assert_eq!(topic.allocate_ask_id(), Err(IdExhaustion::Ask));
-        assert_eq!(topic, before);
-    }
-}
-
-#[test]
-fn exhausted_event_identifiers_are_refused_without_changing_the_counter() {
-    let mut topic = with_counter(&Topic::new("", ""), "next_event", u64::MAX);
-    let before = topic.clone();
-    for _ in 0..2 {
-        assert_eq!(topic.allocate_event_id(), Err(IdExhaustion::Event));
-        assert_eq!(topic, before);
-    }
-}
-
-#[test]
-fn last_allocatable_identifiers_stay_exhausted_after_reloading() {
-    let mut topic = with_counter(&Topic::new("", ""), "next_ask", u64::MAX - 1);
-    topic = with_counter(&topic, "next_event", u64::MAX - 1);
-    assert_eq!(topic.allocate_ask_id(), Ok(AskId(u64::MAX - 1)));
-    assert_eq!(topic.allocate_event_id(), Ok(EventId(u64::MAX - 1)));
-    let mut loaded = Topic::from_json(&topic.to_json()).unwrap();
-    let before = loaded.clone();
-    assert_eq!(loaded.allocate_ask_id(), Err(IdExhaustion::Ask));
-    assert_eq!(loaded.allocate_event_id(), Err(IdExhaustion::Event));
-    assert_eq!(loaded, before);
-}
-
 fn open_topic() -> Topic {
     let mut topic = topic_from(vec![json!({
         "subject":"Answers", "questions":[question("q1", &[])],
@@ -83,6 +50,25 @@ fn asking_with_either_identifier_exhausted_allocates_neither_identifier() {
         );
         assert_eq!(topic, before);
     }
+}
+
+#[test]
+fn the_last_event_identifier_is_used_once_and_stays_exhausted_after_reloading() {
+    let swap = || Operation::SwapClass {
+        question: QuestionId::new("q1"),
+    };
+    let mut topic = with_counter(&open_topic(), "next_event", u64::MAX - 1);
+    topic.apply(swap(), any_time()).unwrap();
+    assert_eq!(topic.pending_events()[0].id, EventId(u64::MAX - 1));
+    let mut reloaded = Topic::from_json(&topic.to_json()).unwrap();
+    let before = reloaded.clone();
+    assert_eq!(
+        reloaded.apply(swap(), any_time()),
+        Err(OperationRefusal::IdExhausted {
+            counter: IdExhaustion::Event
+        })
+    );
+    assert_eq!(reloaded, before);
 }
 
 #[test]
