@@ -3,7 +3,7 @@
 
 mod app;
 mod clock;
-pub mod config;
+mod config;
 mod files;
 pub mod location;
 pub mod store;

@@ -13,8 +13,9 @@ use shoryo_core::Topic;
 use crate::ServerError;
 use crate::location::TopicLocation;
 
-pub use endpoint::{Endpoint, EndpointFile, read_endpoint};
-pub use lock::Lock;
+pub(crate) use endpoint::EndpointFile;
+pub use endpoint::{Endpoint, read_endpoint};
+pub(crate) use lock::Lock;
 
 /// The state file: the topic, and which repository and name it belongs to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,7 +34,7 @@ impl StoredTopic {
 }
 
 /// Reads the topic's state, or starts a new one when there is none yet.
-pub fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
+pub(crate) fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
     Ok(load_existing(location)?.unwrap_or_else(|| StoredTopic {
         repository: location.repository.display().to_string(),
         name: location.name.to_string(),
@@ -70,7 +71,7 @@ pub fn read_state(location: &TopicLocation) -> Result<Option<String>, ServerErro
 
 /// Writes the state through a temporary file in the same directory and a rename, so a crash
 /// leaves either the old state or the new one.
-pub fn save(location: &TopicLocation, state: &StoredTopic) -> Result<(), ServerError> {
+pub(crate) fn save(location: &TopicLocation, state: &StoredTopic) -> Result<(), ServerError> {
     let path = location.state_file();
     crate::files::atomic_write(&path, state.to_json().as_bytes())
         .map_err(|error| ServerError::io(&path, error))
