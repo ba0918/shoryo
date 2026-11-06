@@ -165,18 +165,27 @@ fn shorten_home(path: &str, home: Option<&Path>) -> String {
         )
 }
 
-/// `text` with each control character written as its escape (`\n`, `\u{1b}`), so that a value
-/// read from a file cannot split a row or drive the terminal; other characters are kept.
+/// `text` with each control character, and each character that turns the text direction,
+/// written as its escape (`\n`, `\u{1b}`, `\u{202e}`), so that a value read from a file cannot
+/// split a row, drive the terminal, or reorder what a row shows; other characters are kept.
 fn visible(text: &str) -> String {
     text.chars()
         .map(|character| {
-            if character.is_control() {
+            if character.is_control() || turns_direction(character) {
                 character.escape_default().to_string()
             } else {
                 character.to_string()
             }
         })
         .collect()
+}
+
+/// The marks, embeddings, overrides and isolates of the Unicode bidirectional algorithm.
+fn turns_direction(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+    )
 }
 
 /// `text` cut to `width` terminal columns, the last one an ellipsis when anything was cut.
@@ -297,6 +306,19 @@ mod tests {
             !lines[1].contains("4321") && !lines[1].contains("http://"),
             "{text}"
         );
+    }
+
+    #[test]
+    fn characters_that_turn_the_text_direction_do_not_reach_the_terminal() {
+        let mut turned = topic("store", true);
+        turned.title = Some("PID \u{202e}4321 \u{2067}x\u{2069} \u{200f}".into());
+        let range = Range::Repository(PathBuf::from("/data/shoryo/a-000000000000"));
+
+        let text = text_with_home(&[turned], &range, Target::Running, home());
+
+        for direction in ['\u{202e}', '\u{2067}', '\u{2069}', '\u{200f}'] {
+            assert!(!text.contains(direction), "{text:?}");
+        }
     }
 
     #[test]
