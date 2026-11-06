@@ -546,3 +546,49 @@ fn a_corrupt_topic_is_listed_with_a_warning_and_the_rest_still_appear() {
         );
     }
 }
+
+/// Sets the modification time of `topic`'s state file to `minutes` after an hour ago.
+fn updated_at_minute(env: &Env, topic: &str, minutes: u64) {
+    let time = std::time::SystemTime::now() - std::time::Duration::from_secs(3600)
+        + std::time::Duration::from_secs(60 * minutes);
+    std::fs::File::options()
+        .write(true)
+        .open(env.state_file(topic))
+        .and_then(|file| file.set_modified(time))
+        .expect("the state's modification time can be set");
+}
+
+#[test]
+fn running_topics_come_first_then_newest_updates() {
+    let env = Env::new();
+    let a = env.repository("a");
+    let b = env.repository("b");
+    let fresh = env.start_in(&a, "a-no-state", &[]);
+    assert!(env.run_in(&a, &["stop", "a-no-state"], "").status.success());
+    fresh.finish();
+    stopped_after_a_round(&env, &b, "b-old");
+    stopped_after_a_round(&env, &a, "a-middle");
+    stopped_after_a_round(&env, &b, "b-newest");
+    let _running = env.start_in(&a, "a-running", &[]);
+    assert!(
+        env.run_in(&a, &["round", "a-running"], &first_round())
+            .status
+            .success()
+    );
+    updated_at_minute(&env, "a-running", 10);
+    updated_at_minute(&env, "b-old", 20);
+    updated_at_minute(&env, "a-middle", 30);
+    updated_at_minute(&env, "b-newest", 40);
+
+    let rows = ps_json(&env, &a, &["-a", "--all-repos"]);
+
+    let order: Vec<&str> = rows
+        .iter()
+        .map(|row| row["topic"].as_str().expect("each row names its topic"))
+        .collect();
+    assert_eq!(
+        order,
+        ["a-running", "b-newest", "a-middle", "b-old", "a-no-state"],
+        "{rows:?}"
+    );
+}

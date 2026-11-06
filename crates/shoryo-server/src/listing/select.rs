@@ -1,5 +1,6 @@
-//! Which topics `ps` lists (`docs/spec/ps.md`, "出す範囲と対象").
+//! Which topics `ps` lists, and in what order (`docs/spec/ps.md`, "出す範囲と対象", "並び順").
 
+use std::cmp::{Ordering, Reverse};
 use std::path::PathBuf;
 
 use super::ListedTopic;
@@ -29,20 +30,36 @@ pub struct Selection {
     pub running_outside: usize,
 }
 
-/// The topics of `topics` in `range` that `target` asks for.
+/// The topics of `topics` in `range` that `target` asks for: running ones first, each group
+/// from the newest update to the oldest, those without an update time last.
 pub fn select(topics: Vec<ListedTopic>, range: &Range, target: Target) -> Selection {
     let (inside, outside): (Vec<_>, Vec<_>) =
         topics.into_iter().partition(|topic| in_range(topic, range));
+    let mut listed: Vec<ListedTopic> = inside
+        .into_iter()
+        .filter(|topic| is_target(topic, target))
+        .collect();
+    listed.sort_by(listing_order);
     Selection {
-        topics: inside
-            .into_iter()
-            .filter(|topic| is_target(topic, target))
-            .collect(),
+        topics: listed,
         running_outside: outside
             .iter()
             .filter(|topic| topic.server.is_some())
             .count(),
     }
+}
+
+fn listing_order(left: &ListedTopic, right: &ListedTopic) -> Ordering {
+    // Update times are compared as text: every one has the same fixed-width UTC form, in
+    // which the text order is the time order.
+    let key = |topic: &ListedTopic| {
+        (
+            topic.server.is_none(),
+            topic.updated_at.is_none(),
+            Reverse(topic.updated_at.clone()),
+        )
+    };
+    key(left).cmp(&key(right))
 }
 
 fn in_range(topic: &ListedTopic, range: &Range) -> bool {
