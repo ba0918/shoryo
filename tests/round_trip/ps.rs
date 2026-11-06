@@ -5,7 +5,7 @@ use std::process::Output;
 
 use serde_json::Value;
 
-use crate::harness::{Env, Server, clock_ms, first_round, stored_time, text};
+use crate::harness::{Env, Server, clock_ms, files_under, first_round, stored_time, text};
 
 /// Runs `ps` from `dir`; the command must succeed.
 fn ps(env: &Env, dir: &Path, flags: &[&str]) -> Output {
@@ -398,5 +398,45 @@ fn a_started_server_lists_its_start_time_version_and_repository() {
     assert_eq!(fresh["repository"], canonical.display().to_string());
     for key in ["title", "ended", "latest_round", "created_at", "updated_at"] {
         assert_eq!(fresh[key], Value::Null, "{key}");
+    }
+}
+
+#[test]
+fn commands_still_reach_a_server_whose_endpoint_lacks_the_new_fields() {
+    let env = Env::new();
+    let server = env.start("older", &[]);
+    let endpoint = files_under(&env.data)
+        .into_iter()
+        .find(|path| path.ends_with("older/endpoint.json"))
+        .expect("the running server has an endpoint file");
+    let mut written: Value =
+        serde_json::from_slice(&std::fs::read(&endpoint).expect("the endpoint can be read"))
+            .expect("the endpoint is JSON");
+    for key in ["started_at", "version", "repository"] {
+        written
+            .as_object_mut()
+            .expect("the endpoint is an object")
+            .remove(key)
+            .unwrap_or_else(|| panic!("the endpoint has {key}"));
+    }
+    std::fs::write(&endpoint, written.to_string()).expect("the endpoint can be written");
+
+    let rows = ps_json(&env, &env.work, &[]);
+    let round = env.run(&["round", "older"], &first_round());
+    let wait = env.run(&["wait", "older", "--timeout", "1"], "");
+    let stop = env.run(&["stop", "older"], "");
+    server.finish();
+
+    let older = row(&rows, "older");
+    assert_eq!(older["server"]["url"], written["url"]);
+    for value in [
+        &older["server"]["started_at"],
+        &older["server"]["version"],
+        &older["repository"],
+    ] {
+        assert_eq!(*value, Value::Null);
+    }
+    for output in [&round, &wait, &stop] {
+        assert!(output.status.success(), "{}", text(output));
     }
 }
