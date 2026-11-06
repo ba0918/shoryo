@@ -57,9 +57,24 @@ fn listing_order(left: &ListedTopic, right: &ListedTopic) -> Ordering {
             topic.server.is_none(),
             topic.updated_at.is_none(),
             Reverse(topic.updated_at.clone()),
+            repository_name(topic),
+            topic.topic.clone(),
         )
     };
     key(left).cmp(&key(right))
+}
+
+/// The repository's path, or the name of its directory in the data directory when the path
+/// is unknown, so that equal times still come in one order.
+fn repository_name(topic: &ListedTopic) -> String {
+    topic.repository.clone().unwrap_or_else(|| {
+        topic
+            .repository_dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned()
+    })
 }
 
 fn in_range(topic: &ListedTopic, range: &Range) -> bool {
@@ -73,5 +88,60 @@ fn is_target(topic: &ListedTopic, target: Target) -> bool {
     match target {
         Target::Running => topic.server.is_some(),
         Target::All => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stopped(repository_dir: &str, repository: Option<&str>, topic: &str) -> ListedTopic {
+        ListedTopic {
+            repository_dir: PathBuf::from(repository_dir),
+            repository: repository.map(str::to_string),
+            topic: topic.into(),
+            title: None,
+            ended: None,
+            latest_round: None,
+            created_at: None,
+            updated_at: Some("2026-11-07T01:02:03.004Z".into()),
+            data_dir: format!("{repository_dir}/{topic}"),
+            server: None,
+            unreadable: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn equal_update_times_are_ordered_by_repository_then_topic() {
+        let topics = vec![
+            stopped("/data/z", Some("/repos/b"), "second"),
+            stopped("/data/y", Some("/repos/b"), "first"),
+            stopped("/data/x", Some("/repos/c"), "first"),
+            stopped("/data/a", Some("/repos/a"), "last"),
+            stopped("/data/repos-without-path", None, "first"),
+        ];
+
+        let listed = select(topics, &Range::AllRepositories, Target::All);
+
+        let order: Vec<(&str, &str)> = listed
+            .topics
+            .iter()
+            .map(|topic| {
+                (
+                    topic.repository.as_deref().unwrap_or("-"),
+                    topic.topic.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            order,
+            [
+                ("/repos/a", "last"),
+                ("/repos/b", "first"),
+                ("/repos/b", "second"),
+                ("/repos/c", "first"),
+                ("-", "first"),
+            ]
+        );
     }
 }
