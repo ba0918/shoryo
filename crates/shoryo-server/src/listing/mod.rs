@@ -21,16 +21,31 @@ pub struct ListedTopic {
     /// The repository's directory in the data directory, which decides the topic's range.
     #[serde(skip)]
     pub repository_dir: PathBuf,
+    pub repository: Option<String>,
     pub topic: String,
+    pub title: Option<String>,
+    pub ended: Option<bool>,
+    pub latest_round: Option<LatestRound>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
     pub data_dir: String,
     /// `None` when no server runs for the topic.
     pub server: Option<ListedServer>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct LatestRound {
+    pub number: u64,
+    /// Whether the person has sent the round.
+    pub submitted: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ListedServer {
     pub pid: u32,
     pub url: Option<String>,
+    pub started_at: Option<String>,
+    pub version: Option<String>,
 }
 
 /// Every topic under `root` (`<data dir>/shoryo`). No data directory yet means no topics.
@@ -76,11 +91,19 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         ListedServer {
             pid,
             url: endpoint.map(|endpoint| endpoint.url),
+            started_at: None,
+            version: None,
         }
     });
     ListedTopic {
         repository_dir: repository_dir.to_path_buf(),
+        repository: None,
         topic: name.to_string(),
+        title: None,
+        ended: None,
+        latest_round: None,
+        created_at: None,
+        updated_at: None,
         data_dir: topic_dir.display().to_string(),
         server,
     }

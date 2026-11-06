@@ -137,3 +137,44 @@ fn ps_all_and_all_repos_select_independently() {
     filled.sort_unstable();
     assert_eq!(filled, ["data_dir", "topic"]);
 }
+
+/// The keys of `object`, sorted.
+fn keys(object: &Value) -> Vec<String> {
+    let mut keys: Vec<String> = object
+        .as_object()
+        .expect("an object")
+        .keys()
+        .cloned()
+        .collect();
+    keys.sort();
+    keys
+}
+
+#[test]
+fn ps_json_rows_have_the_same_keys_whether_running_or_stopped() {
+    let env = Env::new();
+    let fixture = two_repositories(&env);
+
+    let rows = ps_json(&env, &fixture.a, &["-a"]);
+
+    let running = row(&rows, "a-running");
+    let stopped = row(&rows, "a-stopped");
+    let expected = [
+        "created_at",
+        "data_dir",
+        "ended",
+        "latest_round",
+        "repository",
+        "server",
+        "title",
+        "topic",
+        "updated_at",
+    ];
+    assert_eq!(keys(running), expected);
+    assert_eq!(keys(stopped), expected);
+    assert_eq!(stopped["server"], Value::Null);
+    assert_eq!(
+        keys(&running["server"]),
+        ["pid", "started_at", "url", "version"]
+    );
+}
