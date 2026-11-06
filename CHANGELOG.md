@@ -13,7 +13,9 @@ All notable changes to shoryo are recorded here. The version follows
   repository; the two combine. The default output is a table for people; `--format json`
   prints an array other tools may read. `ps` reads the topics' files only and never contacts a
   server, so a server that does not answer is still listed. A topic whose files cannot be read
-  is listed with what could be read and a warning on stderr.
+  is listed with what could be read and a warning on stderr. In the table, control characters
+  and characters that turn the text direction are shown escaped, so a title cannot break a row
+  or change what the terminal shows.
 - A topic's stored state records `created_at`, the time its state was first written. Topics
   written by earlier versions have none and keep none. The endpoint file a running server
   writes also records `started_at`, `version` and `repository`; endpoint files of servers
@@ -25,7 +27,16 @@ All notable changes to shoryo are recorded here. The version follows
   `created_at` and `shoryo_server::store::Endpoint` gains `started_at`, `version` and
   `repository`, so code that builds either with a struct literal no longer compiles.
   `shoryo-server` adds the `listing` module and `location::data_root` and
-  `location::repository_dir`. The binary's other commands are unchanged.
+  `location::repository_dir`. The unfiltered `shoryo result <topic>` output carries
+  `created_at` once it is set.
+
+### Fixed
+
+- A topic whose server died without removing its lock could not be started again while
+  another process had been given the dead server's PID. Whether a server runs is now decided
+  by the file lock the server holds for as long as it runs, not by whether the PID in its lock
+  names a live process, so a lock left behind is replaced whatever process its PID now names.
+  While a command checks that file lock, a `shoryo start` waits a moment instead of failing.
 
 ## [0.1.4] - 2026-10-20
 
