@@ -223,7 +223,7 @@ fn ps(args: &PsArgs) -> Result<(), String> {
     };
     let listed = listing::select(topics, &range, target);
     match args.format {
-        Format::Text => print!("{}", listing::render_text(&listed)),
+        Format::Text => print!("{}", listing::render_text(&listed, &range, target)),
         Format::Json => println!("{}", listing::render_json(&listed)),
     }
     Ok(())
