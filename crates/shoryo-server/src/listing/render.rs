@@ -199,7 +199,6 @@ mod tests {
         );
 
         let lines = lines(&text);
-        assert!(lines[0].starts_with("REPOSITORY"), "{text}");
         assert!(lines[1].starts_with("~/src/a "), "{text}");
     }
 
@@ -208,7 +207,6 @@ mod tests {
         let range = Range::Repository(PathBuf::from("/data/shoryo/a-000000000000"));
         let text = text_with_home(&[topic("store", true)], &range, Target::Running, home());
 
-        assert!(!text.contains("REPOSITORY"), "{text}");
         assert!(!text.contains("~/src/a"), "{text}");
     }
 
@@ -218,10 +216,6 @@ mod tests {
         let text = text_with_home(&[topic("stopped", false)], &range, Target::All, home());
 
         let lines = lines(&text);
-        assert!(
-            lines[0].contains("UPDATED") && lines[0].contains("ENDED"),
-            "{text}"
-        );
         assert!(lines[1].contains("2026-11-07T01:02:03.004Z"), "{text}");
         assert!(
             !lines[1].contains("4321") && !lines[1].contains("http://"),

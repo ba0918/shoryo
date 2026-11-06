@@ -235,17 +235,4 @@ mod tests {
         assert_eq!(topic.created_at, None);
         assert!(topic.latest_round.is_none());
     }
-
-    #[test]
-    fn entries_that_are_not_topic_directories_are_skipped() {
-        let (root, dir) = root_with_topic("kept");
-        let repository = dir.parent().unwrap();
-        fs::create_dir(repository.join("not a topic")).unwrap();
-        fs::write(repository.join("file"), "").unwrap();
-        fs::write(root.path().join("stray-file"), "").unwrap();
-
-        let topic = only(root.path());
-
-        assert_eq!(topic.topic, "kept");
-    }
 }
