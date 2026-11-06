@@ -5,6 +5,8 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Added
 
 - `shoryo ps` lists the running topics of the current directory's repository with each
@@ -200,7 +202,8 @@ The first release.
 - Releases carry a static Linux x86_64 binary that mise's github backend can install
   (`mise use -g github:ba0918/shoryo`).
 
-[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/ba0918/shoryo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ba0918/shoryo/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/ba0918/shoryo/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ba0918/shoryo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ba0918/shoryo/compare/v0.1.1...v0.1.2
