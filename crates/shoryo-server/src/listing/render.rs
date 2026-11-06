@@ -59,12 +59,15 @@ fn text_with_home(
                 topic
                     .repository
                     .as_deref()
-                    .map(|repository| shorten_home(repository, home))
+                    .map(|repository| visible(&shorten_home(repository, home)))
                     .unwrap_or_default(),
             );
         }
-        row.push(topic.topic.clone());
-        row.push(cut(topic.title.as_deref().unwrap_or_default(), TITLE_WIDTH));
+        row.push(visible(&topic.topic));
+        row.push(cut(
+            &visible(topic.title.as_deref().unwrap_or_default()),
+            TITLE_WIDTH,
+        ));
         row.push(
             topic
                 .latest_round
@@ -83,7 +86,8 @@ fn text_with_home(
         );
         row.push(
             server
-                .and_then(|server| server.url.clone())
+                .and_then(|server| server.url.as_deref())
+                .map(visible)
                 .unwrap_or_default(),
         );
         row
@@ -113,6 +117,20 @@ fn shorten_home(path: &str, home: Option<&Path>) -> String {
             || path.to_string(),
             |rest| Path::new("~").join(rest).display().to_string(),
         )
+}
+
+/// `text` with each control character written as its escape (`\n`, `\u{1b}`), so that a value
+/// read from a file cannot split a row or drive the terminal; other characters are kept.
+fn visible(text: &str) -> String {
+    text.chars()
+        .map(|character| {
+            if character.is_control() {
+                character.escape_default().to_string()
+            } else {
+                character.to_string()
+            }
+        })
+        .collect()
 }
 
 /// `text` cut to `width` characters, the last one an ellipsis when anything was cut.
