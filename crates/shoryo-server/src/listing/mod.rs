@@ -21,7 +21,8 @@ use crate::store::read_holder;
 
 use endpoint::EndpointValues;
 pub use render::{render_json, render_text};
-pub use select::{Range, Selection, Target, select};
+pub use select::{Range, Selection, Target};
+
 use state::StateValues;
 
 /// One topic as `ps` lists it. Serialized, it is one element of the JSON output.
@@ -68,40 +69,82 @@ pub struct ListedServer {
     pub version: Option<String>,
 }
 
-/// What a scan of the data directory found.
-#[derive(Debug, Default)]
-pub struct Scan {
-    pub topics: Vec<ListedTopic>,
+/// What `ps` lists, and what it found it could not read above the topics.
+#[derive(Debug)]
+pub struct Listing {
+    pub selection: Selection,
     /// One line for each repository's directory that could not be read, saying which and why.
     /// Its topics are left out, and the others are still listed.
     pub unreadable_repositories: Vec<String>,
 }
 
-/// Every topic under `root` (`<data dir>/shoryo`). No data directory yet means no topics; only
-/// `root` itself not being readable fails the scan.
-pub fn scan(root: &Path) -> Result<Scan, ServerError> {
-    let mut scan = Scan::default();
+/// The topics under `root` (`<data dir>/shoryo`) in `range` that `target` asks for, in listing
+/// order. No data directory yet means no topics; only `root` itself not being readable fails.
+///
+/// Whether a topic is listed depends on its directory and its lock alone, so only the topics
+/// listed have their state and endpoint files read: the data directory keeps every topic ever
+/// started, and reading all of them for a listing of one repository's servers is wasted.
+pub fn list(root: &Path, range: &Range, target: Target) -> Result<Listing, ServerError> {
+    let (found, unreadable_repositories) = discover(root)?;
+    let (chosen, running_outside) = select::choose(found, range, target);
+    let mut topics: Vec<ListedTopic> = chosen.into_iter().map(read_topic).collect();
+    select::order(&mut topics);
+    Ok(Listing {
+        selection: Selection {
+            topics,
+            running_outside,
+        },
+        unreadable_repositories,
+    })
+}
+
+/// A topic's directory, and the process holding its lock, before its other files are read.
+struct Found {
+    repository_dir: PathBuf,
+    dir: PathBuf,
+    name: TopicName,
+    /// The lock's holder while it runs.
+    pid: Option<u32>,
+    /// Why some of the topic's files could not be read.
+    unreadable: Vec<String>,
+}
+
+/// Every topic directory under `root`, with its lock read, and a line for each repository's
+/// directory that could not be read.
+fn discover(root: &Path) -> Result<(Vec<Found>, Vec<String>), ServerError> {
+    let mut found = Vec::new();
+    let mut unreadable_repositories = Vec::new();
     for repository_dir in subdirectories(root)? {
         let topic_dirs = match subdirectories(&repository_dir) {
             Ok(topic_dirs) => topic_dirs,
             Err(error) => {
-                scan.unreadable_repositories.push(error.to_string());
+                unreadable_repositories.push(error.to_string());
                 continue;
             }
         };
-        for topic_dir in topic_dirs {
-            let Some(name) = topic_dir
+        for dir in topic_dirs {
+            let Some(name) = dir
                 .file_name()
                 .and_then(|name| name.to_str())
                 .and_then(|name| TopicName::parse(name).ok())
             else {
                 continue;
             };
-            scan.topics
-                .push(read_topic(&repository_dir, &topic_dir, &name));
+            let mut unreadable = Vec::new();
+            let pid = read_holder(&dir.join(LOCK_FILE)).unwrap_or_else(|error| {
+                unreadable.push(format!("{LOCK_FILE} cannot be read: {error}"));
+                None
+            });
+            found.push(Found {
+                repository_dir: repository_dir.clone(),
+                dir,
+                name,
+                pid,
+                unreadable,
+            });
         }
     }
-    Ok(scan)
+    Ok((found, unreadable_repositories))
 }
 
 /// The directories directly in `dir`; none when `dir` does not exist.
@@ -121,19 +164,56 @@ fn subdirectories(dir: &Path) -> Result<Vec<PathBuf>, ServerError> {
     Ok(found)
 }
 
-fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> ListedTopic {
-    let mut unreadable = Vec::new();
-    let pid = read_holder(&topic_dir.join(LOCK_FILE)).unwrap_or_else(|error| {
-        unreadable.push(format!("{LOCK_FILE} cannot be read: {error}"));
-        None
-    });
-    let mut endpoint = match pid {
-        Some(_) => EndpointValues::read(&topic_dir.join(ENDPOINT_FILE), &mut unreadable),
+/// The topic `found` with the values of its state and endpoint files.
+fn read_topic(found: Found) -> ListedTopic {
+    let Found {
+        repository_dir,
+        dir,
+        name,
+        pid,
+        mut unreadable,
+    } = found;
+    let endpoint = match pid {
+        Some(_) => EndpointValues::read(&dir.join(ENDPOINT_FILE), &mut unreadable),
         None => EndpointValues::default(),
     };
-    let state_file = topic_dir.join(STATE_FILE);
+    let state_file = dir.join(STATE_FILE);
     let state = StateValues::read(&state_file, &mut unreadable);
-    let updated_at = match fs::metadata(&state_file).and_then(|metadata| metadata.modified()) {
+    let updated_at = last_written(&state_file, &mut unreadable);
+    let EndpointValues {
+        url,
+        started_at,
+        version,
+        repository,
+    } = endpoint;
+    ListedTopic {
+        repository_dir,
+        // Both files are written from the same location; the state's is there after a server
+        // stops, the endpoint's before the first round.
+        repository: state.repository.or(repository),
+        topic: name.to_string(),
+        title: state.title,
+        ended: state.ended,
+        latest_round: state.latest_round,
+        created_at: state.created_at,
+        updated_at,
+        data_dir: dir.display().to_string(),
+        // Its endpoint values are all `None` in the instant between taking the lock and writing
+        // the endpoint.
+        server: pid.map(|pid| ListedServer {
+            pid,
+            url,
+            started_at,
+            version,
+        }),
+        unreadable,
+    }
+}
+
+/// When the state file at `path` was last written; `None` when the topic has none yet, and
+/// also when that cannot be read, which is added to `unreadable`.
+fn last_written(path: &Path, unreadable: &mut Vec<String>) -> Option<String> {
+    match fs::metadata(path).and_then(|metadata| metadata.modified()) {
         Ok(modified) => Some(clock::rfc3339(modified)),
         Err(error) if error.kind() == ErrorKind::NotFound => None,
         Err(error) => {
@@ -142,31 +222,6 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
             ));
             None
         }
-    };
-    let repository = state.repository.or(endpoint.repository.take());
-    ListedTopic {
-        repository_dir: repository_dir.to_path_buf(),
-        repository,
-        topic: name.to_string(),
-        title: state.title,
-        ended: state.ended,
-        latest_round: state.latest_round,
-        created_at: state.created_at,
-        updated_at,
-        data_dir: topic_dir.display().to_string(),
-        server: pid.map(|pid| listed_server(pid, endpoint)),
-        unreadable,
-    }
-}
-
-/// The server whose process `pid` holds the lock. Its endpoint values are all `None` in the
-/// instant between taking the lock and writing the endpoint.
-fn listed_server(pid: u32, endpoint: EndpointValues) -> ListedServer {
-    ListedServer {
-        pid,
-        url: endpoint.url,
-        started_at: endpoint.started_at,
-        version: endpoint.version,
     }
 }
 
@@ -183,7 +238,10 @@ mod tests {
     }
 
     fn only(root: &Path) -> ListedTopic {
-        let mut topics = scan(root).unwrap().topics;
+        let mut topics = list(root, &Range::AllRepositories, Target::All)
+            .unwrap()
+            .selection
+            .topics;
         assert_eq!(topics.len(), 1, "{topics:?}");
         topics.remove(0)
     }

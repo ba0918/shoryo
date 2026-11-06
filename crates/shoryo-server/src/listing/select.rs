@@ -3,7 +3,7 @@
 use std::cmp::{Ordering, Reverse};
 use std::path::PathBuf;
 
-use super::ListedTopic;
+use super::{Found, ListedTopic};
 
 /// The repositories `ps` lists from.
 #[derive(Debug, Clone)]
@@ -30,23 +30,23 @@ pub struct Selection {
     pub running_outside: usize,
 }
 
-/// The topics of `topics` in `range` that `target` asks for: running ones first, each group
-/// from the newest update to the oldest, those without an update time last.
-pub fn select(topics: Vec<ListedTopic>, range: &Range, target: Target) -> Selection {
+/// The topics of `found` in `range` that `target` asks for, and how many servers run outside
+/// the range.
+pub(super) fn choose(found: Vec<Found>, range: &Range, target: Target) -> (Vec<Found>, usize) {
     let (inside, outside): (Vec<_>, Vec<_>) =
-        topics.into_iter().partition(|topic| in_range(topic, range));
-    let mut listed: Vec<ListedTopic> = inside
+        found.into_iter().partition(|topic| in_range(topic, range));
+    let chosen = inside
         .into_iter()
         .filter(|topic| is_target(topic, target))
         .collect();
-    listed.sort_by(listing_order);
-    Selection {
-        topics: listed,
-        running_outside: outside
-            .iter()
-            .filter(|topic| topic.server.is_some())
-            .count(),
-    }
+    let running_outside = outside.iter().filter(|topic| topic.pid.is_some()).count();
+    (chosen, running_outside)
+}
+
+/// Running topics first, each group from the newest update to the oldest, those without an
+/// update time last.
+pub(super) fn order(topics: &mut [ListedTopic]) {
+    topics.sort_by(listing_order);
 }
 
 fn listing_order(left: &ListedTopic, right: &ListedTopic) -> Ordering {
@@ -77,16 +77,16 @@ fn repository_name(topic: &ListedTopic) -> String {
     })
 }
 
-fn in_range(topic: &ListedTopic, range: &Range) -> bool {
+fn in_range(topic: &Found, range: &Range) -> bool {
     match range {
         Range::Repository(dir) => topic.repository_dir == *dir,
         Range::AllRepositories => true,
     }
 }
 
-fn is_target(topic: &ListedTopic, target: Target) -> bool {
+fn is_target(topic: &Found, target: Target) -> bool {
     match target {
-        Target::Running => topic.server.is_some(),
+        Target::Running => topic.pid.is_some(),
         Target::All => true,
     }
 }
