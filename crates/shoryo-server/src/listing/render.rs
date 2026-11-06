@@ -11,9 +11,9 @@ pub fn render_json(topics: &[ListedTopic]) -> String {
     serde_json::to_string(topics).expect("a listed topic holds only strings, numbers and nulls")
 }
 
-/// The text form: a table for a person to read, whose look may change. Under every
-/// repository the repository comes first; with stopped topics too, the update time and the end
-/// are added. A line after it counts the servers running outside the range.
+/// The text form: a table for a person to read, whose look may change, with the columns
+/// `columns` gives for the range and target. A line after it counts the servers running outside
+/// the range.
 pub fn render_text(selection: &Selection, range: &Range, target: Target) -> String {
     let mut text = text_with_home(
         &selection.topics,
