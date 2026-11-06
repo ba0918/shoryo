@@ -237,6 +237,33 @@ fn ps_text_shows_pid_and_full_url() {
 }
 
 #[test]
+fn ps_text_keeps_control_characters_of_a_title_out_of_the_terminal() {
+    let env = Env::new();
+    let server = env.start("controls", &[]);
+    let mut round: Value = serde_json::from_str(&first_round()).expect("the round is JSON");
+    round["title"] = Value::from("line one\nline two \u{1b}[2K\rFAKE");
+    assert!(
+        env.run(&["round", "controls"], &round.to_string())
+            .status
+            .success()
+    );
+
+    let output = ps(&env, &env.work, &[]);
+
+    let table = String::from_utf8_lossy(&output.stdout);
+    let rows: Vec<&str> = table
+        .lines()
+        .filter(|line| line.contains("controls"))
+        .collect();
+    assert_eq!(rows.len(), 1, "{table}");
+    assert!(rows[0].contains(&server.pid().to_string()), "{table}");
+    assert!(
+        !table.contains(['\u{1b}', '\r']),
+        "control characters reach the terminal: {table:?}"
+    );
+}
+
+#[test]
 fn ps_with_nothing_to_list_prints_one_line_or_an_empty_array() {
     let env = Env::new();
 
