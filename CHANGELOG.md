@@ -5,6 +5,28 @@ All notable changes to shoryo are recorded here. The version follows
 
 ## [Unreleased]
 
+### Added
+
+- `shoryo ps` lists the running topics of the current directory's repository with each
+  server's PID and page URL, so a person can find a URL the agent did not give, or stop a
+  left-over server with `kill <PID>`. `-a` adds stopped topics and `--all-repos` lists every
+  repository; the two combine. The default output is a table for people; `--format json`
+  prints an array other tools may read. `ps` reads the topics' files only and never contacts a
+  server, so a server that does not answer is still listed. A topic whose files cannot be read
+  is listed with what could be read and a warning on stderr.
+- A topic's stored state records `created_at`, the time its state was first written. Topics
+  written by earlier versions have none and keep none. The endpoint file a running server
+  writes also records `started_at`, `version` and `repository`; endpoint files of servers
+  started by earlier versions still work.
+
+### Changed
+
+- **BREAKING** The Rust API's `shoryo_server::store::StoredTopic` gains the public field
+  `created_at` and `shoryo_server::store::Endpoint` gains `started_at`, `version` and
+  `repository`, so code that builds either with a struct literal no longer compiles.
+  `shoryo-server` adds the `listing` module and `location::data_root` and
+  `location::repository_dir`. The binary's other commands are unchanged.
+
 ## [0.1.4] - 2026-10-20
 
 ### Changed
