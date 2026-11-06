@@ -3,22 +3,23 @@
 
 mod render;
 mod select;
+mod state;
 
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use serde_json::Value;
 use shoryo_core::Timestamp;
 
 use crate::ServerError;
 use crate::clock;
 use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
-use crate::store::{Endpoint, read_endpoint_file, running_holder};
+use crate::store::{Endpoint, read_endpoint_file, read_holder};
 
 pub use render::{render_json, render_text};
 pub use select::{Range, Selection, Target, select};
+use state::StateValues;
 
 /// One topic as `ps` lists it. Serialized, it is one element of the JSON output.
 #[derive(Debug, Clone, Serialize)]
@@ -100,20 +101,30 @@ fn subdirectories(dir: &Path) -> Result<Vec<PathBuf>, ServerError> {
 }
 
 fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> ListedTopic {
-    let pid = running_holder(&topic_dir.join(LOCK_FILE));
-    let endpoint = pid.and_then(|_| {
-        read_endpoint_file(&topic_dir.join(ENDPOINT_FILE))
-            .ok()
-            .flatten()
-    });
     let mut unreadable = Vec::new();
+    let pid = read_holder(&topic_dir.join(LOCK_FILE)).unwrap_or_else(|error| {
+        unreadable.push(format!("{LOCK_FILE} cannot be read: {error}"));
+        None
+    });
+    let endpoint = pid.and_then(|_| {
+        read_endpoint_file(&topic_dir.join(ENDPOINT_FILE)).unwrap_or_else(|error| {
+            unreadable.push(error.to_string());
+            None
+        })
+    });
     let state_file = topic_dir.join(STATE_FILE);
-    let state = read_json(&state_file, &mut unreadable);
-    let updated_at = fs::metadata(&state_file)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-        .map(clock::rfc3339);
-    let repository = string(&state, "repository").or_else(|| {
+    let state = StateValues::read(&state_file, &mut unreadable);
+    let updated_at = match fs::metadata(&state_file).and_then(|metadata| metadata.modified()) {
+        Ok(modified) => Some(clock::rfc3339(modified)),
+        Err(error) if error.kind() == ErrorKind::NotFound => None,
+        Err(error) => {
+            unreadable.push(format!(
+                "when {STATE_FILE} was written cannot be read: {error}"
+            ));
+            None
+        }
+    };
+    let repository = state.repository.or_else(|| {
         endpoint
             .as_ref()
             .and_then(|endpoint| endpoint.repository.clone())
@@ -122,33 +133,15 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         repository_dir: repository_dir.to_path_buf(),
         repository,
         topic: name.to_string(),
-        title: string(&state, "title"),
-        ended: state["ended"].as_bool(),
-        latest_round: latest_round(&state),
-        created_at: string(&state, "created_at"),
+        title: state.title,
+        ended: state.ended,
+        latest_round: state.latest_round,
+        created_at: state.created_at,
         updated_at,
         data_dir: topic_dir.display().to_string(),
         server: pid.map(|pid| listed_server(pid, endpoint)),
         unreadable,
     }
-}
-
-/// The JSON in the file at `path`; `Null` when there is no such file, or when it cannot be
-/// read, which is noted in `unreadable`.
-fn read_json(path: &Path, unreadable: &mut Vec<String>) -> Value {
-    let name = path.file_name().unwrap_or_default().to_string_lossy();
-    let text = match fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Value::Null,
-        Err(error) => {
-            unreadable.push(format!("{name} cannot be read: {error}"));
-            return Value::Null;
-        }
-    };
-    serde_json::from_str(&text).unwrap_or_else(|error| {
-        unreadable.push(format!("{name} is not JSON: {error}"));
-        Value::Null
-    })
 }
 
 /// The server whose process `pid` holds the lock. Its endpoint is `None` in the instant
@@ -170,14 +163,89 @@ fn listed_server(pid: u32, endpoint: Option<Endpoint>) -> ListedServer {
     }
 }
 
-fn string(state: &Value, key: &str) -> Option<String> {
-    state[key].as_str().map(str::to_string)
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn latest_round(state: &Value) -> Option<LatestRound> {
-    let round = state["rounds"].as_array()?.last()?;
-    Some(LatestRound {
-        number: round["number"].as_u64()?,
-        submitted: round["submitted"].as_bool()?,
-    })
+    /// A data root with one repository holding one topic directory, `topic`.
+    fn root_with_topic(topic: &str) -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("repository-000000000000").join(topic);
+        fs::create_dir_all(&dir).unwrap();
+        (root, dir)
+    }
+
+    fn only(root: &Path) -> ListedTopic {
+        let mut topics = scan(root).unwrap();
+        assert_eq!(topics.len(), 1, "{topics:?}");
+        topics.remove(0)
+    }
+
+    #[test]
+    fn a_state_value_of_an_unexpected_type_is_null_with_a_warning_and_the_rest_stay() {
+        let (root, dir) = root_with_topic("odd");
+        let state = r#"{"repository":"/r","name":"odd","title":5,"ended":true,"rounds":[]}"#;
+        fs::write(dir.join(STATE_FILE), state).unwrap();
+
+        let topic = only(root.path());
+
+        assert_eq!(topic.title, None);
+        assert_eq!(topic.ended, Some(true));
+        assert_eq!(topic.repository.as_deref(), Some("/r"));
+        assert!(topic.warning().unwrap().contains("title"), "{topic:?}");
+    }
+
+    #[test]
+    fn an_unreadable_lock_leaves_the_server_unknown_with_a_warning() {
+        let (root, dir) = root_with_topic("locked");
+        fs::create_dir(dir.join(LOCK_FILE)).unwrap();
+
+        let topic = only(root.path());
+
+        assert!(topic.server.is_none());
+        assert!(topic.warning().unwrap().contains(LOCK_FILE), "{topic:?}");
+    }
+
+    #[test]
+    fn an_unreadable_endpoint_keeps_the_pid_with_a_warning() {
+        let (root, dir) = root_with_topic("served");
+        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+        fs::write(dir.join(ENDPOINT_FILE), "not json").unwrap();
+
+        let topic = only(root.path());
+
+        let server = topic.server.as_ref().unwrap();
+        assert_eq!(server.pid, std::process::id());
+        assert_eq!(server.url, None);
+        assert!(
+            topic.warning().unwrap().contains(ENDPOINT_FILE),
+            "{topic:?}"
+        );
+    }
+
+    #[test]
+    fn a_topic_with_nothing_unusual_has_no_warning() {
+        let (root, dir) = root_with_topic("plain");
+        let state = r#"{"repository":"/r","name":"plain","title":"T","ended":false,"rounds":[]}"#;
+        fs::write(dir.join(STATE_FILE), state).unwrap();
+
+        let topic = only(root.path());
+
+        assert_eq!(topic.warning(), None);
+        assert_eq!(topic.created_at, None);
+        assert!(topic.latest_round.is_none());
+    }
+
+    #[test]
+    fn entries_that_are_not_topic_directories_are_skipped() {
+        let (root, dir) = root_with_topic("kept");
+        let repository = dir.parent().unwrap();
+        fs::create_dir(repository.join("not a topic")).unwrap();
+        fs::write(repository.join("file"), "").unwrap();
+        fs::write(root.path().join("stray-file"), "").unwrap();
+
+        let topic = only(root.path());
+
+        assert_eq!(topic.topic, "kept");
+    }
 }

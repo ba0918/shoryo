@@ -132,11 +132,21 @@ impl Drop for Lock {
 }
 
 /// The process the lock at `path` names, while that process runs.
-pub(crate) fn running_holder(path: &Path) -> Option<u32> {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|text| parse_pid(&text))
-        .filter(|pid| process_exists(*pid))
+pub(super) fn running_holder(path: &Path) -> Option<u32> {
+    read_holder(path).ok().flatten()
+}
+
+/// The process the lock at `path` names, while that process runs; `None` without a lock. An
+/// error when the lock cannot be read or names no process.
+pub(crate) fn read_holder(path: &Path) -> std::io::Result<Option<u32>> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let pid = parse_pid(&text)
+        .ok_or_else(|| std::io::Error::new(ErrorKind::InvalidData, "it names no process"))?;
+    Ok(Some(pid).filter(|pid| process_exists(*pid)))
 }
 
 fn parse_pid(text: &str) -> Option<u32> {
