@@ -59,18 +59,22 @@ enum Commands {
     Result(ResultArgs),
     /// Stop the topic's server.
     Stop { topic: String },
-    /// List the topics of this repository and their servers.
+    /// List the topics of this repository and their servers' PIDs and page URLs.
+    ///
+    /// Reads the topics' files only and never asks a server, so it works from any directory.
+    /// Prints a table for people by default, unlike wait and result, which print JSON.
     Ps(PsArgs),
 }
 
 #[derive(Args)]
 struct PsArgs {
-    /// Stopped topics too.
+    /// Also list stopped topics.
     #[arg(short = 'a', long)]
     all: bool,
-    /// Every repository's topics, not only this repository's.
+    /// List every repository's topics, not only this repository's.
     #[arg(long)]
     all_repos: bool,
+    /// text: a table for people, whose look may change. json: an array other tools may read.
     #[arg(long, value_enum, default_value_t = Format::Text)]
     format: Format,
 }

@@ -286,3 +286,14 @@ fn ps_text_notes_servers_running_in_other_repositories() {
     let every = String::from_utf8_lossy(&every.stdout);
     assert!(!every.contains("--all-repos"), "{every}");
 }
+
+#[test]
+fn ps_help_states_the_text_default() {
+    let env = Env::new();
+
+    let help = env.run(&["ps", "--help"], "");
+
+    assert!(help.status.success(), "{}", text(&help));
+    let help = String::from_utf8_lossy(&help.stdout);
+    assert!(help.contains("default: text"), "{help}");
+}
