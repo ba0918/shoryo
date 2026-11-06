@@ -25,6 +25,9 @@ fn text_with_home(
     target: Target,
     home: Option<&Path>,
 ) -> String {
+    if topics.is_empty() {
+        return "No topics to list.\n".to_string();
+    }
     let with_repository = matches!(range, Range::AllRepositories);
     let with_stopped = matches!(target, Target::All);
     let mut header = Vec::new();

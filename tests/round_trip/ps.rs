@@ -233,3 +233,31 @@ fn ps_text_shows_pid_and_full_url() {
     );
     assert!(table.contains(&fixture.a_running.url), "{table}");
 }
+
+#[test]
+fn ps_with_nothing_to_list_prints_one_line_or_an_empty_array() {
+    let env = Env::new();
+
+    let table = ps(&env, &env.work, &[]);
+    let rows = ps_json(&env, &env.work, &[]);
+
+    let listing = Env::new();
+    let _running = listing.start("listed", &[]);
+    let listed = ps(&listing, &listing.work, &[]);
+    let words = |line: Option<&str>| -> Vec<String> {
+        line.unwrap_or_default()
+            .split_whitespace()
+            .map(str::to_string)
+            .collect()
+    };
+    let header = words(String::from_utf8_lossy(&listed.stdout).lines().next());
+    let table = String::from_utf8_lossy(&table.stdout);
+    assert_eq!(table.lines().count(), 1, "{table}");
+    assert!(!table.trim().is_empty(), "{table}");
+    assert_ne!(
+        words(table.lines().next()),
+        header,
+        "the line replaces the table"
+    );
+    assert!(rows.is_empty());
+}
