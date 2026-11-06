@@ -37,6 +37,10 @@ All notable changes to shoryo are recorded here. The version follows
   by the file lock the server holds for as long as it runs, not by whether the PID in its lock
   names a live process, so a lock left behind is replaced whatever process its PID now names.
   While a command checks that file lock, a `shoryo start` waits a moment instead of failing.
+  A topic that has never been started by 0.1.2 or later, whose servers kept no such file lock,
+  is still judged by the PID in its lock. A `shoryo start` of 0.1.2 to 0.1.4 does not wait, so
+  it can fail if it meets a check by this version; stop servers of older versions before
+  upgrading to avoid mixing them.
 
 ## [0.1.4] - 2026-10-20
 
