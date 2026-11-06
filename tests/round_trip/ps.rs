@@ -5,7 +5,7 @@ use std::process::Output;
 
 use serde_json::Value;
 
-use crate::harness::{Env, Server, first_round, text};
+use crate::harness::{Env, Server, first_round, stored_time, text};
 
 /// Runs `ps` from `dir`; the command must succeed.
 fn ps(env: &Env, dir: &Path, flags: &[&str]) -> Output {
@@ -177,4 +177,44 @@ fn ps_json_rows_have_the_same_keys_whether_running_or_stopped() {
         keys(&running["server"]),
         ["pid", "started_at", "url", "version"]
     );
+}
+
+/// The modification time of `path`, in milliseconds since the epoch.
+fn modified_ms(path: &Path) -> i64 {
+    let modified = std::fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .expect("the file has a modification time");
+    let since_epoch = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the file was written after the epoch");
+    i64::try_from(since_epoch.as_millis()).expect("the time fits in i64")
+}
+
+#[test]
+fn ps_json_rows_carry_what_the_topic_files_hold() {
+    let env = Env::new();
+    let fixture = two_repositories(&env);
+
+    let rows = ps_json(&env, &fixture.a, &["-a"]);
+
+    let stopped = row(&rows, "a-stopped");
+    let repository = fixture.a.canonicalize().expect("the repository exists");
+    assert_eq!(stopped["repository"], repository.display().to_string());
+    assert_eq!(stopped["title"], "Data store");
+    assert_eq!(stopped["ended"], false);
+    assert_eq!(stopped["latest_round"]["number"], 1);
+    assert_eq!(stopped["latest_round"]["submitted"], false);
+    let state = env.state_file("a-stopped");
+    assert_eq!(
+        stopped["data_dir"],
+        state
+            .parent()
+            .expect("the state is in the topic's directory")
+            .display()
+            .to_string()
+    );
+    let updated = stopped["updated_at"]
+        .as_str()
+        .expect("the update time is set");
+    assert_eq!(stored_time(updated), (modified_ms(&state), 0));
 }

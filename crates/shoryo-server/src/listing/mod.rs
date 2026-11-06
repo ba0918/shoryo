@@ -8,9 +8,11 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::ServerError;
-use crate::location::{ENDPOINT_FILE, LOCK_FILE, TopicName};
+use crate::clock;
+use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
 use crate::store::{read_endpoint_file, running_holder};
 
 pub use select::{Range, Target, select};
@@ -95,18 +97,39 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
             version: None,
         }
     });
+    let state_file = topic_dir.join(STATE_FILE);
+    let state = fs::read_to_string(&state_file)
+        .ok()
+        .and_then(|json| serde_json::from_str::<Value>(&json).ok())
+        .unwrap_or(Value::Null);
+    let updated_at = fs::metadata(&state_file)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .map(clock::rfc3339);
     ListedTopic {
         repository_dir: repository_dir.to_path_buf(),
-        repository: None,
+        repository: string(&state, "repository"),
         topic: name.to_string(),
-        title: None,
-        ended: None,
-        latest_round: None,
+        title: string(&state, "title"),
+        ended: state["ended"].as_bool(),
+        latest_round: latest_round(&state),
         created_at: None,
-        updated_at: None,
+        updated_at,
         data_dir: topic_dir.display().to_string(),
         server,
     }
+}
+
+fn string(state: &Value, key: &str) -> Option<String> {
+    state[key].as_str().map(str::to_string)
+}
+
+fn latest_round(state: &Value) -> Option<LatestRound> {
+    let round = state["rounds"].as_array()?.last()?;
+    Some(LatestRound {
+        number: round["number"].as_u64()?,
+        submitted: round["submitted"].as_bool()?,
+    })
 }
 
 /// The JSON form of `ps`: an array with one object per topic.

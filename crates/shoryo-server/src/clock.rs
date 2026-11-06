@@ -7,10 +7,12 @@ use shoryo_core::Timestamp;
 
 /// The server's clock now, in UTC.
 pub fn now() -> Timestamp {
-    let since_epoch = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or(Duration::ZERO);
-    Timestamp::new(rfc3339_utc(since_epoch))
+    Timestamp::new(rfc3339(SystemTime::now()))
+}
+
+/// `time` as an RFC 3339 time in UTC, in the form every stored time takes.
+pub(crate) fn rfc3339(time: SystemTime) -> String {
+    rfc3339_utc(time.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO))
 }
 
 /// `since_epoch` as an RFC 3339 time in UTC with milliseconds, such as
