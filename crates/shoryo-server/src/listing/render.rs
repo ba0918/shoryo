@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
 use super::{LatestRound, ListedTopic, Range, Selection, Target};
 
 /// The JSON form: an array with one object per topic, a form other tools may read.
@@ -133,12 +135,22 @@ fn visible(text: &str) -> String {
         .collect()
 }
 
-/// `text` cut to `width` characters, the last one an ellipsis when anything was cut.
+/// `text` cut to `width` terminal columns, the last one an ellipsis when anything was cut.
+/// Columns, not characters: a Japanese character takes two.
 fn cut(text: &str, width: usize) -> String {
-    if text.chars().count() <= width {
+    if text.width() <= width {
         return text.to_string();
     }
-    let kept: String = text.chars().take(width - 1).collect();
+    let mut kept = String::new();
+    let mut used = 0;
+    for character in text.chars() {
+        let next = character.width().unwrap_or(0);
+        if used + next > width - 1 {
+            break;
+        }
+        kept.push(character);
+        used += next;
+    }
     format!("{kept}…")
 }
 
@@ -149,7 +161,7 @@ fn table(rows: Vec<Vec<String>>) -> String {
     let mut widths = vec![0; columns];
     for row in &rows {
         for (width, cell) in widths.iter_mut().zip(row) {
-            *width = (*width).max(cell.chars().count());
+            *width = (*width).max(cell.width());
         }
     }
     let mut out = String::new();
@@ -159,7 +171,9 @@ fn table(rows: Vec<Vec<String>>) -> String {
             if index + 1 == columns {
                 line.push_str(cell);
             } else {
-                line.push_str(&format!("{cell:<width$}  ", width = widths[index]));
+                // `format!` pads by characters, which misaligns double-width ones.
+                line.push_str(cell);
+                line.push_str(&" ".repeat(widths[index] - cell.width() + 2));
             }
         }
         out.push_str(line.trim_end());

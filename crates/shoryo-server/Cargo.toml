@@ -24,3 +24,4 @@ shoryo-webview = { version = "0.1.0", path = "../shoryo-webview" }
 tempfile = { version = "3.27.0", default-features = false }
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 toml = "1.1.6"
+unicode-width = { version = "0.2.2", default-features = false }
