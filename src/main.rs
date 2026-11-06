@@ -71,12 +71,13 @@ struct PsArgs {
     /// Every repository's topics, not only this repository's.
     #[arg(long)]
     all_repos: bool,
-    #[arg(long, value_enum)]
+    #[arg(long, value_enum, default_value_t = Format::Text)]
     format: Format,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
 enum Format {
+    Text,
     Json,
 }
 
@@ -222,6 +223,7 @@ fn ps(args: &PsArgs) -> Result<(), String> {
     };
     let listed = listing::select(topics, &range, target);
     match args.format {
+        Format::Text => print!("{}", listing::render_text(&listed)),
         Format::Json => println!("{}", listing::render_json(&listed)),
     }
     Ok(())

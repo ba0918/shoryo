@@ -218,3 +218,18 @@ fn ps_json_rows_carry_what_the_topic_files_hold() {
         .expect("the update time is set");
     assert_eq!(stored_time(updated), (modified_ms(&state), 0));
 }
+
+#[test]
+fn ps_text_shows_pid_and_full_url() {
+    let env = Env::new();
+    let fixture = two_repositories(&env);
+
+    let output = ps(&env, &fixture.a, &[]);
+
+    let table = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        table.contains(&fixture.a_running.pid().to_string()),
+        "{table}"
+    );
+    assert!(table.contains(&fixture.a_running.url), "{table}");
+}

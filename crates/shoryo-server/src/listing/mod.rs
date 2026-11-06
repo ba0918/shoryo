@@ -1,6 +1,7 @@
 //! `shoryo ps`: every topic in the data directory and whether its server runs, read from the
 //! topic's files only (`docs/spec/ps.md`).
 
+mod render;
 mod select;
 
 use std::fs;
@@ -15,6 +16,7 @@ use crate::clock;
 use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
 use crate::store::{read_endpoint_file, running_holder};
 
+pub use render::{render_json, render_text};
 pub use select::{Range, Target, select};
 
 /// One topic as `ps` lists it. Serialized, it is one element of the JSON output.
@@ -130,9 +132,4 @@ fn latest_round(state: &Value) -> Option<LatestRound> {
         number: round["number"].as_u64()?,
         submitted: round["submitted"].as_bool()?,
     })
-}
-
-/// The JSON form of `ps`: an array with one object per topic.
-pub fn render_json(topics: &[ListedTopic]) -> String {
-    serde_json::to_string(topics).expect("a listed topic holds only strings, numbers and nulls")
 }
