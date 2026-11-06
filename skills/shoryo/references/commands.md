@@ -1,7 +1,7 @@
 # Commands
 
-Read this before running any shoryo command for the first time in a session. Every command
-names the topic; run all of them from the same directory (the repository, or wherever the topic
+Read this before running any shoryo command for the first time in a session. Every command but
+`ps` names the topic; run all of them from the same directory (the repository, or wherever the topic
 was started), because the topic is found from the repository top of the current directory and
 the topic name.
 
@@ -22,12 +22,18 @@ A topic name uses letters, digits, `.`, `_` and `-` only.
 | `shoryo result <topic> --question QID` | One full question, including background, all options and retained drafts. | That stored question as JSON; not proof that its drafts were sent. |
 | `shoryo result <topic> --ask ID` | One ask and its reply/state. Follow-up chains are not expanded. | That stored ask as JSON. |
 | `shoryo stop <topic>` | Stops the topic's server. | Nothing. |
+| `shoryo ps [-a\|--all] [--all-repos] [--format text\|json]` | Lists topics and their servers. Without arguments: the running topics of the current directory's repository. `-a` adds stopped topics; `--all-repos` lists every repository. The two combine. | `text` (the default, unlike `wait` and `result`): a table for people, whose look may change. `json`: an array with one object per topic, `[]` when there is none; keys `repository`, `topic`, `title`, `ended`, `latest_round` (`number`, `submitted`), `created_at`, `updated_at`, `data_dir`, `server` (`pid`, `url`, `started_at`, `version`; `null` for a stopped topic). A value that is unknown or cannot be read is `null`. |
 | `shoryo --version` | The installed version. | `shoryo <version>` |
 
 A refused or failed command prints `shoryo: <reason>` on stderr and exits with status 1. `round`,
 `wait`, `reply` and `end` need the server: when it is not running they say so and name the
 `shoryo start` command to run. After `end`, `wait` and `reply` are refused; `round` is accepted
 and reopens the topic.
+
+`ps` reads the topics' files only and never asks a server, so it works from any directory and
+still lists a server that does not answer; the current directory only decides which repository
+is "this" one. A topic whose files cannot be read is still listed, with a `shoryo: warning:` line
+on stderr, and `ps` exits with status 0.
 
 Result selectors are mutually exclusive and work online and offline. Unknown round numbers or
 decision/question/ask IDs fail instead of returning the full topic. A missing topic is not created by reading.

@@ -7,9 +7,10 @@ description: Run a grill-me style brainstorm on the shoryo screen instead of in 
 
 ## Scope
 
-This skill tells you how to run brainstorm rounds through shoryo: starting a topic, writing
-rounds as data, classifying questions, the waiting loop, replying to asks, handling sent answers,
-deferred questions, review requests and review rounds, the finished picture, and ending.
+This skill tells you how to run brainstorm rounds through shoryo: starting a topic, finding a
+topic to resume, writing rounds as data, classifying questions, the waiting loop, replying to
+asks, handling sent answers, deferred questions, review requests and review rounds, the finished
+picture, and ending.
 
 It does not decide how the question tree is explored, when the brainstorm is finished, or how a
 specification is written, placed or approved from the result: that is the calling workflow's job
@@ -34,6 +35,20 @@ a second copy in a workflow progress file. The workflow reads them back with `sh
    background from the repository; it keeps running. It prints the page URL. A topic with data
    resumes where it stopped. If it says the topic is already running, use that server.
 2. Tell the person the URL in one line.
+
+## Resuming a topic whose name you do not know
+
+When the person asks to continue an earlier brainstorm but the topic name is not known (for
+example after the conversation was lost):
+
+1. From the repository, run `shoryo ps -a --format json`. It lists this repository's topics,
+   stopped ones too, with each topic's `title` and `updated_at`.
+2. Pick the topic whose title and update time match what the person asked for. When more than
+   one could fit, do not guess: ask the person, naming the candidates by their titles.
+3. Once the topic is settled, read `shoryo result <topic> --current` before resuming, then start
+   it as above if it is not running.
+
+Never start a new topic because the name was unknown.
 
 ## Never write the questions into the conversation
 
