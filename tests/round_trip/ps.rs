@@ -343,3 +343,32 @@ fn created_at_is_recorded_when_the_state_is_first_written() {
     assert_eq!(stored, first);
     assert_eq!(later, first);
 }
+
+#[test]
+fn topics_written_before_created_at_list_it_as_null_without_warning() {
+    let env = Env::new();
+    stopped_after_a_round(&env, &env.work, "older");
+    let mut state = env.result("older", &[]);
+    state
+        .as_object_mut()
+        .expect("the state is an object")
+        .remove("created_at")
+        .expect("the current format has a creation time");
+    std::fs::write(env.state_file("older"), state.to_string()).expect("the state can be written");
+
+    let listed = env.run(&["ps", "-a", "--format", "json"], "");
+    let server = env.start("older", &[]);
+    assert_eq!(server.submit(), 200);
+    assert!(
+        env.run(&["round", "older"], &next_round("q2"))
+            .status
+            .success()
+    );
+    let after_a_round = row(&ps_json(&env, &env.work, &["-a"]), "older")["created_at"].clone();
+
+    assert!(listed.status.success(), "{}", text(&listed));
+    assert_eq!(String::from_utf8_lossy(&listed.stderr), "");
+    let rows: Vec<Value> = serde_json::from_slice(&listed.stdout).expect("ps prints JSON");
+    assert_eq!(row(&rows, "older")["created_at"], Value::Null);
+    assert_eq!(after_a_round, Value::Null);
+}
