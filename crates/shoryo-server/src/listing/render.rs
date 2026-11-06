@@ -177,6 +177,7 @@ mod tests {
                 started_at: None,
                 version: None,
             }),
+            unreadable: Vec::new(),
         }
     }
 

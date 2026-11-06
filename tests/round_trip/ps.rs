@@ -504,3 +504,45 @@ fn a_server_that_does_not_answer_is_still_listed_with_its_pid_and_url() {
     assert_eq!(frozen["server"]["url"], url);
     assert!(took < std::time::Duration::from_secs(5), "ps took {took:?}");
 }
+
+#[test]
+fn a_corrupt_topic_is_listed_with_a_warning_and_the_rest_still_appear() {
+    let env = Env::new();
+    stopped_after_a_round(&env, &env.work, "healthy");
+    stopped_after_a_round(&env, &env.work, "broken");
+    std::fs::write(env.state_file("broken"), "{ not json").expect("the state can be written");
+    let running = env.start("running-broken", &[]);
+    assert!(
+        env.run(&["round", "running-broken"], &first_round())
+            .status
+            .success()
+    );
+    std::fs::write(env.state_file("running-broken"), "[1, 2").expect("the state can be written");
+
+    let output = env.run(&["ps", "-a", "--format", "json"], "");
+
+    assert!(output.status.success(), "{}", text(&output));
+    let rows: Vec<Value> = serde_json::from_slice(&output.stdout).expect("ps prints JSON");
+    assert_eq!(names(&rows), ["broken", "healthy", "running-broken"]);
+    assert_eq!(row(&rows, "healthy")["title"], "Data store");
+    for topic in ["broken", "running-broken"] {
+        let listed = row(&rows, topic);
+        assert_eq!(listed["title"], Value::Null, "{topic}");
+        assert!(listed["updated_at"].is_string(), "{topic}");
+    }
+    let listed = row(&rows, "running-broken");
+    assert_eq!(listed["server"]["pid"], running.pid());
+    assert_eq!(listed["server"]["url"], running.url.as_str());
+    let warnings = String::from_utf8_lossy(&output.stderr);
+    let lines: Vec<&str> = warnings.lines().collect();
+    assert_eq!(lines.len(), 2, "{warnings}");
+    for topic in ["broken", "running-broken"] {
+        let dir = env.state_file(topic);
+        let dir = dir.parent().expect("the state is in the topic's directory");
+        let named = format!("shoryo: warning: {}: ", dir.display());
+        assert!(
+            lines.iter().any(|line| line.starts_with(&named)),
+            "{warnings}"
+        );
+    }
+}

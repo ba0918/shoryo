@@ -226,6 +226,13 @@ fn ps(args: &PsArgs) -> Result<(), String> {
         listing::Target::Running
     };
     let selection = listing::select(topics, &range, target);
+    for warning in selection
+        .topics
+        .iter()
+        .filter_map(listing::ListedTopic::warning)
+    {
+        eprintln!("shoryo: warning: {warning}");
+    }
     match args.format {
         Format::Text => print!("{}", listing::render_text(&selection, &range, target)),
         Format::Json => println!("{}", listing::render_json(&selection.topics)),

@@ -36,6 +36,17 @@ pub struct ListedTopic {
     pub data_dir: String,
     /// `None` when no server runs for the topic.
     pub server: Option<ListedServer>,
+    /// Why some values could not be read; they are `None` above.
+    #[serde(skip)]
+    pub unreadable: Vec<String>,
+}
+
+impl ListedTopic {
+    /// One line saying what of this topic could not be read, if anything.
+    pub fn warning(&self) -> Option<String> {
+        (!self.unreadable.is_empty())
+            .then(|| format!("{}: {}", self.data_dir, self.unreadable.join("; ")))
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -95,11 +106,9 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
             .ok()
             .flatten()
     });
+    let mut unreadable = Vec::new();
     let state_file = topic_dir.join(STATE_FILE);
-    let state = fs::read_to_string(&state_file)
-        .ok()
-        .and_then(|json| serde_json::from_str::<Value>(&json).ok())
-        .unwrap_or(Value::Null);
+    let state = read_json(&state_file, &mut unreadable);
     let updated_at = fs::metadata(&state_file)
         .and_then(|metadata| metadata.modified())
         .ok()
@@ -120,7 +129,26 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         updated_at,
         data_dir: topic_dir.display().to_string(),
         server: pid.map(|pid| listed_server(pid, endpoint)),
+        unreadable,
     }
+}
+
+/// The JSON in the file at `path`; `Null` when there is no such file, or when it cannot be
+/// read, which is noted in `unreadable`.
+fn read_json(path: &Path, unreadable: &mut Vec<String>) -> Value {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Value::Null,
+        Err(error) => {
+            unreadable.push(format!("{name} cannot be read: {error}"));
+            return Value::Null;
+        }
+    };
+    serde_json::from_str(&text).unwrap_or_else(|error| {
+        unreadable.push(format!("{name} is not JSON: {error}"));
+        Value::Null
+    })
 }
 
 /// The server whose process `pid` holds the lock. Its endpoint is `None` in the instant
