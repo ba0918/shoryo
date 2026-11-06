@@ -372,3 +372,31 @@ fn topics_written_before_created_at_list_it_as_null_without_warning() {
     assert_eq!(row(&rows, "older")["created_at"], Value::Null);
     assert_eq!(after_a_round, Value::Null);
 }
+
+#[test]
+fn a_started_server_lists_its_start_time_version_and_repository() {
+    let env = Env::new();
+    let repository = env.repository("a");
+
+    let before = clock_ms();
+    let _server = env.start_in(&repository, "fresh", &[]);
+    let after = clock_ms();
+    let rows = ps_json(&env, &repository, &[]);
+
+    let fresh = row(&rows, "fresh");
+    let started = fresh["server"]["started_at"]
+        .as_str()
+        .expect("the start time is set");
+    let (instant, offset) = stored_time(started);
+    assert!(
+        (before..=after).contains(&instant),
+        "{started} is not between {before} and {after}"
+    );
+    assert_eq!(offset, 0);
+    assert_eq!(fresh["server"]["version"], env!("CARGO_PKG_VERSION"));
+    let canonical = repository.canonicalize().expect("the repository exists");
+    assert_eq!(fresh["repository"], canonical.display().to_string());
+    for key in ["title", "ended", "latest_round", "created_at", "updated_at"] {
+        assert_eq!(fresh[key], Value::Null, "{key}");
+    }
+}

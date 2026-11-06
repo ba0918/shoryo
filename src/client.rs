@@ -149,6 +149,9 @@ mod tests {
                 port: address.port(),
                 secret: "test-secret".into(),
                 url: "http://example.invalid/".into(),
+                started_at: None,
+                version: None,
+                repository: None,
             },
         };
         (client, server)

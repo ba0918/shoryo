@@ -10,11 +10,12 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use serde_json::Value;
+use shoryo_core::Timestamp;
 
 use crate::ServerError;
 use crate::clock;
 use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
-use crate::store::{read_endpoint_file, running_holder};
+use crate::store::{Endpoint, read_endpoint_file, running_holder};
 
 pub use render::{render_json, render_text};
 pub use select::{Range, Selection, Target, select};
@@ -48,7 +49,7 @@ pub struct LatestRound {
 pub struct ListedServer {
     pub pid: u32,
     pub url: Option<String>,
-    pub started_at: Option<String>,
+    pub started_at: Option<Timestamp>,
     pub version: Option<String>,
 }
 
@@ -88,16 +89,11 @@ fn subdirectories(dir: &Path) -> Result<Vec<PathBuf>, ServerError> {
 }
 
 fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> ListedTopic {
-    let server = running_holder(&topic_dir.join(LOCK_FILE)).map(|pid| {
-        let endpoint = read_endpoint_file(&topic_dir.join(ENDPOINT_FILE))
+    let pid = running_holder(&topic_dir.join(LOCK_FILE));
+    let endpoint = pid.and_then(|_| {
+        read_endpoint_file(&topic_dir.join(ENDPOINT_FILE))
             .ok()
-            .flatten();
-        ListedServer {
-            pid,
-            url: endpoint.map(|endpoint| endpoint.url),
-            started_at: None,
-            version: None,
-        }
+            .flatten()
     });
     let state_file = topic_dir.join(STATE_FILE);
     let state = fs::read_to_string(&state_file)
@@ -108,9 +104,14 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         .and_then(|metadata| metadata.modified())
         .ok()
         .map(clock::rfc3339);
+    let repository = string(&state, "repository").or_else(|| {
+        endpoint
+            .as_ref()
+            .and_then(|endpoint| endpoint.repository.clone())
+    });
     ListedTopic {
         repository_dir: repository_dir.to_path_buf(),
-        repository: string(&state, "repository"),
+        repository,
         topic: name.to_string(),
         title: string(&state, "title"),
         ended: state["ended"].as_bool(),
@@ -118,7 +119,26 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         created_at: string(&state, "created_at"),
         updated_at,
         data_dir: topic_dir.display().to_string(),
-        server,
+        server: pid.map(|pid| listed_server(pid, endpoint)),
+    }
+}
+
+/// The server whose process `pid` holds the lock. Its endpoint is `None` in the instant
+/// between taking the lock and writing the endpoint.
+fn listed_server(pid: u32, endpoint: Option<Endpoint>) -> ListedServer {
+    let Some(endpoint) = endpoint else {
+        return ListedServer {
+            pid,
+            url: None,
+            started_at: None,
+            version: None,
+        };
+    };
+    ListedServer {
+        pid,
+        url: Some(endpoint.url),
+        started_at: endpoint.started_at,
+        version: endpoint.version,
     }
 }
 

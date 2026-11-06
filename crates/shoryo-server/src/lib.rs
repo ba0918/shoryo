@@ -103,6 +103,7 @@ pub struct Started {
 
 /// Runs the topic's server until it is told to stop, a stop command or SIGINT or SIGTERM.
 pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result<(), ServerError> {
+    let started_at = clock::now();
     let lock = Lock::take(&options.location)?;
     let (state, loaded) = store::load(&options.location)?;
     // Each topic serializes its state; a CPU-sized pool per topic multiplies idle threads.
@@ -130,6 +131,9 @@ pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result
                 port,
                 secret: secret.clone(),
                 url: url.clone(),
+                started_at: Some(started_at),
+                version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                repository: Some(options.location.repository.display().to_string()),
             },
         )?;
         let config = ConfigFile::per_user();

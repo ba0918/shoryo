@@ -6,6 +6,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use shoryo_core::Timestamp;
 
 use super::lock::running_holder;
 use crate::ServerError;
@@ -21,6 +22,16 @@ pub struct Endpoint {
     pub secret: String,
     /// The page's URL, as printed at start-up.
     pub url: String,
+    /// The facts below are read with defaults, so a server started by an older binary, whose
+    /// endpoint has none of them, is still reached.
+    #[serde(default)]
+    pub started_at: Option<Timestamp>,
+    /// The version of the binary serving the topic.
+    #[serde(default)]
+    pub version: Option<String>,
+    /// The repository the topic belongs to.
+    #[serde(default)]
+    pub repository: Option<String>,
 }
 
 impl Endpoint {
@@ -99,6 +110,9 @@ mod tests {
             port: 1234,
             secret: "test-secret".into(),
             url: "http://example.invalid/".into(),
+            started_at: None,
+            version: None,
+            repository: None,
         };
         let _published = EndpointFile::write(&location, &endpoint).unwrap();
         let mode = fs::metadata(location.endpoint_file())
