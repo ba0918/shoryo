@@ -1,6 +1,8 @@
 //! `shoryo ps`: every topic in the data directory and whether its server runs, read from the
 //! topic's files only (`docs/spec/ps.md`).
 
+mod endpoint;
+mod fields;
 mod render;
 mod select;
 mod state;
@@ -15,8 +17,9 @@ use shoryo_core::Timestamp;
 use crate::ServerError;
 use crate::clock;
 use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
-use crate::store::{Endpoint, read_endpoint_file, read_holder};
+use crate::store::read_holder;
 
+use endpoint::EndpointValues;
 pub use render::{render_json, render_text};
 pub use select::{Range, Selection, Target, select};
 use state::StateValues;
@@ -106,12 +109,10 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         unreadable.push(format!("{LOCK_FILE} cannot be read: {error}"));
         None
     });
-    let endpoint = pid.and_then(|_| {
-        read_endpoint_file(&topic_dir.join(ENDPOINT_FILE)).unwrap_or_else(|error| {
-            unreadable.push(error.to_string());
-            None
-        })
-    });
+    let mut endpoint = match pid {
+        Some(_) => EndpointValues::read(&topic_dir.join(ENDPOINT_FILE), &mut unreadable),
+        None => EndpointValues::default(),
+    };
     let state_file = topic_dir.join(STATE_FILE);
     let state = StateValues::read(&state_file, &mut unreadable);
     let updated_at = match fs::metadata(&state_file).and_then(|metadata| metadata.modified()) {
@@ -124,11 +125,7 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
             None
         }
     };
-    let repository = state.repository.or_else(|| {
-        endpoint
-            .as_ref()
-            .and_then(|endpoint| endpoint.repository.clone())
-    });
+    let repository = state.repository.or(endpoint.repository.take());
     ListedTopic {
         repository_dir: repository_dir.to_path_buf(),
         repository,
@@ -144,20 +141,12 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
     }
 }
 
-/// The server whose process `pid` holds the lock. Its endpoint is `None` in the instant
-/// between taking the lock and writing the endpoint.
-fn listed_server(pid: u32, endpoint: Option<Endpoint>) -> ListedServer {
-    let Some(endpoint) = endpoint else {
-        return ListedServer {
-            pid,
-            url: None,
-            started_at: None,
-            version: None,
-        };
-    };
+/// The server whose process `pid` holds the lock. Its endpoint values are all `None` in the
+/// instant between taking the lock and writing the endpoint.
+fn listed_server(pid: u32, endpoint: EndpointValues) -> ListedServer {
     ListedServer {
         pid,
-        url: Some(endpoint.url),
+        url: endpoint.url,
         started_at: endpoint.started_at,
         version: endpoint.version,
     }
@@ -221,6 +210,24 @@ mod tests {
             topic.warning().unwrap().contains(ENDPOINT_FILE),
             "{topic:?}"
         );
+    }
+
+    #[test]
+    fn an_endpoint_value_of_an_unexpected_type_is_null_with_a_warning_and_the_rest_stay() {
+        let (root, dir) = root_with_topic("served");
+        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+        let endpoint = r#"{"host":"127.0.0.1","port":1234,"secret":"s","url":"http://127.0.0.1:1234/s/s/","started_at":"2026-11-07T01:02:03.004Z","version":42,"repository":"/r"}"#;
+        fs::write(dir.join(ENDPOINT_FILE), endpoint).unwrap();
+
+        let topic = only(root.path());
+
+        let server = topic.server.as_ref().unwrap();
+        assert_eq!(server.pid, std::process::id());
+        assert_eq!(server.url.as_deref(), Some("http://127.0.0.1:1234/s/s/"));
+        assert!(server.started_at.is_some(), "{topic:?}");
+        assert_eq!(server.version, None);
+        assert_eq!(topic.repository.as_deref(), Some("/r"));
+        assert!(topic.warning().is_some(), "{topic:?}");
     }
 
     #[test]

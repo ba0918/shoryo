@@ -78,7 +78,7 @@ pub fn read_endpoint(location: &TopicLocation) -> Result<Option<Endpoint>, Serve
 
 /// The endpoint file at `path`, without asking whether its server still runs; the caller has
 /// found the lock's holder alive.
-pub(crate) fn read_endpoint_file(path: &Path) -> Result<Option<Endpoint>, ServerError> {
+fn read_endpoint_file(path: &Path) -> Result<Option<Endpoint>, ServerError> {
     match fs::read_to_string(path) {
         Ok(json) => {
             serde_json::from_str(&json)
