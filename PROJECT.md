@@ -9,6 +9,7 @@ The specification is in `docs/spec/`:
 - `screen.md`: what the screen shows and lets the person do
 - `interaction.md`: how diagrams are moved, how arrivals from the LLM are announced, and which operations the screen promises (keyboard, focus, reduced motion)
 - `server.md`: start-up, the commands the agent uses, and the stored data
+- `ps.md`: `shoryo ps`, the list of topics and their servers that a person (or the agent) uses to find a page URL or a server to stop
 - `skill.md`: what the shoryo skill tells the agent to do
 
 ## Stack and layout
