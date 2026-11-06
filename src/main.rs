@@ -214,7 +214,10 @@ fn ps(args: &PsArgs) -> Result<(), String> {
     let start = current_dir()?;
     let current = location::repository_dir(&start).map_err(|error| error.to_string())?;
     let root = location::data_root().map_err(|error| error.to_string())?;
-    let topics = listing::scan(&root).map_err(|error| error.to_string())?;
+    let scan = listing::scan(&root).map_err(|error| error.to_string())?;
+    for warning in &scan.unreadable_repositories {
+        eprintln!("shoryo: warning: {warning}");
+    }
     let range = if args.all_repos {
         listing::Range::AllRepositories
     } else {
@@ -225,7 +228,7 @@ fn ps(args: &PsArgs) -> Result<(), String> {
     } else {
         listing::Target::Running
     };
-    let selection = listing::select(topics, &range, target);
+    let selection = listing::select(scan.topics, &range, target);
     for warning in selection
         .topics
         .iter()

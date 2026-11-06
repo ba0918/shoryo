@@ -68,11 +68,28 @@ pub struct ListedServer {
     pub version: Option<String>,
 }
 
-/// Every topic under `root` (`<data dir>/shoryo`). No data directory yet means no topics.
-pub fn scan(root: &Path) -> Result<Vec<ListedTopic>, ServerError> {
-    let mut topics = Vec::new();
+/// What a scan of the data directory found.
+#[derive(Debug, Default)]
+pub struct Scan {
+    pub topics: Vec<ListedTopic>,
+    /// One line for each repository's directory that could not be read, saying which and why.
+    /// Its topics are left out, and the others are still listed.
+    pub unreadable_repositories: Vec<String>,
+}
+
+/// Every topic under `root` (`<data dir>/shoryo`). No data directory yet means no topics; only
+/// `root` itself not being readable fails the scan.
+pub fn scan(root: &Path) -> Result<Scan, ServerError> {
+    let mut scan = Scan::default();
     for repository_dir in subdirectories(root)? {
-        for topic_dir in subdirectories(&repository_dir)? {
+        let topic_dirs = match subdirectories(&repository_dir) {
+            Ok(topic_dirs) => topic_dirs,
+            Err(error) => {
+                scan.unreadable_repositories.push(error.to_string());
+                continue;
+            }
+        };
+        for topic_dir in topic_dirs {
             let Some(name) = topic_dir
                 .file_name()
                 .and_then(|name| name.to_str())
@@ -80,10 +97,11 @@ pub fn scan(root: &Path) -> Result<Vec<ListedTopic>, ServerError> {
             else {
                 continue;
             };
-            topics.push(read_topic(&repository_dir, &topic_dir, &name));
+            scan.topics
+                .push(read_topic(&repository_dir, &topic_dir, &name));
         }
     }
-    Ok(topics)
+    Ok(scan)
 }
 
 /// The directories directly in `dir`; none when `dir` does not exist.
@@ -165,7 +183,7 @@ mod tests {
     }
 
     fn only(root: &Path) -> ListedTopic {
-        let mut topics = scan(root).unwrap();
+        let mut topics = scan(root).unwrap().topics;
         assert_eq!(topics.len(), 1, "{topics:?}");
         topics.remove(0)
     }
