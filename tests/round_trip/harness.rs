@@ -417,3 +417,12 @@ pub fn stored_time(text: &str) -> (i64, i64) {
     let local_ms = ((days * 24 + hour) * 60 + minute) * 60_000 + second * 1000 + millis;
     (local_ms - offset * 60_000, offset)
 }
+
+/// Sends `signal` (such as `TERM`) to the process `pid` with the platform's `kill` command.
+pub fn send_signal(pid: u64, signal: &str) {
+    let status = Command::new("kill")
+        .args(["-s", signal, &pid.to_string()])
+        .status()
+        .expect("the kill command runs");
+    assert!(status.success(), "kill -s {signal} {pid} failed");
+}

@@ -5,7 +5,9 @@ use std::process::Output;
 
 use serde_json::Value;
 
-use crate::harness::{Env, Server, clock_ms, files_under, first_round, stored_time, text};
+use crate::harness::{
+    Env, Server, clock_ms, files_under, first_round, send_signal, stored_time, text,
+};
 
 /// Runs `ps` from `dir`; the command must succeed.
 fn ps(env: &Env, dir: &Path, flags: &[&str]) -> Output {
@@ -439,4 +441,66 @@ fn commands_still_reach_a_server_whose_endpoint_lacks_the_new_fields() {
     for output in [&round, &wait, &stop] {
         assert!(output.status.success(), "{}", text(output));
     }
+}
+
+/// The PID `ps` prints for the running topic `topic` of the work directory.
+fn listed_pid(env: &Env, topic: &str) -> u64 {
+    row(&ps_json(env, &env.work, &[]), topic)["server"]["pid"]
+        .as_u64()
+        .expect("a running topic is listed with its PID")
+}
+
+#[test]
+fn sigterm_to_the_listed_pid_stops_the_server_and_the_topic_starts_again() {
+    let env = Env::new();
+    let server = env.start("stopped", &[]);
+
+    send_signal(listed_pid(&env, "stopped"), "TERM");
+    server.finish();
+    let after = ps_json(&env, &env.work, &[]);
+    let again = env.try_start("stopped", &[]);
+
+    assert!(names(&after).is_empty(), "{after:?}");
+    assert!(again.is_ok(), "the topic starts again");
+}
+
+#[test]
+fn sigkill_to_the_listed_pid_leaves_a_topic_that_starts_again() {
+    let env = Env::new();
+    let server = env.start("killed", &[]);
+
+    send_signal(listed_pid(&env, "killed"), "KILL");
+    server.finish();
+    let after = ps_json(&env, &env.work, &[]);
+    let left = files_under(&env.data);
+    let again = env.try_start("killed", &[]);
+
+    assert!(names(&after).is_empty(), "{after:?}");
+    for file in ["killed/lock", "killed/endpoint.json"] {
+        assert!(
+            left.iter().any(|path| path.ends_with(file)),
+            "{file} remains"
+        );
+    }
+    assert!(again.is_ok(), "the topic starts again");
+}
+
+#[test]
+fn a_server_that_does_not_answer_is_still_listed_with_its_pid_and_url() {
+    let env = Env::new();
+    let server = env.start("frozen", &[]);
+    let pid = listed_pid(&env, "frozen");
+
+    send_signal(pid, "STOP");
+    let started = std::time::Instant::now();
+    let rows = ps_json(&env, &env.work, &[]);
+    let took = started.elapsed();
+    send_signal(pid, "KILL");
+    let url = server.url.clone();
+    server.finish();
+
+    let frozen = row(&rows, "frozen");
+    assert_eq!(frozen["server"]["pid"], pid);
+    assert_eq!(frozen["server"]["url"], url);
+    assert!(took < std::time::Duration::from_secs(5), "ps took {took:?}");
 }
