@@ -247,6 +247,38 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_repository_is_skipped_with_a_warning_and_the_others_are_listed() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (root, _) = root_with_topic("kept");
+        let locked = root.path().join("locked-000000000000");
+        fs::create_dir_all(locked.join("hidden")).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+        // Permissions do not stop a privileged user, for whom there is nothing to test.
+        let readable_anyway = fs::read_dir(&locked).is_ok();
+
+        let listed = list(root.path(), &Range::AllRepositories, Target::All);
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+        if readable_anyway {
+            return;
+        }
+
+        let listed = listed.unwrap();
+        let names: Vec<&str> = listed
+            .selection
+            .topics
+            .iter()
+            .map(|topic| topic.topic.as_str())
+            .collect();
+        assert_eq!(names, ["kept"]);
+        assert_eq!(listed.unreadable_repositories.len(), 1, "{listed:?}");
+        assert!(
+            listed.unreadable_repositories[0].contains("locked-000000000000"),
+            "{listed:?}"
+        );
+    }
+
+    #[test]
     fn a_state_value_of_an_unexpected_type_is_null_with_a_warning_and_the_rest_stay() {
         let (root, dir) = root_with_topic("odd");
         let state = r#"{"repository":"/r","name":"odd","title":5,"ended":true,"rounds":[]}"#;
