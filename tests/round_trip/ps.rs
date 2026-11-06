@@ -513,6 +513,26 @@ fn sigkill_to_the_listed_pid_leaves_a_topic_that_starts_again() {
 }
 
 #[test]
+fn a_left_lock_whose_pid_another_process_now_has_is_a_stopped_topic_that_starts_again() {
+    let env = Env::new();
+    let server = env.start("reused", &[]);
+    send_signal(listed_pid(&env, "reused"), "KILL");
+    server.finish();
+    let lock = files_under(&env.data)
+        .into_iter()
+        .find(|path| path.ends_with("reused/lock"))
+        .expect("the killed server left its lock");
+    // The test's own process stands for the unrelated process the dead server's PID went to.
+    std::fs::write(&lock, std::process::id().to_string()).expect("the lock can be written");
+
+    let after = ps_json(&env, &env.work, &[]);
+    let again = env.try_start("reused", &[]);
+
+    assert!(names(&after).is_empty(), "{after:?}");
+    assert!(again.is_ok(), "the topic starts again");
+}
+
+#[test]
 fn a_server_that_does_not_answer_is_still_listed_with_its_pid_and_url() {
     let env = Env::new();
     let server = env.start("frozen", &[]);
