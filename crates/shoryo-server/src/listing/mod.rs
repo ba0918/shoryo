@@ -17,7 +17,7 @@ use shoryo_core::Timestamp;
 use crate::ServerError;
 use crate::clock;
 use crate::location::{ENDPOINT_FILE, GUARD_FILE, LOCK_FILE, STATE_FILE, TopicName};
-use crate::store::{is_held, lock_pid};
+use crate::store::{is_running, lock_pid};
 
 use endpoint::EndpointValues;
 pub use render::{render_json, render_text};
@@ -133,10 +133,13 @@ fn discover(root: &Path) -> Result<(Vec<Found>, Vec<String>), ServerError> {
                 continue;
             };
             let mut unreadable = Vec::new();
-            let running = is_held(&dir.join(GUARD_FILE)).unwrap_or_else(|error| {
-                unreadable.push(format!("{GUARD_FILE} cannot be checked: {error}"));
-                false
-            });
+            let running =
+                is_running(&dir.join(GUARD_FILE), &dir.join(LOCK_FILE)).unwrap_or_else(|error| {
+                    unreadable.push(format!(
+                        "whether its server runs cannot be checked: {error}"
+                    ));
+                    false
+                });
             // Only a running server's lock is read: a lock left behind may name any process.
             let pid = if running {
                 lock_pid(&dir.join(LOCK_FILE)).unwrap_or_else(|error| {
@@ -326,6 +329,20 @@ mod tests {
 
         assert_eq!(topic.server.as_ref().unwrap().pid, None);
         assert!(topic.warning().unwrap().contains(LOCK_FILE), "{topic:?}");
+    }
+
+    #[test]
+    fn a_running_server_of_a_version_without_the_guard_is_listed_as_running() {
+        let (root, dir) = root_with_topic("older");
+        // Versions before 0.1.2 kept no guard; the test's own process stands for such a server.
+        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+
+        let topic = only(root.path());
+
+        assert_eq!(
+            topic.server.as_ref().map(|server| server.pid),
+            Some(Some(std::process::id()))
+        );
     }
 
     #[test]

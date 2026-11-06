@@ -15,7 +15,7 @@ use crate::location::TopicLocation;
 
 pub(crate) use endpoint::EndpointFile;
 pub use endpoint::{Endpoint, read_endpoint};
-pub(crate) use lock::{Lock, is_held, lock_pid};
+pub(crate) use lock::{Lock, is_running, lock_pid};
 
 /// The state file: the topic, and which repository and name it belongs to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
