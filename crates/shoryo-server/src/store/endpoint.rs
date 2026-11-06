@@ -3,7 +3,7 @@
 use std::fs;
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use shoryo_core::Timestamp;
@@ -70,26 +70,21 @@ impl Drop for EndpointFile {
 
 /// The endpoint of the topic's running server, or `None` when no server runs.
 pub fn read_endpoint(location: &TopicLocation) -> Result<Option<Endpoint>, ServerError> {
+    let path = location.endpoint_file();
     if running_holder(&location.lock_file()).is_none() {
         return Ok(None);
     }
-    read_endpoint_file(&location.endpoint_file())
-}
-
-/// The endpoint file at `path`, without asking whether its server still runs; the caller has
-/// found the lock's holder alive.
-fn read_endpoint_file(path: &Path) -> Result<Option<Endpoint>, ServerError> {
-    match fs::read_to_string(path) {
+    match fs::read_to_string(&path) {
         Ok(json) => {
             serde_json::from_str(&json)
                 .map(Some)
                 .map_err(|error| ServerError::CorruptState {
-                    path: path.to_path_buf(),
+                    path,
                     reason: error.to_string(),
                 })
         }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(ServerError::io(path, error)),
+        Err(error) => Err(ServerError::io(&path, error)),
     }
 }
 
