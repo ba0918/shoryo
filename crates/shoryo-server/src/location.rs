@@ -50,9 +50,7 @@ impl TopicLocation {
     /// Locates `name` for a command started in `start_dir`.
     pub fn find(name: TopicName, start_dir: &Path) -> Result<Self, ServerError> {
         let repository = repository_top(start_dir);
-        let dir = data_root()?
-            .join(repository_key(&repository))
-            .join(name.as_str());
+        let dir = topics_of(&repository)?.join(name.as_str());
         Ok(Self {
             name,
             repository,
@@ -87,7 +85,13 @@ pub fn data_root() -> Result<PathBuf, ServerError> {
 /// The directory holding the topics of the repository a command started in `start_dir`
 /// belongs to. Only computes the path; nothing is created.
 pub fn repository_dir(start_dir: &Path) -> Result<PathBuf, ServerError> {
-    Ok(data_root()?.join(repository_key(&repository_top(start_dir))))
+    topics_of(&repository_top(start_dir))
+}
+
+/// The directory holding the topics of `repository`. `TopicLocation::find` and
+/// `repository_dir` both go through here, so `ps` looks where the topics are kept.
+fn topics_of(repository: &Path) -> Result<PathBuf, ServerError> {
+    Ok(data_root()?.join(repository_key(repository)))
 }
 
 /// `git rev-parse --show-toplevel` run in `start_dir`; the start directory itself when that
