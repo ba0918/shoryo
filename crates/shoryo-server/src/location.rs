@@ -69,10 +69,16 @@ impl TopicLocation {
     pub fn endpoint_file(&self) -> PathBuf {
         self.dir.join(ENDPOINT_FILE)
     }
+
+    pub fn guard_file(&self) -> PathBuf {
+        self.dir.join(GUARD_FILE)
+    }
 }
 
 pub(crate) const STATE_FILE: &str = "state.json";
 pub(crate) const LOCK_FILE: &str = "lock";
+/// Locked by the running server for as long as it runs.
+pub(crate) const GUARD_FILE: &str = "lock.guard";
 pub(crate) const ENDPOINT_FILE: &str = "endpoint.json";
 
 /// `<data dir>/shoryo`, which holds one directory per repository.

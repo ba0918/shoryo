@@ -122,7 +122,8 @@ fn columns(range: &Range, target: Target) -> Vec<Column> {
                 topic
                     .server
                     .as_ref()
-                    .map(|server| server.pid.to_string())
+                    .and_then(|server| server.pid)
+                    .map(|pid| pid.to_string())
                     .unwrap_or_default()
             },
         },
@@ -247,7 +248,7 @@ mod tests {
             updated_at: Some("2026-11-07T01:02:03.004Z".into()),
             data_dir: format!("/data/shoryo/a-000000000000/{name}"),
             server: running.then(|| ListedServer {
-                pid: 4321,
+                pid: Some(4321),
                 url: Some("http://127.0.0.1:8080/s/0123/".into()),
                 started_at: None,
                 version: None,

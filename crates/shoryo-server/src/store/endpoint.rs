@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use shoryo_core::Timestamp;
 
-use super::lock::running_holder;
+use super::lock::is_held;
 use crate::ServerError;
 use crate::location::TopicLocation;
 
@@ -71,7 +71,8 @@ impl Drop for EndpointFile {
 /// The endpoint of the topic's running server, or `None` when no server runs.
 pub fn read_endpoint(location: &TopicLocation) -> Result<Option<Endpoint>, ServerError> {
     let path = location.endpoint_file();
-    if running_holder(&location.lock_file()).is_none() {
+    // A guard that cannot be checked is treated as no server, as an unreadable lock was.
+    if !is_held(&location.guard_file()).unwrap_or(false) {
         return Ok(None);
     }
     match fs::read_to_string(&path) {

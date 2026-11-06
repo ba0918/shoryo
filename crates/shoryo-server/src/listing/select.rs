@@ -39,7 +39,7 @@ pub(super) fn choose(found: Vec<Found>, range: &Range, target: Target) -> (Vec<F
         .into_iter()
         .filter(|topic| is_target(topic, target))
         .collect();
-    let running_outside = outside.iter().filter(|topic| topic.pid.is_some()).count();
+    let running_outside = outside.iter().filter(|topic| topic.running).count();
     (chosen, running_outside)
 }
 
@@ -86,7 +86,7 @@ fn in_range(topic: &Found, range: &Range) -> bool {
 
 fn is_target(topic: &Found, target: Target) -> bool {
     match target {
-        Target::Running => topic.pid.is_some(),
+        Target::Running => topic.running,
         Target::All => true,
     }
 }

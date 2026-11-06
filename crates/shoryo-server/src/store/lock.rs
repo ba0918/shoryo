@@ -3,6 +3,7 @@
 use std::fs::{self, File, TryLockError};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use crate::ServerError;
 use crate::location::TopicLocation;
@@ -14,28 +15,40 @@ pub struct Lock {
 }
 
 impl Lock {
-    /// Takes the topic's lock. The lock appears under its name already holding the PID, so
-    /// another start never sees it without its holder. A lock left by a process that no longer
-    /// exists is replaced.
+    /// Takes the topic's lock. The guard stays locked while the server runs, which is what
+    /// tells a running server apart (`docs/spec/ps.md`, "動いているかの決め方"). The lock appears
+    /// under its name already holding the PID, so another start never sees it without its
+    /// holder. With the guard taken no server runs, so a lock left behind is replaced, whatever
+    /// process its PID now names.
     pub fn take(location: &TopicLocation) -> Result<Self, ServerError> {
         fs::create_dir_all(&location.dir).map_err(|error| ServerError::io(&location.dir, error))?;
         let path = location.lock_file();
         // The guard is never unlinked: contenders must keep locking the same inode even while
         // the PID marker is moved aside during stale-lock recovery.
-        let guard_path = location.dir.join("lock.guard");
+        let guard_path = location.guard_file();
         let guard = crate::files::open_lock(&guard_path)
             .map_err(|error| ServerError::io(&guard_path, error))?;
-        match guard.try_lock() {
-            Ok(()) => {}
-            Err(TryLockError::Error(error)) => return Err(ServerError::io(&guard_path, error)),
-            Err(TryLockError::WouldBlock) => {
-                if let Some(pid) = running_holder(&path) {
-                    return Err(already_running(location, pid));
+        let mut attempts = 0;
+        loop {
+            match guard.try_lock() {
+                Ok(()) => break,
+                Err(TryLockError::Error(error)) => {
+                    return Err(ServerError::io(&guard_path, error));
                 }
-                return Err(ServerError::io(
-                    &path,
-                    std::io::Error::other("another server is acquiring the topic lock"),
-                ));
+                // A command checking whether the topic runs holds the guard for an instant.
+                Err(TryLockError::WouldBlock) if attempts < PROBE_RETRIES => {
+                    attempts += 1;
+                    std::thread::sleep(PROBE_WAIT);
+                }
+                Err(TryLockError::WouldBlock) => {
+                    if let Ok(Some(pid)) = lock_pid(&path) {
+                        return Err(already_running(location, pid));
+                    }
+                    return Err(ServerError::io(
+                        &path,
+                        std::io::Error::other("another server is acquiring the topic lock"),
+                    ));
+                }
             }
         }
         let own = std::process::id();
@@ -56,11 +69,8 @@ impl Lock {
                 }
                 Err(error) => return Err(ServerError::io(&path, error)),
             };
-            let Some(pid) = parse_pid(&seen) else {
+            if parse_pid(&seen).is_none() {
                 return Err(unreadable_lock(location, path));
-            };
-            if process_exists(pid) {
-                return Err(already_running(location, pid));
             }
             replace_stale(location, &path, &seen, own)?;
         }
@@ -131,31 +141,40 @@ impl Drop for Lock {
     }
 }
 
-/// The process the lock at `path` names, while that process runs.
-pub(super) fn running_holder(path: &Path) -> Option<u32> {
-    read_holder(path).ok().flatten()
+/// How long and how often `Lock::take` waits for a command that is only checking the guard.
+const PROBE_WAIT: Duration = Duration::from_millis(5);
+const PROBE_RETRIES: u32 = 20;
+
+/// Whether a server runs for the topic whose guard is at `guard`: its guard is locked. Checking
+/// takes a shared lock for an instant, which `Lock::take` waits out.
+pub(crate) fn is_held(guard: &Path) -> std::io::Result<bool> {
+    let file = match File::open(guard) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    match file.try_lock_shared() {
+        Ok(()) => Ok(false),
+        Err(TryLockError::WouldBlock) => Ok(true),
+        Err(TryLockError::Error(error)) => Err(error),
+    }
 }
 
-/// The process the lock at `path` names, while that process runs; `None` without a lock. An
-/// error when the lock cannot be read or names no process.
-pub(crate) fn read_holder(path: &Path) -> std::io::Result<Option<u32>> {
+/// The PID the lock at `path` names, whether or not that process still runs; `None` without a
+/// lock. An error when the lock cannot be read or names no process.
+pub(crate) fn lock_pid(path: &Path) -> std::io::Result<Option<u32>> {
     let text = match fs::read_to_string(path) {
         Ok(text) => text,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
-    let pid = parse_pid(&text)
-        .ok_or_else(|| std::io::Error::new(ErrorKind::InvalidData, "it names no process"))?;
-    Ok(Some(pid).filter(|pid| process_exists(*pid)))
+    parse_pid(&text)
+        .map(Some)
+        .ok_or_else(|| std::io::Error::new(ErrorKind::InvalidData, "it names no process"))
 }
 
 fn parse_pid(text: &str) -> Option<u32> {
     text.trim().parse().ok()
-}
-
-// The release targets Linux only, where a running process has a directory under /proc.
-fn process_exists(pid: u32) -> bool {
-    Path::new("/proc").join(pid.to_string()).exists()
 }
 
 #[cfg(test)]
@@ -187,6 +206,36 @@ mod tests {
         );
         drop(first);
         let _next = Lock::take(&location).unwrap();
+    }
+
+    #[test]
+    fn a_left_lock_naming_another_live_process_is_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location_in(dir.path());
+        // The test's own process stands for an unrelated process that was given the PID of a
+        // server that died without removing its lock.
+        fs::write(location.lock_file(), std::process::id().to_string()).unwrap();
+
+        let taken = Lock::take(&location);
+
+        assert!(taken.is_ok(), "{:?}", taken.err());
+    }
+
+    #[test]
+    fn a_start_is_not_refused_while_another_command_checks_the_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = location_in(dir.path());
+        let probe = crate::files::open_lock(&dir.path().join("lock.guard")).unwrap();
+        probe.try_lock_shared().unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            drop(probe);
+        });
+
+        let taken = Lock::take(&location);
+        release.join().unwrap();
+
+        assert!(taken.is_ok(), "{:?}", taken.err());
     }
 
     #[test]

@@ -16,8 +16,8 @@ use shoryo_core::Timestamp;
 
 use crate::ServerError;
 use crate::clock;
-use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
-use crate::store::read_holder;
+use crate::location::{ENDPOINT_FILE, GUARD_FILE, LOCK_FILE, STATE_FILE, TopicName};
+use crate::store::{is_held, lock_pid};
 
 use endpoint::EndpointValues;
 pub use render::{render_json, render_text};
@@ -63,7 +63,8 @@ pub struct LatestRound {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListedServer {
-    pub pid: u32,
+    /// `None` when the lock does not say, as in the instant a server is taking it.
+    pub pid: Option<u32>,
     pub url: Option<String>,
     pub started_at: Option<Timestamp>,
     pub version: Option<String>,
@@ -98,12 +99,13 @@ pub fn list(root: &Path, range: &Range, target: Target) -> Result<Listing, Serve
     })
 }
 
-/// A topic's directory, and the process holding its lock, before its other files are read.
+/// A topic's directory, and whether its server runs, before its other files are read.
 struct Found {
     repository_dir: PathBuf,
     dir: PathBuf,
     name: TopicName,
-    /// The lock's holder while it runs.
+    running: bool,
+    /// The PID the lock names while the server runs.
     pid: Option<u32>,
     /// Why some of the topic's files could not be read.
     unreadable: Vec<String>,
@@ -131,14 +133,24 @@ fn discover(root: &Path) -> Result<(Vec<Found>, Vec<String>), ServerError> {
                 continue;
             };
             let mut unreadable = Vec::new();
-            let pid = read_holder(&dir.join(LOCK_FILE)).unwrap_or_else(|error| {
-                unreadable.push(format!("{LOCK_FILE} cannot be read: {error}"));
-                None
+            let running = is_held(&dir.join(GUARD_FILE)).unwrap_or_else(|error| {
+                unreadable.push(format!("{GUARD_FILE} cannot be checked: {error}"));
+                false
             });
+            // Only a running server's lock is read: a lock left behind may name any process.
+            let pid = if running {
+                lock_pid(&dir.join(LOCK_FILE)).unwrap_or_else(|error| {
+                    unreadable.push(format!("{LOCK_FILE} cannot be read: {error}"));
+                    None
+                })
+            } else {
+                None
+            };
             found.push(Found {
                 repository_dir: repository_dir.clone(),
                 dir,
                 name,
+                running,
                 pid,
                 unreadable,
             });
@@ -170,12 +182,14 @@ fn read_topic(found: Found) -> ListedTopic {
         repository_dir,
         dir,
         name,
+        running,
         pid,
         mut unreadable,
     } = found;
-    let endpoint = match pid {
-        Some(_) => EndpointValues::read(&dir.join(ENDPOINT_FILE), &mut unreadable),
-        None => EndpointValues::default(),
+    let endpoint = if running {
+        EndpointValues::read(&dir.join(ENDPOINT_FILE), &mut unreadable)
+    } else {
+        EndpointValues::default()
     };
     let state_file = dir.join(STATE_FILE);
     let state = StateValues::read(&state_file, &mut unreadable);
@@ -200,7 +214,7 @@ fn read_topic(found: Found) -> ListedTopic {
         data_dir: dir.display().to_string(),
         // Its endpoint values are all `None` in the instant between taking the lock and writing
         // the endpoint.
-        server: pid.map(|pid| ListedServer {
+        server: running.then_some(ListedServer {
             pid,
             url,
             started_at,
@@ -235,6 +249,15 @@ mod tests {
         let dir = root.path().join("repository-000000000000").join(topic);
         fs::create_dir_all(&dir).unwrap();
         (root, dir)
+    }
+
+    /// Makes the topic in `dir` look as a running server leaves it: its guard locked for as
+    /// long as the returned file is kept, and its lock naming this process.
+    fn running_in(dir: &Path) -> fs::File {
+        let guard = crate::files::open_lock(&dir.join(GUARD_FILE)).unwrap();
+        guard.try_lock().unwrap();
+        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+        guard
     }
 
     fn only(root: &Path) -> ListedTopic {
@@ -293,26 +316,42 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_lock_leaves_the_server_unknown_with_a_warning() {
+    fn an_unreadable_lock_of_a_running_server_leaves_its_pid_unknown_with_a_warning() {
         let (root, dir) = root_with_topic("locked");
+        let _guard = running_in(&dir);
+        fs::remove_file(dir.join(LOCK_FILE)).unwrap();
         fs::create_dir(dir.join(LOCK_FILE)).unwrap();
 
         let topic = only(root.path());
 
-        assert!(topic.server.is_none());
+        assert_eq!(topic.server.as_ref().unwrap().pid, None);
         assert!(topic.warning().unwrap().contains(LOCK_FILE), "{topic:?}");
+    }
+
+    #[test]
+    fn a_left_lock_naming_a_live_process_is_a_stopped_topic() {
+        let (root, dir) = root_with_topic("left");
+        // The test's own process stands for an unrelated process that was given the PID of a
+        // server that died without removing its lock.
+        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+        fs::write(dir.join(GUARD_FILE), "").unwrap();
+
+        let topic = only(root.path());
+
+        assert!(topic.server.is_none(), "{topic:?}");
+        assert_eq!(topic.warning(), None);
     }
 
     #[test]
     fn an_unreadable_endpoint_keeps_the_pid_with_a_warning() {
         let (root, dir) = root_with_topic("served");
-        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+        let _guard = running_in(&dir);
         fs::write(dir.join(ENDPOINT_FILE), "not json").unwrap();
 
         let topic = only(root.path());
 
         let server = topic.server.as_ref().unwrap();
-        assert_eq!(server.pid, std::process::id());
+        assert_eq!(server.pid, Some(std::process::id()));
         assert_eq!(server.url, None);
         assert!(
             topic.warning().unwrap().contains(ENDPOINT_FILE),
@@ -323,14 +362,14 @@ mod tests {
     #[test]
     fn an_endpoint_value_of_an_unexpected_type_is_null_with_a_warning_and_the_rest_stay() {
         let (root, dir) = root_with_topic("served");
-        fs::write(dir.join(LOCK_FILE), std::process::id().to_string()).unwrap();
+        let _guard = running_in(&dir);
         let endpoint = r#"{"host":"127.0.0.1","port":1234,"secret":"s","url":"http://127.0.0.1:1234/s/s/","started_at":"2026-11-07T01:02:03.004Z","version":42,"repository":"/r"}"#;
         fs::write(dir.join(ENDPOINT_FILE), endpoint).unwrap();
 
         let topic = only(root.path());
 
         let server = topic.server.as_ref().unwrap();
-        assert_eq!(server.pid, std::process::id());
+        assert_eq!(server.pid, Some(std::process::id()));
         assert_eq!(server.url.as_deref(), Some("http://127.0.0.1:1234/s/s/"));
         assert!(server.started_at.is_some(), "{topic:?}");
         assert_eq!(server.version, None);
