@@ -22,6 +22,7 @@ pub struct ListedTopic {
     #[serde(skip)]
     pub repository_dir: PathBuf,
     pub topic: String,
+    pub data_dir: String,
     /// `None` when no server runs for the topic.
     pub server: Option<ListedServer>,
 }
@@ -80,6 +81,7 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
     ListedTopic {
         repository_dir: repository_dir.to_path_buf(),
         topic: name.to_string(),
+        data_dir: topic_dir.display().to_string(),
         server,
     }
 }

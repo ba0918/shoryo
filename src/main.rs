@@ -65,6 +65,12 @@ enum Commands {
 
 #[derive(Args)]
 struct PsArgs {
+    /// Stopped topics too.
+    #[arg(short = 'a', long)]
+    all: bool,
+    /// Every repository's topics, not only this repository's.
+    #[arg(long)]
+    all_repos: bool,
     #[arg(long, value_enum)]
     format: Format,
 }
@@ -204,11 +210,17 @@ fn ps(args: &PsArgs) -> Result<(), String> {
     let current = location::repository_dir(&start).map_err(|error| error.to_string())?;
     let root = location::data_root().map_err(|error| error.to_string())?;
     let topics = listing::scan(&root).map_err(|error| error.to_string())?;
-    let listed = listing::select(
-        topics,
-        &listing::Range::Repository(current),
-        listing::Target::Running,
-    );
+    let range = if args.all_repos {
+        listing::Range::AllRepositories
+    } else {
+        listing::Range::Repository(current)
+    };
+    let target = if args.all {
+        listing::Target::All
+    } else {
+        listing::Target::Running
+    };
+    let listed = listing::select(topics, &range, target);
     match args.format {
         Format::Json => println!("{}", listing::render_json(&listed)),
     }

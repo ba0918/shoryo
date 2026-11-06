@@ -65,6 +65,7 @@ fn stopped_after_a_round(env: &Env, dir: &Path, topic: &str) {
 /// repository A also has a topic stopped before its first round.
 struct TwoRepositories {
     a: PathBuf,
+    b: PathBuf,
     a_running: Server,
     _b_running: Server,
 }
@@ -81,6 +82,7 @@ fn two_repositories(env: &Env) -> TwoRepositories {
     let b_running = env.start_in(&b, "b-running", &[]);
     TwoRepositories {
         a,
+        b,
         a_running,
         _b_running: b_running,
     }
@@ -97,4 +99,41 @@ fn ps_lists_only_running_topics_of_the_current_repository() {
     let server = &row(&rows, "a-running")["server"];
     assert_eq!(server["pid"], fixture.a_running.pid());
     assert_eq!(server["url"], fixture.a_running.url.as_str());
+}
+
+#[test]
+fn ps_all_and_all_repos_select_independently() {
+    let env = Env::new();
+    let fixture = two_repositories(&env);
+
+    let all = ps_json(&env, &fixture.a, &["-a"]);
+    let all_long = ps_json(&env, &fixture.a, &["--all"]);
+    let all_repos = ps_json(&env, &fixture.a, &["--all-repos"]);
+    let everything = ps_json(&env, &fixture.a, &["-a", "--all-repos"]);
+    let all_in_b = ps_json(&env, &fixture.b, &["-a"]);
+
+    assert_eq!(names(&all), ["a-fresh", "a-running", "a-stopped"]);
+    assert_eq!(names(&all_long), names(&all));
+    assert_eq!(names(&all_repos), ["a-running", "b-running"]);
+    assert_eq!(
+        names(&everything),
+        [
+            "a-fresh",
+            "a-running",
+            "a-stopped",
+            "b-running",
+            "b-stopped"
+        ]
+    );
+    assert_eq!(names(&all_in_b), ["b-running", "b-stopped"]);
+    let fresh = row(&all, "a-fresh")
+        .as_object()
+        .expect("a row is an object");
+    let mut filled: Vec<&str> = fresh
+        .iter()
+        .filter(|(_, value)| !value.is_null())
+        .map(|(key, _)| key.as_str())
+        .collect();
+    filled.sort_unstable();
+    assert_eq!(filled, ["data_dir", "topic"]);
 }

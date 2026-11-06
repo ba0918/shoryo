@@ -9,12 +9,15 @@ use super::ListedTopic;
 pub enum Range {
     /// Only the repository whose directory in the data directory is this one.
     Repository(PathBuf),
+    AllRepositories,
 }
 
 /// Which topics in the range `ps` lists.
 #[derive(Debug, Clone, Copy)]
 pub enum Target {
     Running,
+    /// Stopped topics too.
+    All,
 }
 
 /// The topics of `topics` in `range` that `target` asks for.
@@ -28,11 +31,13 @@ pub fn select(topics: Vec<ListedTopic>, range: &Range, target: Target) -> Vec<Li
 fn in_range(topic: &ListedTopic, range: &Range) -> bool {
     match range {
         Range::Repository(dir) => topic.repository_dir == *dir,
+        Range::AllRepositories => true,
     }
 }
 
 fn is_target(topic: &ListedTopic, target: Target) -> bool {
     match target {
         Target::Running => topic.server.is_some(),
+        Target::All => true,
     }
 }
