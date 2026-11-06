@@ -1,6 +1,6 @@
 //! Which topics `ps` lists, and in what order (`docs/spec/ps.md`, "出す範囲と対象", "並び順").
 
-use std::cmp::{Ordering, Reverse};
+use std::cmp::Reverse;
 use std::path::PathBuf;
 
 use super::{Found, ListedTopic};
@@ -46,22 +46,22 @@ pub(super) fn choose(found: Vec<Found>, range: &Range, target: Target) -> (Vec<F
 /// Running topics first, each group from the newest update to the oldest, those without an
 /// update time last.
 pub(super) fn order(topics: &mut [ListedTopic]) {
-    topics.sort_by(listing_order);
+    topics.sort_by_cached_key(listing_key);
 }
 
-fn listing_order(left: &ListedTopic, right: &ListedTopic) -> Ordering {
+/// Built once per topic rather than per comparison, as it copies the strings it orders by.
+type ListingKey = (bool, bool, Reverse<Option<String>>, String, String);
+
+fn listing_key(topic: &ListedTopic) -> ListingKey {
     // Update times are compared as text: every one has the same fixed-width UTC form, in
     // which the text order is the time order.
-    let key = |topic: &ListedTopic| {
-        (
-            topic.server.is_none(),
-            topic.updated_at.is_none(),
-            Reverse(topic.updated_at.clone()),
-            repository_name(topic),
-            topic.topic.clone(),
-        )
-    };
-    key(left).cmp(&key(right))
+    (
+        topic.server.is_none(),
+        topic.updated_at.is_none(),
+        Reverse(topic.updated_at.clone()),
+        repository_name(topic),
+        topic.topic.clone(),
+    )
 }
 
 /// The repository's path, or the name of its directory in the data directory when the path
