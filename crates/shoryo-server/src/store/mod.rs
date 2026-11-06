@@ -13,9 +13,9 @@ use shoryo_core::Topic;
 use crate::ServerError;
 use crate::location::TopicLocation;
 
-pub(crate) use endpoint::EndpointFile;
 pub use endpoint::{Endpoint, read_endpoint};
-pub(crate) use lock::Lock;
+pub(crate) use endpoint::{EndpointFile, read_endpoint_file};
+pub(crate) use lock::{Lock, running_holder};
 
 /// The state file: the topic, and which repository and name it belongs to.
 #[derive(Debug, Clone, Serialize, Deserialize)]

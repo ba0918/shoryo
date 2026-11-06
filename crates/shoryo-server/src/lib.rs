@@ -5,6 +5,7 @@ mod app;
 mod clock;
 mod config;
 mod files;
+pub mod listing;
 pub mod location;
 pub mod store;
 

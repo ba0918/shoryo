@@ -35,11 +35,24 @@ impl Env {
         }
     }
 
+    /// A start directory of its own under the work directory. The work directory is not a git
+    /// repository, so each one stands for a repository of its own.
+    pub fn repository(&self, name: &str) -> PathBuf {
+        let dir = self.work.join(name);
+        std::fs::create_dir_all(&dir).expect("the simulated repository can be created");
+        dir
+    }
+
     pub fn command(&self, args: &[&str]) -> Command {
+        self.command_in(&self.work, args)
+    }
+
+    /// A command started in `dir` instead of the work directory.
+    pub fn command_in(&self, dir: &Path, args: &[&str]) -> Command {
         let mut command = Command::new(env!("CARGO_BIN_EXE_shoryo"));
         command
             .args(args)
-            .current_dir(&self.work)
+            .current_dir(dir)
             .env("XDG_DATA_HOME", &self.data)
             .env("XDG_CONFIG_HOME", &self.config)
             .env_remove("HTTP_PROXY")
@@ -49,8 +62,13 @@ impl Env {
 
     /// Runs a short command to completion, with `input` on its standard input.
     pub fn run(&self, args: &[&str], input: &str) -> Output {
+        self.run_in(&self.work, args, input)
+    }
+
+    /// Runs a short command started in `dir` to completion, with `input` on its standard input.
+    pub fn run_in(&self, dir: &Path, args: &[&str], input: &str) -> Output {
         let mut child = self
-            .command(args)
+            .command_in(dir, args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -85,21 +103,32 @@ impl Env {
 
     /// Starts the server for `topic` and waits until it prints its URL.
     pub fn start(&self, topic: &str, extra: &[&str]) -> Server {
-        self.try_start(topic, extra).unwrap_or_else(|refused| {
-            panic!(
-                "the server did not start: {}",
-                String::from_utf8_lossy(&refused.stderr)
-            )
-        })
+        self.start_in(&self.work, topic, extra)
+    }
+
+    /// Starts the server for `topic` from `dir` and waits until it prints its URL.
+    pub fn start_in(&self, dir: &Path, topic: &str, extra: &[&str]) -> Server {
+        self.try_start_in(dir, topic, extra)
+            .unwrap_or_else(|refused| {
+                panic!(
+                    "the server did not start: {}",
+                    String::from_utf8_lossy(&refused.stderr)
+                )
+            })
     }
 
     /// Starts the server for `topic`, or returns what it printed when it exits instead of
     /// serving. Waits for its first line, not for a time, so a slow start is not a refusal.
     pub fn try_start(&self, topic: &str, extra: &[&str]) -> Result<Server, Output> {
+        self.try_start_in(&self.work, topic, extra)
+    }
+
+    /// Starts the server for `topic` from `dir`, as `try_start` does.
+    pub fn try_start_in(&self, dir: &Path, topic: &str, extra: &[&str]) -> Result<Server, Output> {
         let mut args = vec!["start", topic];
         args.extend_from_slice(extra);
         let mut child = self
-            .command(&args)
+            .command_in(dir, &args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -176,6 +205,10 @@ impl Server {
             .timeout_global(Some(Duration::from_secs(10)))
             .build()
             .into()
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.child.id()
     }
 
     pub fn view(&self) -> Value {

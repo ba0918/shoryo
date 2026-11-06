@@ -132,7 +132,7 @@ impl Drop for Lock {
 }
 
 /// The process the lock at `path` names, while that process runs.
-pub(super) fn running_holder(path: &Path) -> Option<u32> {
+pub(crate) fn running_holder(path: &Path) -> Option<u32> {
     fs::read_to_string(path)
         .ok()
         .and_then(|text| parse_pid(&text))

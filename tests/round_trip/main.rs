@@ -10,6 +10,7 @@ mod harness;
 mod large_responses;
 mod lifecycle;
 mod page_stream;
+mod ps;
 mod selective_results;
 mod skill_examples;
 mod times;

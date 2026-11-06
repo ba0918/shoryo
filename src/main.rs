@@ -7,8 +7,9 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Args, Parser, Subcommand};
-use shoryo_server::location::{TopicLocation, TopicName};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use shoryo_server::listing;
+use shoryo_server::location::{self, TopicLocation, TopicName};
 use shoryo_server::{AskId, DecisionId, QuestionId, ResultSelection, ServeOptions, serve};
 
 /// Run brainstorm rounds on a local browser screen instead of the chat.
@@ -58,6 +59,19 @@ enum Commands {
     Result(ResultArgs),
     /// Stop the topic's server.
     Stop { topic: String },
+    /// List the topics of this repository and their servers.
+    Ps(PsArgs),
+}
+
+#[derive(Args)]
+struct PsArgs {
+    #[arg(long, value_enum)]
+    format: Format,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum Format {
+    Json,
 }
 
 #[derive(Args)]
@@ -181,13 +195,34 @@ fn run(command: Commands) -> Result<(), String> {
             client::connect(&locate(&topic)?)?.post("stop", String::new())?;
             Ok(())
         }
+        Commands::Ps(args) => ps(&args),
     }
+}
+
+fn ps(args: &PsArgs) -> Result<(), String> {
+    let start = current_dir()?;
+    let current = location::repository_dir(&start).map_err(|error| error.to_string())?;
+    let root = location::data_root().map_err(|error| error.to_string())?;
+    let topics = listing::scan(&root).map_err(|error| error.to_string())?;
+    let listed = listing::select(
+        topics,
+        &listing::Range::Repository(current),
+        listing::Target::Running,
+    );
+    match args.format {
+        Format::Json => println!("{}", listing::render_json(&listed)),
+    }
+    Ok(())
+}
+
+fn current_dir() -> Result<PathBuf, String> {
+    std::env::current_dir()
+        .map_err(|error| format!("the current directory cannot be read: {error}"))
 }
 
 fn locate(topic: &str) -> Result<TopicLocation, String> {
     let name = TopicName::parse(topic).map_err(|error| error.to_string())?;
-    let start = std::env::current_dir()
-        .map_err(|error| format!("the current directory cannot be read: {error}"))?;
+    let start = current_dir()?;
     TopicLocation::find(name, &start).map_err(|error| error.to_string())
 }
 

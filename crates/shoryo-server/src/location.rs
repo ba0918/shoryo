@@ -50,9 +50,7 @@ impl TopicLocation {
     /// Locates `name` for a command started in `start_dir`.
     pub fn find(name: TopicName, start_dir: &Path) -> Result<Self, ServerError> {
         let repository = repository_top(start_dir);
-        let data = dirs::data_dir().ok_or(ServerError::NoDataDirectory)?;
-        let dir = data
-            .join("shoryo")
+        let dir = data_root()?
             .join(repository_key(&repository))
             .join(name.as_str());
         Ok(Self {
@@ -63,16 +61,33 @@ impl TopicLocation {
     }
 
     pub fn state_file(&self) -> PathBuf {
-        self.dir.join("state.json")
+        self.dir.join(STATE_FILE)
     }
 
     pub fn lock_file(&self) -> PathBuf {
-        self.dir.join("lock")
+        self.dir.join(LOCK_FILE)
     }
 
     pub fn endpoint_file(&self) -> PathBuf {
-        self.dir.join("endpoint.json")
+        self.dir.join(ENDPOINT_FILE)
     }
+}
+
+pub(crate) const STATE_FILE: &str = "state.json";
+pub(crate) const LOCK_FILE: &str = "lock";
+pub(crate) const ENDPOINT_FILE: &str = "endpoint.json";
+
+/// `<data dir>/shoryo`, which holds one directory per repository.
+pub fn data_root() -> Result<PathBuf, ServerError> {
+    Ok(dirs::data_dir()
+        .ok_or(ServerError::NoDataDirectory)?
+        .join("shoryo"))
+}
+
+/// The directory holding the topics of the repository a command started in `start_dir`
+/// belongs to. Only computes the path; nothing is created.
+pub fn repository_dir(start_dir: &Path) -> Result<PathBuf, ServerError> {
+    Ok(data_root()?.join(repository_key(&repository_top(start_dir))))
 }
 
 /// `git rev-parse --show-toplevel` run in `start_dir`; the start directory itself when that
