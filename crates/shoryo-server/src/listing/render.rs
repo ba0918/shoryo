@@ -42,60 +42,103 @@ fn text_with_home(
     if topics.is_empty() {
         return "No topics to list.\n".to_string();
     }
-    let with_repository = matches!(range, Range::AllRepositories);
-    let with_stopped = matches!(target, Target::All);
-    let mut header = Vec::new();
-    if with_repository {
-        header.push("REPOSITORY");
-    }
-    header.extend(["TOPIC", "TITLE", "ROUND"]);
-    if with_stopped {
-        header.extend(["UPDATED", "ENDED"]);
-    }
-    header.extend(["PID", "URL"]);
+    let columns = columns(range, target);
+    let header = columns
+        .iter()
+        .map(|column| column.heading.to_string())
+        .collect();
     let rows = topics.iter().map(|topic| {
-        let server = topic.server.as_ref();
-        let mut row = Vec::new();
-        if with_repository {
-            row.push(
+        columns
+            .iter()
+            .map(|column| (column.cell)(topic, home))
+            .collect()
+    });
+    table(std::iter::once(header).chain(rows).collect())
+}
+
+/// One column of the table: its heading, and what a topic shows in it given the home directory.
+struct Column {
+    heading: &'static str,
+    cell: fn(&ListedTopic, Option<&Path>) -> String,
+}
+
+/// Under every repository the repository comes first; with stopped topics too, the update time
+/// and the end come before the PID.
+fn columns(range: &Range, target: Target) -> Vec<Column> {
+    let mut columns = Vec::new();
+    if matches!(range, Range::AllRepositories) {
+        columns.push(Column {
+            heading: "REPOSITORY",
+            cell: |topic, home| {
                 topic
                     .repository
                     .as_deref()
                     .map(|repository| visible(&shorten_home(repository, home)))
-                    .unwrap_or_default(),
-            );
-        }
-        row.push(visible(&topic.topic));
-        row.push(cut(
-            &visible(topic.title.as_deref().unwrap_or_default()),
-            TITLE_WIDTH,
-        ));
-        row.push(
-            topic
-                .latest_round
-                .as_ref()
-                .map(round_cell)
-                .unwrap_or_default(),
-        );
-        if with_stopped {
-            row.push(topic.updated_at.clone().unwrap_or_default());
-            row.push(ended_cell(topic.ended).to_string());
-        }
-        row.push(
-            server
-                .map(|server| server.pid.to_string())
-                .unwrap_or_default(),
-        );
-        row.push(
-            server
-                .and_then(|server| server.url.as_deref())
-                .map(visible)
-                .unwrap_or_default(),
-        );
-        row
-    });
-    let header = header.into_iter().map(str::to_string).collect();
-    table(std::iter::once(header).chain(rows).collect())
+                    .unwrap_or_default()
+            },
+        });
+    }
+    columns.extend([
+        Column {
+            heading: "TOPIC",
+            cell: |topic, _| visible(&topic.topic),
+        },
+        Column {
+            heading: "TITLE",
+            cell: |topic, _| {
+                cut(
+                    &visible(topic.title.as_deref().unwrap_or_default()),
+                    TITLE_WIDTH,
+                )
+            },
+        },
+        Column {
+            heading: "ROUND",
+            cell: |topic, _| {
+                topic
+                    .latest_round
+                    .as_ref()
+                    .map(round_cell)
+                    .unwrap_or_default()
+            },
+        },
+    ]);
+    if matches!(target, Target::All) {
+        columns.extend([
+            Column {
+                heading: "UPDATED",
+                cell: |topic, _| topic.updated_at.clone().unwrap_or_default(),
+            },
+            Column {
+                heading: "ENDED",
+                cell: |topic, _| ended_cell(topic.ended).to_string(),
+            },
+        ]);
+    }
+    columns.extend([
+        Column {
+            heading: "PID",
+            cell: |topic, _| {
+                topic
+                    .server
+                    .as_ref()
+                    .map(|server| server.pid.to_string())
+                    .unwrap_or_default()
+            },
+        },
+        Column {
+            heading: "URL",
+            cell: |topic, _| {
+                topic
+                    .server
+                    .as_ref()
+                    .and_then(|server| server.url.as_deref())
+                    .map(visible)
+                    .unwrap_or_default()
+            },
+        },
+    ]);
+    columns
 }
 
 /// The round's number, and whether the person sent it or it waits for their answers.
