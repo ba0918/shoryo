@@ -104,7 +104,7 @@ pub struct Started {
 /// Runs the topic's server until it is told to stop, a stop command or SIGINT or SIGTERM.
 pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result<(), ServerError> {
     let lock = Lock::take(&options.location)?;
-    let state = store::load(&options.location)?;
+    let (state, loaded) = store::load(&options.location)?;
     // Each topic serializes its state; a CPU-sized pool per topic multiplies idle threads.
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -144,7 +144,7 @@ pub fn serve(options: ServeOptions, on_started: impl FnOnce(&Started)) -> Result
 
         let warnings = bind_warning.into_iter().chain(config_warning).collect();
 
-        let shared = app::Shared::new(state, options.location, config, url.clone());
+        let shared = app::Shared::new(state, loaded, options.location, config, url.clone());
         let mut stopping = shared.shutdown.subscribe();
         let signals = shared.shutdown.clone();
         tokio::spawn(async move {

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
@@ -8,12 +9,16 @@ use shoryo_core::{ChainLink, DecisionId, Map, QuestionId, ScreenView, SentAnswer
 use tokio::sync::watch;
 
 use super::ApiError;
+use crate::clock;
 use crate::config::ConfigFile;
 use crate::location::TopicLocation;
-use crate::store::{self, StoredTopic};
+use crate::store::{self, Loaded, StoredTopic};
 
 pub(crate) struct Shared {
     state: Mutex<StoredTopic>,
+    /// Whether the state file has yet to be written; read and changed only while `state` is
+    /// locked.
+    unwritten: AtomicBool,
     location: TopicLocation,
     pub(super) config: ConfigFile,
     pub(super) url: String,
@@ -25,12 +30,14 @@ pub(crate) struct Shared {
 impl Shared {
     pub(crate) fn new(
         state: StoredTopic,
+        loaded: Loaded,
         location: TopicLocation,
         config: ConfigFile,
         url: String,
     ) -> Arc<Self> {
         Arc::new(Self {
             state: Mutex::new(state),
+            unwritten: AtomicBool::new(loaded == Loaded::New),
             location,
             config,
             url,
@@ -65,8 +72,12 @@ impl Shared {
         let mut state = self.lock();
         let mut changed = state.clone();
         let value = change(&mut changed).map_err(refuse)?;
+        if self.unwritten.load(Ordering::Relaxed) {
+            changed.created_at = Some(clock::now());
+        }
         store::save(&self.location, &changed)
             .map_err(|error| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, error))?;
+        self.unwritten.store(false, Ordering::Relaxed);
         *state = changed;
         drop(state);
         self.version.send_modify(|version| *version += 1);

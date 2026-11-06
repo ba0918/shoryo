@@ -8,7 +8,7 @@ use std::fs;
 use std::io::ErrorKind;
 
 use serde::{Deserialize, Serialize};
-use shoryo_core::Topic;
+use shoryo_core::{Timestamp, Topic};
 
 use crate::ServerError;
 use crate::location::TopicLocation;
@@ -22,6 +22,10 @@ pub(crate) use lock::{Lock, running_holder};
 pub struct StoredTopic {
     pub repository: String,
     pub name: String,
+    /// When the state was first written. Topics written before this was kept have none, and
+    /// keep none: a later time would pass for the creation time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<Timestamp>,
     #[serde(flatten)]
     pub topic: Topic,
 }
@@ -33,13 +37,28 @@ impl StoredTopic {
     }
 }
 
+/// Where the state a server works on came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Loaded {
+    FromFile,
+    /// The topic had no state file, so the first save writes it.
+    New,
+}
+
 /// Reads the topic's state, or starts a new one when there is none yet.
-pub(crate) fn load(location: &TopicLocation) -> Result<StoredTopic, ServerError> {
-    Ok(load_existing(location)?.unwrap_or_else(|| StoredTopic {
-        repository: location.repository.display().to_string(),
-        name: location.name.to_string(),
-        topic: Topic::new("", ""),
-    }))
+pub(crate) fn load(location: &TopicLocation) -> Result<(StoredTopic, Loaded), ServerError> {
+    Ok(match load_existing(location)? {
+        Some(state) => (state, Loaded::FromFile),
+        None => (
+            StoredTopic {
+                repository: location.repository.display().to_string(),
+                name: location.name.to_string(),
+                created_at: None,
+                topic: Topic::new("", ""),
+            },
+            Loaded::New,
+        ),
+    })
 }
 
 /// Reads and validates an existing topic without inventing an empty topic when absent.
@@ -96,6 +115,7 @@ mod tests {
         StoredTopic {
             repository: "repository".into(),
             name: "test".into(),
+            created_at: None,
             topic: Topic::new("New", "Request"),
         }
     }
@@ -115,7 +135,7 @@ mod tests {
                 .file_type()
                 .is_symlink()
         );
-        assert_eq!(load(&location).unwrap().topic.title, "New");
+        assert_eq!(load(&location).unwrap().0.topic.title, "New");
     }
 
     #[test]

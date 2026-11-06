@@ -5,7 +5,7 @@ use std::process::Output;
 
 use serde_json::Value;
 
-use crate::harness::{Env, Server, first_round, stored_time, text};
+use crate::harness::{Env, Server, clock_ms, first_round, stored_time, text};
 
 /// Runs `ps` from `dir`; the command must succeed.
 fn ps(env: &Env, dir: &Path, flags: &[&str]) -> Output {
@@ -296,4 +296,50 @@ fn ps_help_states_the_text_default() {
     assert!(help.status.success(), "{}", text(&help));
     let help = String::from_utf8_lossy(&help.stdout);
     assert!(help.contains("default: text"), "{help}");
+}
+
+/// A round after the first, asking one new question `id`.
+fn next_round(id: &str) -> String {
+    let mut round: Value = serde_json::from_str(&first_round()).expect("the round is JSON");
+    round["questions"][0]["id"] = id.into();
+    round.to_string()
+}
+
+#[test]
+fn created_at_is_recorded_when_the_state_is_first_written() {
+    let env = Env::new();
+    let server = env.start("store", &[]);
+    let created = |env: &Env| row(&ps_json(env, &env.work, &["-a"]), "store")["created_at"].clone();
+    let unset = created(&env);
+
+    let before = clock_ms();
+    assert!(
+        env.run(&["round", "store"], &first_round())
+            .status
+            .success()
+    );
+    let after = clock_ms();
+    let first = created(&env);
+    let stored = env.result("store", &[])["created_at"].clone();
+    assert_eq!(server.submit(), 200);
+    assert!(env.run(&["stop", "store"], "").status.success());
+    server.finish();
+    let again = env.start("store", &[]);
+    assert!(
+        env.run(&["round", "store"], &next_round("q2"))
+            .status
+            .success()
+    );
+    let later = created(&env);
+    drop(again);
+
+    assert_eq!(unset, Value::Null);
+    let (instant, offset) = stored_time(first.as_str().expect("the creation time is set"));
+    assert!(
+        (before..=after).contains(&instant),
+        "{first} is not between {before} and {after}"
+    );
+    assert_eq!(offset, 0);
+    assert_eq!(stored, first);
+    assert_eq!(later, first);
 }

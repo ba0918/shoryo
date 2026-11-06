@@ -115,7 +115,7 @@ fn read_topic(repository_dir: &Path, topic_dir: &Path, name: &TopicName) -> List
         title: string(&state, "title"),
         ended: state["ended"].as_bool(),
         latest_round: latest_round(&state),
-        created_at: None,
+        created_at: string(&state, "created_at"),
         updated_at,
         data_dir: topic_dir.display().to_string(),
         server,
