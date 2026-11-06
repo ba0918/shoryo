@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use super::{LatestRound, ListedTopic, Range, Target};
+use super::{LatestRound, ListedTopic, Range, Selection, Target};
 
 /// The JSON form: an array with one object per topic, a form other tools may read.
 pub fn render_json(topics: &[ListedTopic]) -> String {
@@ -11,9 +11,21 @@ pub fn render_json(topics: &[ListedTopic]) -> String {
 
 /// The text form: a table for a person to read, whose look may change. Under every
 /// repository the repository comes first; with stopped topics too, the update time and the end
-/// are added.
-pub fn render_text(topics: &[ListedTopic], range: &Range, target: Target) -> String {
-    text_with_home(topics, range, target, dirs::home_dir().as_deref())
+/// are added. A line after it counts the servers running outside the range.
+pub fn render_text(selection: &Selection, range: &Range, target: Target) -> String {
+    let mut text = text_with_home(
+        &selection.topics,
+        range,
+        target,
+        dirs::home_dir().as_deref(),
+    );
+    if selection.running_outside > 0 {
+        text.push_str(&format!(
+            "Servers running in other repositories: {}; list them with --all-repos.\n",
+            selection.running_outside
+        ));
+    }
+    text
 }
 
 /// Titles longer than this are cut, so a long one does not push the URL off the line.

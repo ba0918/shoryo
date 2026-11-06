@@ -221,10 +221,10 @@ fn ps(args: &PsArgs) -> Result<(), String> {
     } else {
         listing::Target::Running
     };
-    let listed = listing::select(topics, &range, target);
+    let selection = listing::select(topics, &range, target);
     match args.format {
-        Format::Text => print!("{}", listing::render_text(&listed, &range, target)),
-        Format::Json => println!("{}", listing::render_json(&listed)),
+        Format::Text => print!("{}", listing::render_text(&selection, &range, target)),
+        Format::Json => println!("{}", listing::render_json(&selection.topics)),
     }
     Ok(())
 }

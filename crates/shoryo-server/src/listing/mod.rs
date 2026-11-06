@@ -17,7 +17,7 @@ use crate::location::{ENDPOINT_FILE, LOCK_FILE, STATE_FILE, TopicName};
 use crate::store::{read_endpoint_file, running_holder};
 
 pub use render::{render_json, render_text};
-pub use select::{Range, Target, select};
+pub use select::{Range, Selection, Target, select};
 
 /// One topic as `ps` lists it. Serialized, it is one element of the JSON output.
 #[derive(Debug, Clone, Serialize)]

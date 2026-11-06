@@ -20,12 +20,29 @@ pub enum Target {
     All,
 }
 
+/// What `ps` lists, and what it only counts.
+#[derive(Debug, Clone)]
+pub struct Selection {
+    pub topics: Vec<ListedTopic>,
+    /// Servers running outside the range, whatever the target
+    /// (`docs/spec/ps.md`, "範囲の外で動いているサーバーの知らせ").
+    pub running_outside: usize,
+}
+
 /// The topics of `topics` in `range` that `target` asks for.
-pub fn select(topics: Vec<ListedTopic>, range: &Range, target: Target) -> Vec<ListedTopic> {
-    topics
-        .into_iter()
-        .filter(|topic| in_range(topic, range) && is_target(topic, target))
-        .collect()
+pub fn select(topics: Vec<ListedTopic>, range: &Range, target: Target) -> Selection {
+    let (inside, outside): (Vec<_>, Vec<_>) =
+        topics.into_iter().partition(|topic| in_range(topic, range));
+    Selection {
+        topics: inside
+            .into_iter()
+            .filter(|topic| is_target(topic, target))
+            .collect(),
+        running_outside: outside
+            .iter()
+            .filter(|topic| topic.server.is_some())
+            .count(),
+    }
 }
 
 fn in_range(topic: &ListedTopic, range: &Range) -> bool {

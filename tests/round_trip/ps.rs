@@ -261,3 +261,28 @@ fn ps_with_nothing_to_list_prints_one_line_or_an_empty_array() {
     );
     assert!(rows.is_empty());
 }
+
+#[test]
+fn ps_text_notes_servers_running_in_other_repositories() {
+    let env = Env::new();
+    let b = env.repository("b");
+    let c = env.repository("c");
+    stopped_after_a_round(&env, &b, "b-stopped");
+    let _b = env.start_in(&b, "b-running", &[]);
+    let _c = env.start_in(&c, "c-running", &[]);
+
+    let running = ps(&env, &env.work, &[]);
+    let all = ps(&env, &env.work, &["-a"]);
+    let json = ps(&env, &env.work, &["--format", "json"]);
+    let every = ps(&env, &env.work, &["--all-repos"]);
+
+    for output in [&running, &all] {
+        let note = String::from_utf8_lossy(&output.stdout);
+        let last = note.lines().last().unwrap_or_default();
+        assert!(last.contains('2') && last.contains("--all-repos"), "{note}");
+        assert!(!last.contains('3'), "{note}");
+    }
+    assert_eq!(String::from_utf8_lossy(&json.stdout).trim(), "[]");
+    let every = String::from_utf8_lossy(&every.stdout);
+    assert!(!every.contains("--all-repos"), "{every}");
+}
