@@ -90,6 +90,13 @@ Linux での既定の設定ファイルは `~/.config/shoryo/config.toml` です
 通知が消えた後も、一覧から開けます。
 「戻る」で、移動する前に見ていた場所へ戻れます。
 
+エージェントが URL を伝え忘れたときや、エージェントの会話が終わってサーバーが残ったときは、リポジトリで `shoryo ps` を打ってください。
+動いている議題を、サーバーの PID と画面の URL つきで一覧にします。
+shoryo のファイルだけを読み、サーバーには問い合わせません。
+`-a` で止まった議題も、`--all-repos` で全リポジトリの議題も出します。
+残ったサーバーは `kill <PID>` で止められます。
+止まらなければ `kill -9 <PID>` で止めても、同じ議題を `shoryo start` で起動し直せます。
+
 議題のデータは、ユーザーごとのデータディレクトリに保存します。
 リポジトリ内には保存しません。
 Linux での既定の場所は `~/.local/share/shoryo/` です。
@@ -147,6 +154,7 @@ GitHub Actions** を選びます。`github-pages` 環境のデプロイ対象ブ
 - [画面](docs/spec/screen.md)
 - [図の操作・通知・キーボード操作](docs/spec/interaction.md)
 - [起動・エージェントのコマンド・保存データ](docs/spec/server.md)
+- [議題とサーバーの一覧（`shoryo ps`）](docs/spec/ps.md)
 - [shoryo スキル](docs/spec/skill.md)
 - [用語集](CONTEXT.md)
 

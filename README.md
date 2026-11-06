@@ -87,6 +87,13 @@ A new round or reply outside the visible area triggers a toast with a View butto
 header's notification icon lists the last ten arrivals and shows an unread count. You can
 open the list after a toast disappears. Back returns to the place you left.
 
+If the agent forgot to give you the URL, or its conversation ended and left a server running,
+run `shoryo ps` in the repository. It lists the running topics with each server's PID and page
+URL, read from shoryo's files without contacting any server. `-a` adds stopped topics, and
+`--all-repos` lists every repository's topics. To stop a server that is left over, run
+`kill <PID>`. If it does not stop, `kill -9 <PID>` stops it, and the topic still starts again
+with `shoryo start`.
+
 Topic data stays outside the repository in your per-user data directory. On Linux, the
 default location is `~/.local/share/shoryo/`. shoryo never deletes this data. Remove a topic's
 directory yourself when you no longer need it.
@@ -141,6 +148,7 @@ See [GitHub's publishing-source guide](https://docs.github.com/en/pages/getting-
 - [The screen](docs/spec/screen.md)
 - [Diagram controls, notifications and keyboard access](docs/spec/interaction.md)
 - [Start-up, the agent's commands and the stored data](docs/spec/server.md)
+- [Listing topics and their servers (`shoryo ps`)](docs/spec/ps.md)
 - [The shoryo skill](docs/spec/skill.md)
 - [Glossary](CONTEXT.md)
 
